@@ -26,6 +26,7 @@ export interface AgentLoopState {
   maxRounds: number;
   noProgressRounds: number;
   progressKind: AgentProgressKind;
+  verificationPassed?: boolean;
 }
 
 export interface AgentResearchState {
