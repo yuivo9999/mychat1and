@@ -24,6 +24,7 @@ type AgentProgressPayload = {
 interface AgentProgressCardProps {
   message: Message;
   compact?: boolean;
+  taskState?: AgentTaskState | null;
 }
 
 function parseAgentProgress(content: string): { payload: AgentProgressPayload; items: ProgressItem[] } | null {
@@ -100,11 +101,16 @@ function buildTaskStateView(task: AgentTaskState | null): { payload: AgentProgre
   };
 }
 
-export const AgentProgressCard: React.FC<AgentProgressCardProps> = ({ message, compact = false }) => {
+export const AgentProgressCard: React.FC<AgentProgressCardProps> = ({ message, compact = false, taskState: providedTaskState }) => {
   const parsed = useMemo(() => parseAgentProgress(message.content), [message.content]);
-  const [taskState, setTaskState] = React.useState<AgentTaskState | null>(null);
+  const [taskState, setTaskState] = React.useState<AgentTaskState | null>(providedTaskState ?? null);
 
   React.useEffect(() => {
+    if (providedTaskState !== undefined) {
+      setTaskState(providedTaskState);
+      return;
+    }
+    if (message.status !== 'streaming') return;
     let cancelled = false;
     const refresh = async () => {
       try {
@@ -118,12 +124,12 @@ export const AgentProgressCard: React.FC<AgentProgressCardProps> = ({ message, c
       }
     };
     refresh();
-    const timer = window.setInterval(refresh, 1500);
+    const timer = window.setInterval(refresh, 3000);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [message.id]);
+  }, [message.id, message.status, providedTaskState]);
 
   const taskView = useMemo(() => buildTaskStateView(taskState), [taskState]);
   const view = taskView || parsed;
