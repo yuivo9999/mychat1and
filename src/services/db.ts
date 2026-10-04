@@ -503,6 +503,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   compactMode: false,
   boldHeadings: true,
   enableChatContextMemory: false,
+  enableHistorySearch: true,
   onlyParseMarkdownTables: false,
   codeShowCopyBtn: true,
   codeShowDownloadBtn: true,
@@ -517,6 +518,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   defaultSystemPrompt: '',
   requestTimeout: 300,
   sidebarOpen: true,
+  context7ApiKey: '',
 };
 
 // Open IndexedDB instance
@@ -1141,7 +1143,18 @@ export async function getUserSettings(): Promise<UserSettings> {
       const request = store.get('user_settings');
 
       request.onsuccess = () => {
-        resolve({ ...DEFAULT_SETTINGS, ...(request.result || {}) });
+        const stored = request.result || {};
+        const merged = { ...DEFAULT_SETTINGS, ...stored } as UserSettings;
+        // One-time migration: history search is now enabled by default.
+        try {
+          const migrationKey = 'omnichat_history_search_default_v1';
+          if (localStorage.getItem(migrationKey) !== 'true') {
+            merged.enableHistorySearch = true;
+            localStorage.setItem(migrationKey, 'true');
+            store.put(merged, 'user_settings');
+          }
+        } catch {}
+        resolve(merged);
       };
       request.onerror = () => resolve(cached || DEFAULT_SETTINGS);
     });
