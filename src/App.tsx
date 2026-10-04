@@ -1558,6 +1558,7 @@ export default function App() {
             const phaseFeedback = buildAgentLoopFeedback(
               agentLoopState,
               toolResultsForPrompt.join('\\n\\n'),
+              agentTaskPlan,
             );
             const feedbackInstruction = isDiagnosisMode
               ? `[代码诊断工具执行结果反馈 · ${getAgentPhaseLabel(agentLoopState.phase)}]\n${toolResultsForPrompt.join('\n\n')}\n\n${getAgentPhaseInstruction(agentLoopState)}\n\n请继续严格遵循只读诊断协议；若已完成 10 步调查，请输出结构化诊断报告并停止工具调用。`
