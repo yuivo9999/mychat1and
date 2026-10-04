@@ -963,7 +963,8 @@ export default function App() {
     let webContext = '';
     let webSearchNotice = '';
 
-    if (webAccessEnabled || isContext7Enabled) {
+    const agentResearchNeeded = shouldAgentResearchTask(text);
+    if ((webAccessEnabled || isContext7Enabled) && (!agentMode || !currentWorkspace || agentResearchNeeded)) {
       setStatusMessage(webAccessEnabled ? '正在联网检索网页与 GitHub 资料...' : '正在准备官方技术资料...');
       try {
         const knowledgeResult = await runKnowledgeResearch(
