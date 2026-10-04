@@ -382,5 +382,5 @@ export function buildAgentLoopFeedback(
     '3. 修改后必须优先验证；\\n' +
     '4. 验证失败 → 定位根因、修复、再验证；\\n' +
     '5. 所有 required 子任务和 Definition of Done 都满足后，才停止调用工具并总结；\\n' +
-    '6. 只有确实缺少用户才能提供的信息才进入等待用户，不要因为“暂停一下”而人为停止任务。\\n';
+    '6. 只有确实缺少用户才能提供的信息才进入等待用户，不要因为“暂停一下”而人为停止任务。\\n' +\n    '\\n每轮结束时，如能判断子任务状态，请输出 <agent_progress> JSON；只报告有真实证据支持的 completed/inProgress/blocked 状态，不要猜测。';
 }
