@@ -114,6 +114,44 @@ export function stripAgentPlanBlock(text: string): string {
   return text.replace(/<agent_plan>\\s*[\\s\\S]*?\\s*<\\/agent_plan>/gi, '').trim();
 }
 
+export function applyAgentTaskProgress(plan: AgentTaskPlan, text: string): AgentTaskPlan {
+  const match = text.match(/<agent_progress>\s*([\s\S]*?)\s*<\/agent_progress>/i);
+  if (!match) return plan;
+  try {
+    const raw = JSON.parse(match[1]);
+    const completed = new Set(Array.isArray(raw?.completed) ? raw.completed.map(String) : []);
+    const inProgress = new Set(Array.isArray(raw?.inProgress) ? raw.inProgress.map(String) : []);
+    const blocked = new Map<string, string>();
+    if (Array.isArray(raw?.blocked)) {
+      raw.blocked.forEach((item: any) => {
+        if (item && item.id) blocked.set(String(item.id), typeof item.evidence === 'string' ? item.evidence : '');
+      });
+    }
+    const evidence = new Map<string, string>();
+    if (Array.isArray(raw?.evidence)) {
+      raw.evidence.forEach((item: any) => {
+        if (item && item.id && typeof item.text === 'string') evidence.set(String(item.id), item.text.slice(0, 500));
+      });
+    }
+    return {
+      ...plan,
+      checklist: plan.checklist.map(item => {
+        const nextEvidence = evidence.get(item.id) || blocked.get(item.id) || item.evidence;
+        if (blocked.has(item.id)) return { ...item, status: 'blocked' as const, evidence: nextEvidence };
+        if (completed.has(item.id)) return { ...item, status: 'completed' as const, evidence: nextEvidence };
+        if (inProgress.has(item.id)) return { ...item, status: 'in_progress' as const, evidence: nextEvidence };
+        return nextEvidence ? { ...item, evidence: nextEvidence } : item;
+      }),
+    };
+  } catch {
+    return plan;
+  }
+}
+
+export function stripAgentProgressBlock(text: string): string {
+  return text.replace(/<agent_progress>\s*[\s\S]*?\s*<\/agent_progress>/gi, '').trim();
+}
+
 export function createAgentTaskPlan(goal: string): AgentTaskPlan {
   return {
     goal,
