@@ -347,6 +347,97 @@ export function updateProjectCollectiveMemory(
 }
 
 
+/**
+ * Explicitly create one durable project-memory record from an AI decision.
+ * The service remains defensive: empty/short content is rejected, exact active
+ * duplicates are ignored, and category/priority/confidence are always derived locally.
+ */
+export function createProjectMemoryRecord(
+  project: Project,
+  content: string,
+  sourceConversationId?: string,
+  reason?: string
+): Project {
+  const normalized = normalizeDecision(content || '');
+  if (normalized.length < 6) return project;
+
+  const records = migrateLegacyRecords(project).map(r => ({ ...r }));
+  const duplicate = records.find(r =>
+    r.status === 'active' && normalizeDecision(r.content).toLowerCase() === normalized.toLowerCase()
+  );
+  if (duplicate) {
+    duplicate.updatedAt = Date.now();
+    if (sourceConversationId) duplicate.sourceConversationId = sourceConversationId;
+    duplicate.sourceConversationUpdatedAt = Date.now();
+    if (reason?.trim()) duplicate.resolutionReason = normalizeDecision(reason);
+    const keyPoints = records.filter(r => r.status === 'active')
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .slice(0, MAX_ACTIVE_MEMORY_RECORDS)
+      .map(r => r.content);
+    return { ...project, updatedAt: Date.now(), sharedMemory: { ...project.sharedMemory, keyPoints, records } };
+  }
+
+  const now = Date.now();
+  const category = inferMemoryCategory(normalized);
+  const confidence = memoryConfidence(normalized, now);
+  const record: ProjectMemoryRecord = {
+    id: `${stableRecordId(normalized)}_${now.toString(36)}`,
+    content: normalized,
+    status: 'active',
+    createdAt: now,
+    updatedAt: now,
+    sourceConversationId,
+    sourceConversationUpdatedAt: now,
+    confidence,
+    category,
+    priority: memoryPriority(category, normalized, confidence),
+    resolutionReason: reason?.trim() ? normalizeDecision(reason) : undefined,
+  };
+
+  const related = records
+    .filter(r => r.status === 'active')
+    .map(r => ({ record: r, overlap: tokenOverlap(r.content, normalized) }))
+    .filter(item => item.overlap >= 0.5)
+    .sort((a, b) => b.overlap - a.overlap);
+
+  if (looksLikeSupersedingDecision(normalized) && related.length > 0) {
+    for (const item of related.slice(0, 3)) {
+      if (item.record.updatedAt <= now) {
+        item.record.status = 'superseded';
+        item.record.updatedAt = now;
+        item.record.supersededById = record.id;
+        item.record.conflictGroupId = conflictGroupId(item.record.content, normalized);
+        item.record.resolutionReason = reason?.trim()
+          ? normalizeDecision(reason)
+          : '被新的明确项目决定取代';
+      }
+    }
+    record.conflictGroupId = conflictGroupId(related[0].record.content, normalized);
+  }
+
+  records.push(record);
+  const active = records.filter(r => r.status === 'active')
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+  if (active.length > MAX_ACTIVE_MEMORY_RECORDS) {
+    for (const stale of active.slice(MAX_ACTIVE_MEMORY_RECORDS)) {
+      stale.status = 'archived';
+      stale.updatedAt = now;
+      stale.resolutionReason = '超过项目长期记忆容量上限，自动归档';
+    }
+  }
+
+  const finalRecords = [
+    ...records.filter(r => r.status === 'active'),
+    ...records.filter(r => r.status !== 'active').sort((a, b) => b.updatedAt - a.updatedAt),
+  ].slice(0, MAX_STORED_MEMORY_RECORDS);
+  const keyPoints = finalRecords.filter(r => r.status === 'active')
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+    .slice(0, MAX_ACTIVE_MEMORY_RECORDS)
+    .map(r => r.content);
+
+  return { ...project, updatedAt: now, sharedMemory: { ...project.sharedMemory, keyPoints, records: finalRecords } };
+}
+
 export function getProjectMemoryRecords(
   project: Project,
   includeHistory = false,
