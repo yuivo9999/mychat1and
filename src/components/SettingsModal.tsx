@@ -294,7 +294,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       apiKeys,
       models: models.filter(m => m.isCustom),
       providers: providers.filter(p => p.isCustom),
-      settings,
+      settings: { ...settings, context7ApiKey: undefined },
     };
     const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(configData, null, 2));
     const dlAnchor = document.createElement('a');
