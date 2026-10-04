@@ -99,7 +99,7 @@ public class MyChatRuntimePlugin extends Plugin {
             result.put("stdout", parsed.optString("stdout", ""));
             result.put("stderr", parsed.optString("stderr", ""));
             result.put("exitCode", parsed.optInt("exitCode", 1));
-            result.put("error", parsed.optString("error", JSONObject.NULL));
+            result.put("error", parsed.optString("error", null));
             result.put("changedFiles", toJsArray(parsed.optJSONArray("changedFiles")));
             result.put("binaryFiles", toJsArray(parsed.optJSONArray("binaryFiles")));
             result.put("durationMs", parsed.optLong("durationMs", 0));
@@ -164,7 +164,7 @@ public class MyChatRuntimePlugin extends Plugin {
     }
 
     private boolean isSafeRelativePath(String path) {
-        if (path.isEmpty() || path.startsWith("/") || path.startsWith("\\") || path.contains(":")) {
+        if (path.isEmpty() || path.startsWith("/") || path.startsWith("\") || path.contains(":")) {
             return false;
         }
         String normalized = path.replace('\\', '/');
