@@ -481,6 +481,7 @@ ${outcome.result?.tree || JSON.stringify(outcome.result?.files, null, 2)}
 - 清单: ${result.manifest || '无'}
 - 可用脚本: ${(result.scripts || []).join(', ') || '无'}
 - 推荐检查命令: ${(result.checkCommands || []).join(' | ') || '无'}
+- 检查策略: ${result.checkStrategy || 'unknown'}
 - 入口候选: ${(result.entrypoints || []).join(', ') || '无'}
 - 运行时信号: ${(result.signals || []).join('；') || '无'}
 > 这是后续安装依赖、构建、测试与修复的事实基线，不要凭经验猜测项目工具链。`;
@@ -1019,7 +1020,9 @@ export async function executeWorkspaceTool(
         return {
           result: { kind: info.kind, installed: false, reason: '当前项目没有可安全自动安装的依赖命令。' },
           updatedWorkspace: ws,
-          errorMessage: '当前项目类型暂不支持自动依赖安装，请根据项目实际工具链处理。',
+          errorMessage: info.packageManager && info.packageManager !== 'npm'
+            ? `当前检测到 ${info.packageManager}，Android runtime 目前只保证 npm；不会错误地用 npm install 替代 ${info.packageManager}。`
+            : '当前项目类型暂不支持自动依赖安装，请根据项目实际工具链处理。',
           stepIcon: 'code',
           stepTitle: '依赖安装暂不支持: ' + info.kind,
         };
@@ -1044,6 +1047,41 @@ export async function executeWorkspaceTool(
     case 'run_project_check': {
       const info = inspectProjectRuntime(ws);
       const requested = String(args.command || '').trim();
+      if (info.checkStrategy === 'unsupported') {
+        return {
+          result: { kind: info.kind, checked: false, supported: false, reason: info.signals.join('；') },
+          updatedWorkspace: ws,
+          errorMessage: `当前 Android runtime 不支持 ${info.kind} 项目的自动检查。请不要反复执行不可用工具链。`,
+          stepIcon: 'search',
+          stepTitle: `项目检查不可用: ${info.kind}`,
+        };
+      }
+
+      if (info.checkStrategy === 'python_source' && !requested) {
+        const runData = await executeCode({
+          language: 'python',
+          code: `import compileall\nimport sys\nok = compileall.compile_dir('.', quiet=1, maxlevels=99)\nsys.exit(0 if ok else 1)`,
+          timeoutMs: 120_000,
+          workspaceId: ws.id,
+        });
+        const result = {
+          command: 'Python compileall',
+          stdout: runData.stdout,
+          stderr: runData.stderr,
+          exitCode: runData.exitCode,
+          error: runData.error,
+          runtime: runData.runtime,
+        };
+        if (runData.success) return { result, updatedWorkspace: ws, stepIcon: 'code', stepTitle: '项目检查通过: Python compileall' };
+        return {
+          result,
+          updatedWorkspace: ws,
+          errorMessage: runData.error || runData.stderr || `Python 项目检查失败，退出码: ${runData.exitCode}`,
+          stepIcon: 'lightning',
+          stepTitle: '项目检查失败: Python compileall',
+        };
+      }
+
       const command = requested || info.checkCommands[0];
       if (!command) {
         return {
