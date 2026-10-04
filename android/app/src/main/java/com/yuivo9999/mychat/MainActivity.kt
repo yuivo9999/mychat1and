@@ -322,6 +322,20 @@ class AndroidBridge(
             source.inputStream().use { input -> FileOutputStream(destination).use { output -> input.copyTo(output) } }
         }
     }
+    private fun classifyNpmFailure(stderr: String, stdout: String, error: String): String {
+        val text = (stderr + "\n" + stdout + "\n" + error).lowercase()
+        return when {
+            "eacces" in text || "permission denied" in text -> "permission"
+            "getaddrinfo" in text || "fetch failed" in text || "network" in text -> "network"
+            "etimedout" in text || "timed out" in text || "timeout" in text -> "timeout"
+            "e404" in text || "not found" in text -> "package-not-found"
+            "eresolve" in text || "peer dep" in text || "conflicting peer" in text -> "dependency-conflict"
+            "node-gyp" in text || "gyp err" in text || "prebuild" in text -> "native-module"
+            "enoent" in text -> "missing-runtime-file"
+            else -> "unknown"
+        }
+    }
+
     private fun runNodeCommandInternal(command: String, timeoutMs: Int, workspaceId: String): Map<String, Any?> {
         val nodeBinary = File(activity.applicationInfo.nativeLibraryDir, "libnode.so")
         require(nodeBinary.isFile) { "Android Node.js runtime is not bundled" }
@@ -401,6 +415,7 @@ class AndroidBridge(
                 put("exitCode", (result["exitCode"] as? Number)?.toInt() ?: -1)
                 if (result["error"] != null) put("error", result["error"].toString())
                 put("recoveredPreviousDependencies", !success && hadExisting && nodeModules.isDirectory)
+                put("failureCategory", if (success) JSONObject.NULL else classifyNpmFailure(result["stderr"]?.toString() ?: "", result["stdout"]?.toString() ?: "", result["error"]?.toString() ?: ""))
             }.toString()
         } catch (e: Throwable) {
             JSONObject().put("success", false).put("error", e.message ?: e.javaClass.simpleName).toString()
