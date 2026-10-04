@@ -64,6 +64,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   const [placement, setPlacement] = useState<'top' | 'bottom'>('top');
   const statsContainerRef = useRef<HTMLDivElement>(null);
   const triggerButtonRef = useRef<HTMLButtonElement>(null);
+  const messageContentRef = useRef<HTMLDivElement>(null);
 
   const handleToggleStats = () => {
     if (!isStatsOpen && triggerButtonRef.current) {
@@ -189,6 +190,54 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
     settings.useTextBox,
     settings.onlyParseMarkdownTables
   ]);
+
+  // Long-response navigation: derive a compact outline from Markdown headings.
+  const responseOutline = useMemo(() => {
+    if (isUser || !mainContent.trim()) return [];
+    return mainContent
+      .split('\n')
+      .map((line, index) => {
+        const match = line.match(/^(#{1,3})\s+(.+)$/);
+        if (!match) return null;
+        return {
+          level: match[1].length,
+          title: match[2].replace(/[*_`~]/g, '').trim(),
+          index,
+        };
+      })
+      .filter((item): item is { level: number; title: string; index: number } => Boolean(item && item.title))
+      .slice(0, 14);
+  }, [isUser, mainContent]);
+
+  const sourceDomains = useMemo(() => {
+    if (isUser || !message.webSearchResults?.length) return [];
+    const counts = new Map<string, number>();
+    message.webSearchResults.forEach((source) => {
+      try {
+        const host = new URL(source.url).hostname.replace(/^www\./, '');
+        counts.set(host, (counts.get(host) || 0) + 1);
+      } catch {
+        counts.set('网络资料', (counts.get('网络资料') || 0) + 1);
+      }
+    });
+    return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  }, [isUser, message.webSearchResults]);
+
+  const responseStatus = message.status === 'streaming'
+    ? '正在生成'
+    : message.toolCalls && message.toolCalls.some((call: any) => call.status === 'running' || call.status === 'pending')
+      ? 'Agent 执行中'
+      : message.status === 'error'
+        ? '生成失败'
+        : '已完成';
+
+  const jumpToOutlineItem = (outlineIndex: number) => {
+    const root = messageContentRef.current;
+    if (!root) return;
+    const headings = Array.from(root.querySelectorAll('h1, h2, h3'));
+    const target = headings[outlineIndex] as HTMLElement | undefined;
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   const handleCopy = () => {
     navigator.clipboard.writeText(message.content);
@@ -515,28 +564,88 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
           />
         )}
 
-        {/* Web Search Sources Citation */}
+        {/* Web Search Sources — grouped summary + readable source cards */}
         {!isUser && message.webSearchResults && message.webSearchResults.length > 0 && (
-          <div className="mb-2.5 p-2 rounded-xl bg-blue-500/5 dark:bg-blue-950/25 border border-blue-500/20 text-xs animate-in fade-in">
-            <div className="flex items-center gap-1.5 font-medium text-blue-600 dark:text-blue-400 mb-1.5">
-              <Globe className="w-3.5 h-3.5 shrink-0" />
-              <span>已参考 {message.webSearchResults.length} 个网络网页资料：</span>
+          <div className="response-sources mb-3 rounded-xl border border-blue-500/15 bg-blue-500/[0.035] dark:bg-blue-950/15 overflow-hidden animate-in fade-in">
+            <div className="px-3 py-2 border-b border-blue-500/10 flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-blue-700 dark:text-blue-300">
+                <Globe className="w-3.5 h-3.5" />
+                <span>联网来源</span>
+              </div>
+              <span className="text-[10px] text-neutral-400">{message.webSearchResults.length} 个来源</span>
+              <div className="ml-auto flex flex-wrap gap-1">
+                {sourceDomains.map(([domain, count]) => (
+                  <span key={domain} className="px-1.5 py-0.5 rounded-md bg-white/70 dark:bg-neutral-900/50 border border-blue-500/10 text-[10px] text-neutral-500 dark:text-neutral-400">
+                    {domain} ×{count}
+                  </span>
+                ))}
+              </div>
             </div>
-            <div className="flex flex-wrap gap-1.5">
-              {message.webSearchResults.map((source, idx) => (
-                <a
-                  key={idx}
-                  href={source.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700/80 text-[11px] text-neutral-700 dark:text-neutral-300 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-400 dark:hover:border-blue-500/50 transition truncate max-w-[240px]"
-                  title={`${source.title}\n${source.snippet}\n${source.url}`}
-                >
-                  <span className="font-mono text-neutral-400 font-semibold">[{idx + 1}]</span>
-                  <span className="truncate">{source.title}</span>
-                </a>
-              ))}
+            <div className="p-2 grid gap-1.5 sm:grid-cols-2">
+              {message.webSearchResults.map((source, idx) => {
+                let domain = '网络资料';
+                try { domain = new URL(source.url).hostname.replace(/^www\./, ''); } catch { /* keep fallback */ }
+                return (
+                  <a
+                    key={idx}
+                    href={source.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group/source flex min-w-0 items-center gap-2 px-2.5 py-2 rounded-lg bg-white/80 dark:bg-neutral-900/45 border border-neutral-200/70 dark:border-neutral-800/70 hover:border-blue-400/50 hover:bg-blue-50/60 dark:hover:bg-blue-950/25 transition"
+                    title={`${source.title}\n${source.snippet}\n${source.url}`}
+                  >
+                    <span className="shrink-0 w-6 h-6 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-300 flex items-center justify-center font-mono text-[10px] font-bold">{idx + 1}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[11px] font-medium text-neutral-800 dark:text-neutral-200">{source.title}</span>
+                      <span className="block truncate text-[10px] text-neutral-400 mt-0.5">{domain}</span>
+                    </span>
+                    <ChevronRight className="w-3 h-3 shrink-0 text-neutral-300 group-hover/source:text-blue-500 transition" />
+                  </a>
+                );
+              })}
             </div>
+          </div>
+        )}
+
+        {/* AI response surface: status + long-response navigation */}
+        {!isUser && !isEditing && (
+          <div className="response-surface-header flex flex-wrap items-center gap-2 pt-0.5 pb-1">
+            <span className={
+              "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-[10px] font-medium " +
+              (message.status === 'error'
+                ? "text-red-600 dark:text-red-300 bg-red-500/5 border-red-500/15"
+                : message.status === 'streaming' || responseStatus === 'Agent 执行中'
+                  ? "text-amber-600 dark:text-amber-300 bg-amber-500/5 border-amber-500/15"
+                  : "text-emerald-600 dark:text-emerald-300 bg-emerald-500/5 border-emerald-500/15")
+            }>
+              <span className={
+                'w-1.5 h-1.5 rounded-full ' +
+                (message.status === 'error' ? 'bg-red-500' : message.status === 'streaming' || responseStatus === 'Agent 执行中' ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500')
+              } />
+              {responseStatus}
+            </span>
+            {message.toolCalls && message.toolCalls.length > 0 && (
+              <span className="text-[10px] text-neutral-400">已记录 {message.toolCalls.length} 个执行步骤</span>
+            )}
+            {responseOutline.length > 1 && (
+              <div className="response-outline ml-auto flex max-w-full items-center gap-1 overflow-x-auto pb-0.5">
+                <span className="shrink-0 text-[10px] text-neutral-400 mr-0.5">章节</span>
+                {responseOutline.map((item, outlineIndex) => (
+                  <button
+                    key={`outline-${item.index}-${outlineIndex}`}
+                    type="button"
+                    onClick={() => jumpToOutlineItem(outlineIndex)}
+                    className={
+                      "shrink-0 max-w-[150px] truncate rounded-md px-1.5 py-0.5 text-[10px] text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-200/70 dark:hover:bg-neutral-800 transition " +
+                      (item.level > 1 ? 'pl-2.5' : '')
+                    }
+                    title={item.title}
+                  >
+                    {item.title}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -587,6 +696,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
           </div>
         ) : (
           <div 
+            ref={messageContentRef}
             className="text-neutral-900 dark:text-neutral-100 leading-relaxed overflow-hidden"
             style={{ fontSize: 'var(--chat-font-size, 15px)' }}
           >
@@ -646,7 +756,9 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 
         {/* Action Toolbar */}
         {!isEditing && message.status !== 'streaming' && (
-          <div className={`pt-1.5 flex flex-wrap items-center gap-1 text-xs transition-opacity select-none ${isStatsOpen ? 'opacity-100' : 'opacity-75 md:opacity-0 group-hover:opacity-100'}`}>
+          <div className={`response-action-bar mt-2 pt-2 border-t border-neutral-200/60 dark:border-neutral-800/60 flex flex-wrap items-center gap-1 text-xs transition-opacity select-none ${isStatsOpen ? 'opacity-100' : 'opacity-80 md:opacity-0 group-hover:opacity-100'}`}>
+            {!isUser && <span className="hidden sm:inline text-[10px] text-neutral-400 mr-1">回复操作</span>}
+
             {/* Copy button */}
             <button
               type="button"
