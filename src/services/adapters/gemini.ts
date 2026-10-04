@@ -131,6 +131,7 @@ export class GeminiAdapter implements BaseAdapter {
 
     const controller = new AbortController();
     const timeout = (timeoutSeconds || 60) * 1000;
+    const unregisterActiveRequest = registerActiveRequestController(controller);
     const timeoutId = setTimeout(() => controller.abort(), timeout);
     const onUserAbort = () => controller.abort();
     if (abortSignal) abortSignal.addEventListener('abort', onUserAbort);
