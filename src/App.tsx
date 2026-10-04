@@ -1743,8 +1743,8 @@ export default function App() {
           chatContext: updatedChatContext,
           agentTask: agentTaskId ? {
             taskId: agentTaskId,
-            status: (validationFailureCount >= 3 || shouldProtectAgainstNoProgress(agentLoopState)) ? 'waiting_user' as const : 'completed' as const,
-            phase: (validationFailureCount >= 3 || shouldProtectAgainstNoProgress(agentLoopState)) ? agentLoopState.phase : 'completed',
+            status: (validationFailureCount >= 3 || shouldProtectAgainstNoProgress(agentLoopState) || !areAgentTaskRequirementsMet(agentTaskPlan)) ? 'waiting_user' as const : 'completed' as const,
+            phase: (validationFailureCount >= 3 || shouldProtectAgainstNoProgress(agentLoopState) || !areAgentTaskRequirementsMet(agentTaskPlan)) ? agentLoopState.phase : 'completed',
             round: agentLoopState.round,
             maxRounds: maxAgentTurns,
             progressSummary: (validationFailureCount >= 3 || shouldProtectAgainstNoProgress(agentLoopState)) ? '等待新的用户指示' : 'Agent 任务完成',
@@ -1771,7 +1771,7 @@ export default function App() {
       }
 
       if (agentTaskId) {
-        const needsUser = validationFailureCount >= 3 || shouldProtectAgainstNoProgress(agentLoopState);
+        const needsUser = validationFailureCount >= 3 || shouldProtectAgainstNoProgress(agentLoopState) || !areAgentTaskRequirementsMet(agentTaskPlan);
         await persistAgentTaskState(targetConv.id, {
           taskId: agentTaskId,
           status: needsUser ? 'waiting_user' : 'completed',
