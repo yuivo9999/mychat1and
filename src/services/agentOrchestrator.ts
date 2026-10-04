@@ -625,7 +625,8 @@ export function buildAgentLoopFeedback(
     '## 研究证据\\n' + researchText + '\\n' +
     '## 动态子任务清单\\n' + checklist + '\\n\\n' +
     '## 依赖调度\\n下一项可执行任务：' + nextTaskText + '\\n被依赖阻塞：' + blockedText + '\\n\\n' +
-    '上一轮工具结果：\\n' + toolResults + '\\n\\n' +\n    buildAgentReplanPrompt(plan || createAgentTaskPlan('未明确任务'), '结合上一轮工具结果判断当前计划是否仍然成立') + '\\n\\n' +
+    '上一轮工具结果：\\n' + toolResults + '\\n\\n' +
+    buildAgentReplanPrompt(plan || createAgentTaskPlan('未明确任务'), '结合上一轮工具结果判断当前计划是否仍然成立') + '\\n\\n' +
     '请根据真实证据决定下一步：\\n' +
     '1. 优先执行“下一项可执行任务”；如果任务有未完成 dependsOn，不得抢跑；\\n' +
     '1.1 研究门禁开启且研究未完成时，禁止实施代码修改；\\n' +
