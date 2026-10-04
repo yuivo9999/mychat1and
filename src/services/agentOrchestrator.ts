@@ -480,7 +480,7 @@ export function advanceAgentLoopState(
     phaseRound: state.phaseRound + 1,
     progressKind,
     noProgressRounds: hasMeaningfulProgress ? 0 : state.noProgressRounds + 1,
-    verificationPassed: progressKind === 'verify' && !validationFailed,
+    verificationPassed: progressKind === 'verify' ,
   };
 
   if (progressKind === 'memory') {
