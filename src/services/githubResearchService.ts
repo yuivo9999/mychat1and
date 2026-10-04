@@ -248,6 +248,70 @@ async function fetchIssuesForRepo(fullName: string, query: string, results: WebS
   return { issues, pullRequests };
 }
 
+
+async function fetchIssueDetails(fullName: string, number: number, isPr: boolean): Promise<WebPageContent[]> {
+  const pages: WebPageContent[] = [];
+  const detail = await requestJson(`https://api.github.com/repos/${fullName}/issues/${number}`);
+  if (detail.ok) {
+    try {
+      const item = JSON.parse(detail.body) as GitHubIssue;
+      if (item.html_url) {
+        pages.push({
+          url: item.html_url,
+          title: `GitHub ${isPr ? 'Pull Request' : 'Issue'} Detail: ${item.title || number}`,
+          content: cleanText([
+            `状态：${item.state || 'unknown'}`,
+            `更新时间：${item.updated_at || 'unknown'}`,
+            item.body || '',
+          ].join('\n'), 7000),
+        });
+      }
+    } catch {}
+  }
+
+  if (isPr) {
+    const files = await requestJson(`https://api.github.com/repos/${fullName}/pulls/${number}/files?per_page=10`);
+    if (files.ok) {
+      try {
+        const items = JSON.parse(files.body) || [];
+        for (const file of items) {
+          if (!file.filename) continue;
+          pages.push({
+            url: file.blob_url || `https://github.com/${fullName}/pull/${number}/files`,
+            title: `GitHub PR ${number} diff: ${file.filename}`,
+            content: cleanText([
+              `文件：${file.filename}`,
+              `变更：+${file.additions || 0} / -${file.deletions || 0}`,
+              file.patch || '补丁内容不可用',
+            ].join('\n'), 7000),
+          });
+        }
+      } catch {}
+    }
+  }
+
+  return pages;
+}
+
+async function enrichTopIssuesAndPullRequests(
+  fullName: string,
+  results: WebSearchResult[],
+  pageContents: WebPageContent[],
+): Promise<void> {
+  const candidates = results
+    .filter(item => item.title.startsWith('GitHub Issue:') || item.title.startsWith('GitHub Pull Request:'))
+    .slice(0, 4);
+
+  await Promise.all(candidates.map(async item => {
+    const match = item.url.match(/github\.com\/[^/]+\/[^/]+\/(issues|pull)\/(\d+)/i);
+    if (!match) return;
+    const number = Number(match[2]);
+    if (!Number.isFinite(number)) return;
+    const details = await fetchIssueDetails(fullName, number, match[1].toLowerCase() === 'pull');
+    pageContents.push(...details);
+  }));
+}
+
 export async function performGitHubResearch(rawQuery: string): Promise<GitHubResearchResponse> {
   const query = rawQuery.trim().slice(0, 160);
   if (!query) {
@@ -330,6 +394,7 @@ export async function performGitHubResearch(rawQuery: string): Promise<GitHubRes
 
     if (readme) pageContents.push(readme);
     pageContents.push(...files);
+    await enrichTopIssuesAndPullRequests(fullName, results, pageContents);
     void releaseCount;
   }
 
