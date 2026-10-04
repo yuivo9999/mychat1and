@@ -1526,6 +1526,40 @@ export default function App() {
               );
             }
 
+            // Agent self-verification guard: when Agent changed executable/project code but
+            // forgot to request verification in the same turn, automatically run one project check.
+            // This makes the edit -> execute -> evidence loop reliable instead of prompt-dependent.
+            const verificationAlreadyRequested = detectedToolCalls.some(tc =>
+              tc.tool === 'run_project_check' || tc.tool === 'run_command' || tc.tool === 'run_python'
+            );
+            const executableChange = Array.from(modifiedPaths).some(path =>
+              /(?:\\.(?:ts|tsx|js|jsx|mjs|cjs|py|json|css|html|rs|go)|(?:^|\\/)package-lock\\.json|(?:^|\\/)package\\.json)$/.test(path)
+            );
+            if (!isDiagnosisMode && !verificationAlreadyRequested && executableChange && wsToOperate) {
+              const autoVerify = await executeWorkspaceTool('run_project_check', {}, wsToOperate);
+              wsToOperate = autoVerify.updatedWorkspace;
+              if (autoVerify.errorMessage) validationFailureCount += 1;
+              executedToolCalls.push({
+                id: `exec_auto_verify_${turn}_${Date.now()}`,
+                toolName: 'run_project_check',
+                args: {},
+                result: autoVerify.result,
+                status: autoVerify.errorMessage ? 'error' : 'success',
+                errorMessage: autoVerify.errorMessage,
+                timestamp: Date.now(),
+              });
+              currentThinkingSteps.push({
+                id: `step_auto_verify_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`,
+                icon: autoVerify.stepIcon || 'lightning',
+                title: 'Agent 自动验证：修改后执行项目检查',
+                status: 'completed',
+              });
+              toolResultsForPrompt.push(formatToolOutcomeForModel('run_project_check', {}, {
+                result: autoVerify.result,
+                errorMessage: autoVerify.errorMessage,
+              }));
+            }
+
             // Sync updated workspace to state
             await handleSaveWorkspaceState(wsToOperate);
 
