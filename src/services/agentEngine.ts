@@ -75,6 +75,20 @@ export const WORKSPACE_TOOLS_SPEC = [
     },
   },
   {
+    name: 'trace_mobile_ui_source',
+    description: '根据手机预览失败步骤的目标元素语义、selector、文字、aria、role 与变化证据，自动生成源码追踪关键词并搜索工作区，定位最可能对应的组件、事件处理器、状态更新和路由代码。只读诊断，不修改代码。',
+    parameters: {
+      type: 'object',
+      properties: {
+        target: { type: 'string', description: '按钮/输入框/元素的 selector、文字或 aria-label' },
+        role: { type: 'string', description: '元素 role，如 button、textbox、link' },
+        action: { type: 'string', description: 'tap/type/scroll/back' },
+        evidence: { type: 'string', description: '可选，结构化状态变化或失败原因摘要' },
+      },
+      required: ['target'],
+    },
+  },
+  {
     name: 'patch_file',
     description: '对文件进行精确的局部代码块替换（优先使用 Patch 方式，避免无脑重写整个大文件造成代码遗失）。',
     parameters: {
@@ -597,6 +611,18 @@ ${content}
 \`\`\``;
     }
 
+    case 'trace_mobile_ui_source': {
+      const r = outcome.result || {};
+      const matches = (r.matches || []).slice(0, 30).map((m: any) => `  - \`${m.path}\` (第 ${m.line} 行, 查询 \`${m.query}\`): \`${m.text}\``).join('\\n');
+      return `### 手机 UI 源码追踪完成: \`trace_mobile_ui_source\`
+- 目标: \`${r.target || ''}\`
+- 操作: ${r.action || '未知'}
+- 检索关键词: ${(r.queries || []).join(', ') || '无'}
+- 候选匹配: ${r.matchCount || 0}
+${matches || '  - 未找到直接匹配'}
+- 下一步: ${r.guidance || ''}`;
+    }
+
     case 'search_code': {
       const { query, matchCount, matches } = outcome.result || {};
       if (!matches || matches.length === 0) {
@@ -615,6 +641,47 @@ ${formattedMatches}`;
       return `### 工具执行结果: \`search_files\` (搜索词: \`${query}\`, 匹配到 ${matchedCount} 个文件)
 文件列表:
 ${(files || []).map((f: string) => `  - \`${f}\``).join('\n')}`;
+    }
+
+    case 'trace_mobile_ui_source': {
+      const target = String(args.target || '').trim();
+      const role = String(args.role || '').trim();
+      const action = String(args.action || '').trim();
+      const evidence = String(args.evidence || '').trim();
+      const candidates = Array.from(new Set([
+        target,
+        target.replace(/^#/, ''),
+        target.match(/data-testid=["']?([^"']+)/i)?.[1] || '',
+        target.match(/[.#]([A-Za-z_][\\w-]{2,})/)?.[1] || '',
+        role === 'button' ? 'onClick' : '',
+        role === 'textbox' ? 'onChange' : '',
+        action === 'tap' ? 'onClick' : '',
+        action === 'type' ? 'onChange' : '',
+        /(submit|send|save|login|register|confirm|next|start|search|提交|发送|保存|登录|注册|确定|下一步|开始|搜索)/i.test(target) ? 'handleSubmit' : '',
+        evidence.match(/(?:changedValues|appeared|disappeared)[^\\n]*/i)?.[0] || '',
+      ].filter(Boolean)));
+      const allMatches: any[] = [];
+      for (const query of candidates.slice(0, 6)) {
+        const matches = searchWorkspaceCode(ws, query);
+        for (const match of matches.slice(0, 12)) allMatches.push({ query, ...match });
+      }
+      const deduped = allMatches.filter((m, i, arr) =>
+        i === arr.findIndex((x) => x.path === m.path && x.line === m.line)
+      ).slice(0, 40);
+      return {
+        result: {
+          target, role, action,
+          queries: candidates.slice(0, 6),
+          matchCount: deduped.length,
+          matches: deduped,
+          guidance: deduped.length
+            ? '优先读取排名靠前的组件上下文，再追踪其事件处理器、状态更新与路由/条件渲染。'
+            : '未找到直接匹配；应改用组件文件名、可见文案、data-testid 或事件函数名继续 search_code。',
+        },
+        updatedWorkspace: ws,
+        stepIcon: 'search',
+        stepTitle: `追踪手机 UI 源码: "${target}" (${deduped.length} 个候选)`,
+      };
     }
 
     case 'patch_file': {
