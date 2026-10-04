@@ -7,7 +7,7 @@ import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.Exec
 
 val prepareNodeRuntime = tasks.register<Exec>("prepareNodeRuntime") {
-    workingDir(project.projectDir)
+    workingDir(rootProject.projectDir)
     commandLine("node", "tools/prepare-node-runtime.cjs")
 }
 
