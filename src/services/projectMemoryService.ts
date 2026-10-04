@@ -10,14 +10,14 @@ const STOP_WORDS = new Set([
 ]);
 
 function normalizeDecision(value: string): string {
-  return value.replace(/\\s+/g, ' ').trim().replace(/^[\\-*•]+\\s*/, '');
+  return value.replace(/\s+/g, ' ').trim().replace(/^[\-*•]+\s*/, '');
 }
 
 function decisionTokens(value: string): string[] {
   return Array.from(new Set(
     normalizeDecision(value)
       .toLowerCase()
-      .split(/[^\\p{L}\\p{N}_+#.-]+/u)
+      .split(/[^\p{L}\p{N}_+#.-]+/u)
       .map(t => t.trim())
       .filter(t => t.length >= 2 && !STOP_WORDS.has(t))
   ));
@@ -71,12 +71,6 @@ function reconcileMemoryRecords(
   projectConversations: Conversation[]
 ): ProjectMemoryRecord[] {
   const records = existingRecords.map(r => ({ ...r }));
-
-  // Legacy keyPoints are migrated into records without deleting the original field.
-  const legacy = projectConversations.length > 0
-    ? []
-    : [];
-  void legacy;
 
   const candidates: ProjectMemoryRecord[] = [];
   for (const conv of projectConversations) {
@@ -179,14 +173,14 @@ export function formatProjectMemoryPrompt(
       ? '项目严格隔离 (此项目记忆仅在组内互通，外部独立聊天不可见)'
       : '全局共享 (此项目记忆可与全局常规会话互通)'}`,
   ];
-  sections.push(`### [L1 项目全局静态共识与约束]\\n${identityLines.map(l => `- ${l}`).join('\\n')}`);
+  sections.push(`### [L1 项目全局静态共识与约束]\n${identityLines.map(l => `- ${l}`).join('\n')}`);
 
   if (project.customInstructions?.trim()) {
-    sections.push(`### [L1 项目全局自定义指令]\\n${project.customInstructions.trim()}`);
+    sections.push(`### [L1 项目全局自定义指令]\n${project.customInstructions.trim()}`);
   }
 
   if (project.sharedMemory?.summary?.trim()) {
-    sections.push(`### [L1 项目核心背景]\\n${project.sharedMemory.summary.trim()}`);
+    sections.push(`### [L1 项目核心背景]\n${project.sharedMemory.summary.trim()}`);
   }
 
   const activeRecords = migrateLegacyRecords(project)
@@ -195,9 +189,9 @@ export function formatProjectMemoryPrompt(
 
   if (activeRecords.length > 0) {
     sections.push(
-      `### [L2 跨会话累计沉淀的核心决策与设计约定 (Key Decisions)]\\n` +
-      `*(以下只展示当前仍有效的主动记忆；被新决定取代或已归档的旧记忆不会污染当前上下文。)*\\n` +
-      activeRecords.map((r, idx) => `${idx + 1}. ${r.content}`).join('\\n')
+      `### [L2 跨会话累计沉淀的核心决策与设计约定 (Key Decisions)]\n` +
+      `*(以下只展示当前仍有效的主动记忆；被新决定取代或已归档的旧记忆不会污染当前上下文。)*\n` +
+      activeRecords.map((r, idx) => `${idx + 1}. ${r.content}`).join('\n')
     );
   }
 
@@ -219,20 +213,20 @@ export function formatProjectMemoryPrompt(
 
   if (peerSummaries.length > 0) {
     sections.push(
-      `### [L3 同组其它协同聊天窗口最新进展]\\n` +
-      peerSummaries.join('\\n') +
-      `\\n*(提示: 你可以无缝参考同项目其它聊天窗口已确认的成果，避免重复劳动。)*`
+      `### [L3 同组其它协同聊天窗口最新进展]\n` +
+      peerSummaries.join('\n') +
+      `\n*(提示: 你可以无缝参考同项目其它聊天窗口已确认的成果，避免重复劳动。)*`
     );
   }
 
   if (sections.length === 0) return '';
 
   return (
-    `\\n========================================\\n` +
-    `## 项目多会话共享记忆库 (Project Shared Memory)\\n` +
-    `========================================\\n` +
-    sections.join('\\n\\n') +
-    `\\n========================================\\n`
+    `\n========================================\n` +
+    `## 项目多会话共享记忆库 (Project Shared Memory)\n` +
+    `========================================\n` +
+    sections.join('\n\n') +
+    `\n========================================\n`
   );
 }
 
