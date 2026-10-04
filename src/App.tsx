@@ -1179,6 +1179,7 @@ export default function App() {
       const maxAgentTurns = workspaceAgentEnabled ? 12 : 1;
       let finalFullText = '';
       let cumulativeAssistantNarrative = '';
+      let validationFailureCount = 0;
 
       while (turn < maxAgentTurns) {
         let turnAccumulatedText = '';
@@ -1289,6 +1290,10 @@ export default function App() {
                 modifiedPaths.add(outcome.diff.path);
               }
 
+              if (tc.tool === 'run_project_check' && outcome.errorMessage) {
+                validationFailureCount += 1;
+              }
+
               executedToolCalls.push({
                 id: execId,
                 toolName: tc.tool,
@@ -1317,6 +1322,10 @@ export default function App() {
             // Sync updated workspace to state
             await handleSaveWorkspaceState(wsToOperate);
 
+            if (validationFailureCount >= 3) {
+              toolResultsForPrompt.push('### 自动验证保护阈值已触发\n同一任务已经累计 3 次项目检查失败。请停止继续盲目执行检查；如果尚未完成修复，请根据现有错误证据总结剩余问题与环境限制。');
+            }
+
             // Append assistant response and tool feedback to conversation history for next turn
             currentHistoryMessages.push({
               id: `msg_agent_turn_${turn}_${Date.now()}`,
@@ -1335,6 +1344,11 @@ export default function App() {
               content: feedbackInstruction,
               timestamp: Date.now(),
             });
+
+            if (validationFailureCount >= 3) {
+              setStatusMessage('项目自动验证已达到 3 次失败保护阈值，停止继续重试。');
+              break;
+            }
 
             turn++;
             setStatusMessage(
