@@ -350,11 +350,25 @@ export function updateAgentTaskChecklist(
 ): AgentTaskPlan {
   const isDynamicPlan = plan.checklist.some(item => (item.acceptanceCriteria?.length || 0) > 0);
   if (isDynamicPlan) {
+    // Dynamic plans are driven by execution evidence. A completed loop round may
+    // complete only the task that was actually in progress; never bulk-complete
+    // unrelated tasks merely because the model/loop entered the completed phase.
     if (state.phase === 'completed') {
-      return {
-        ...plan,
-        checklist: plan.checklist.map(item => ({ ...item, status: 'completed' as const, evidence: evidence || item.evidence })),
-      };
+      const activeIndex = plan.checklist.findIndex(item => item.status === 'in_progress');
+      if (activeIndex >= 0) {
+        const activeItem = plan.checklist[activeIndex];
+        if (areTaskDependenciesCompleted(plan, activeItem)) {
+          return {
+            ...plan,
+            checklist: plan.checklist.map((item, index) =>
+              index === activeIndex
+                ? { ...item, status: 'completed' as const, evidence: evidence || item.evidence }
+                : item
+            ),
+          };
+        }
+      }
+      return plan;
     }
     if (state.phase === 'waiting_user') {
       const activeIndex = plan.checklist.findIndex(item => item.status === 'in_progress');
