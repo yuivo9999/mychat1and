@@ -132,6 +132,9 @@ export interface ProjectMemoryRecord {
   sourceConversationId?: string;
   sourceConversationUpdatedAt?: number;
   supersededById?: string;
+  confidence?: number;
+  conflictGroupId?: string;
+  resolutionReason?: string;
 }
 
 export interface Project {
