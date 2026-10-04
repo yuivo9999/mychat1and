@@ -87,7 +87,7 @@ jobs:
           emulator-options: -no-window -no-audio -no-boot-anim
           disable-animations: true
           script: |
-            set -euo pipefail
+            set -e
             APK="artifacts/app-debug.apk"
             test -s "$APK"
             adb install -r "$APK"
