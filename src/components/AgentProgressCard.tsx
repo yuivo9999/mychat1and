@@ -1,7 +1,6 @@
 import React, { useMemo } from 'react';
 import { Check, Circle, Loader2, AlertTriangle, PauseCircle, Bot } from 'lucide-react';
 import { AgentTaskState, Message } from '../types';
-import { getConversations } from '../services/db';
 
 type ProgressItem = {
   id: string;
@@ -103,33 +102,7 @@ function buildTaskStateView(task: AgentTaskState | null): { payload: AgentProgre
 
 export const AgentProgressCard: React.FC<AgentProgressCardProps> = ({ message, compact = false, taskState: providedTaskState }) => {
   const parsed = useMemo(() => parseAgentProgress(message.content), [message.content]);
-  const [taskState, setTaskState] = React.useState<AgentTaskState | null>(providedTaskState ?? null);
-
-  React.useEffect(() => {
-    if (providedTaskState !== undefined) {
-      setTaskState(providedTaskState);
-      return;
-    }
-    if (message.status !== 'streaming') return;
-    let cancelled = false;
-    const refresh = async () => {
-      try {
-        const conversations = await getConversations();
-        const owner = conversations.find(conversation =>
-          conversation.messages?.some(candidate => candidate.id === message.id)
-        );
-        if (!cancelled) setTaskState(owner?.agentTask || null);
-      } catch {
-        if (!cancelled) setTaskState(null);
-      }
-    };
-    refresh();
-    const timer = window.setInterval(refresh, 3000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, [message.id, message.status, providedTaskState]);
+  const taskState = providedTaskState ?? null;
 
   const taskView = useMemo(() => buildTaskStateView(taskState), [taskState]);
   const view = taskView || parsed;
