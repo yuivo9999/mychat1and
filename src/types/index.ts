@@ -171,6 +171,18 @@ export interface AgentTaskChecklistItem {
   dependsOn?: string[];
 }
 
+export interface AgentResearchCheckpoint {
+  required: boolean;
+  completed: boolean;
+  reason: string;
+  evidence?: string;
+  sources?: string[];
+  sourceCount?: number;
+  primarySourceCount?: number;
+  conflictHints?: number;
+  verified?: boolean;
+}
+
 export interface AgentTaskState {
   taskId: string;
   status: AgentTaskStatus;
@@ -180,6 +192,7 @@ export interface AgentTaskState {
   goal: string;
   definitionOfDone: string[];
   checklist: AgentTaskChecklistItem[];
+  research?: AgentResearchCheckpoint;
   currentStep?: string;
   nextStep?: string;
   progressSummary?: string;
