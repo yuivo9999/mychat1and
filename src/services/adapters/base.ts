@@ -1,5 +1,18 @@
 import { Message, ModelItem, ApiKeyConfig, ModelParameters } from '../../types';
 
+const activeRequestControllers = new Set<AbortController>();
+
+export function registerActiveRequestController(controller: AbortController): () => void {
+  activeRequestControllers.add(controller);
+  return () => activeRequestControllers.delete(controller);
+}
+
+export function abortActiveRequestControllers(): void {
+  activeRequestControllers.forEach(controller => {
+    try { controller.abort(); } catch {}
+  });
+}
+
 export interface StreamCallbacks {
   onChunk: (chunk: string) => void;
   onFinish?: (fullText: string) => void;
