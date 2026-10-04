@@ -1381,6 +1381,7 @@ export default function App() {
           if (detectedToolCalls.length > 0) {
             const toolResultsForPrompt: string[] = [];
             const visualAttachments: Attachment[] = [];
+            let agentOpenedPreviewForScreenshot = false;
 
             for (let i = 0; i < detectedToolCalls.length; i++) {
               const tc = detectedToolCalls[i];
@@ -1393,6 +1394,12 @@ export default function App() {
               );
 
               let outcome;
+              if (tc.tool === 'capture_project_runtime_screenshot' && wsToOperate && !isPreviewOpen) {
+                setActiveWorkspaceId(wsToOperate.id);
+                setIsPreviewOpen(true);
+                agentOpenedPreviewForScreenshot = true;
+                await new Promise<void>(resolve => setTimeout(resolve, 750));
+              }
               const executionTools = new Set(['run_command', 'run_python', 'check_runtime', 'install_dependencies', 'run_project_check']);
               if (executionTools.has(tc.tool) && !activeParams.executeScript) {
                 outcome = {
@@ -1516,6 +1523,10 @@ export default function App() {
                 title: isDiagnosisMode ? `[诊断调查] ${outcome.stepTitle}` : outcome.stepTitle,
                 status: 'completed',
               });
+
+              if (tc.tool === 'capture_project_runtime_screenshot' && agentOpenedPreviewForScreenshot) {
+                setIsPreviewOpen(false);
+              }
 
               if (tc.tool === 'capture_project_runtime_screenshot' && outcome.result?.success === true && typeof outcome.result?.dataUrl === 'string') {
                 visualAttachments.push({
