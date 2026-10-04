@@ -1119,3 +1119,199 @@ html.theme-classic2 .param-toggle-dot,
 }
 
 
+
+
+/* ==========================================================================
+   AI Response Reading Layer 3.0
+   只增强正文阅读层，不移动底部字数统计/操作栏。
+   ========================================================================== */
+.markdown-body {
+  --md-content-gap: 0.92rem;
+  --md-heading-line: 1.28;
+  --md-muted-border: rgba(115, 115, 115, 0.22);
+  --md-accent: #6366f1;
+  line-height: 1.82;
+  letter-spacing: 0.005em;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.markdown-body > .markdown-paragraph {
+  margin: var(--md-content-gap) 0;
+  line-height: 1.82;
+}
+
+.markdown-body > .markdown-paragraph:first-of-type {
+  margin-top: 0.35rem;
+}
+
+.markdown-body > .markdown-paragraph:first-of-type:not(:empty) {
+  font-size: 1.035em;
+}
+
+.markdown-body .markdown-heading {
+  position: relative;
+  scroll-margin-top: 5.5rem;
+  line-height: var(--md-heading-line);
+  letter-spacing: -0.012em;
+  font-weight: 700;
+}
+
+.markdown-body .markdown-heading-1 {
+  margin: 1.8rem 0 0.85rem;
+  padding-bottom: 0.52rem;
+  font-size: clamp(1.34rem, 2.7vw, 1.62rem);
+  border-bottom: 1px solid var(--md-muted-border);
+}
+
+.markdown-body .markdown-heading-2 {
+  margin: 1.55rem 0 0.68rem;
+  padding-left: 0.7rem;
+  font-size: clamp(1.16rem, 2.3vw, 1.34rem);
+  border-left: 3px solid var(--md-accent);
+}
+
+.markdown-body .markdown-heading-3 {
+  margin: 1.25rem 0 0.52rem;
+  font-size: 1.08rem;
+}
+
+.markdown-body .markdown-heading-sub {
+  margin: 1rem 0 0.45rem;
+  font-size: 1rem;
+}
+
+.markdown-body .markdown-list {
+  margin: 0.72rem 0 1rem;
+  padding-left: 1.55rem;
+}
+
+.markdown-body .markdown-list li {
+  margin: 0.38rem 0;
+  padding-left: 0.18rem;
+  line-height: 1.72;
+}
+
+.markdown-body .markdown-list li::marker {
+  color: var(--md-accent);
+  font-weight: 700;
+}
+
+.markdown-body .markdown-list-ordered li::marker {
+  font-variant-numeric: tabular-nums;
+}
+
+.markdown-body .markdown-task-item {
+  list-style-type: none;
+  margin-left: -1.35rem;
+}
+
+.markdown-body .markdown-divider {
+  height: 1px;
+  margin: 1.55rem 0;
+  border: 0;
+  background: var(--md-muted-border);
+}
+
+.markdown-body .markdown-inline-code {
+  display: inline-block;
+  padding: 0.08rem 0.38rem;
+  margin: 0 0.08rem;
+  border: 1px solid var(--md-muted-border);
+  border-radius: 0.4rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 0.88em;
+  line-height: 1.45;
+  vertical-align: baseline;
+}
+
+.markdown-body .markdown-link {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  transition: opacity 160ms ease;
+}
+
+.markdown-body .markdown-link:hover {
+  opacity: 0.78;
+}
+
+.markdown-body blockquote {
+  margin: 1rem 0;
+  padding: 0.72rem 1rem;
+  border-left: 3px solid var(--md-accent);
+  border-radius: 0 0.65rem 0.65rem 0;
+  background: rgba(99, 102, 241, 0.045);
+}
+
+.markdown-body blockquote p {
+  margin: 0.35rem 0;
+}
+
+.markdown-body strong {
+  font-weight: 700;
+}
+
+.markdown-body .code-block-wrapper {
+  margin-top: 1.1rem;
+  margin-bottom: 1.1rem;
+  box-shadow: 0 7px 24px rgba(0, 0, 0, 0.07);
+}
+
+.markdown-body .code-header {
+  min-height: 2.35rem;
+}
+
+.markdown-body .code-body pre {
+  scrollbar-width: thin;
+  tab-size: 2;
+}
+
+.markdown-body .code-body pre code {
+  white-space: pre;
+}
+
+.markdown-body table {
+  line-height: 1.58;
+}
+
+.markdown-body table th,
+.markdown-body table td {
+  padding: 0.58rem 0.72rem;
+  vertical-align: top;
+}
+
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.75rem;
+}
+
+@media (max-width: 640px) {
+  .markdown-body {
+    line-height: 1.76;
+  }
+
+  .markdown-body .markdown-heading-1 {
+    margin-top: 1.45rem;
+    font-size: 1.28rem;
+  }
+
+  .markdown-body .markdown-heading-2 {
+    margin-top: 1.25rem;
+    font-size: 1.12rem;
+  }
+
+  .markdown-body .markdown-list {
+    padding-left: 1.3rem;
+  }
+
+  .markdown-body table th,
+  .markdown-body table td {
+    padding: 0.48rem 0.58rem;
+  }
+
+  .markdown-body .code-header {
+    overflow-x: auto;
+  }
+}
