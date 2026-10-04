@@ -217,3 +217,23 @@ export function startProjectRuntime(workspace: Workspace): ProjectRuntimeState {
 export function stopProjectRuntime(workspaceId: string): void {
   try { runtimeBridge()?.stopWorkspaceProject?.(workspaceId); } catch {}
 }
+
+export function getNodeDependencyState(workspaceId: string): { installed: boolean; inSync: boolean } {
+  const bridge = runtimeBridge() as any;
+  if (!bridge?.getWorkspaceNodeRuntimeState) return { installed: false, inSync: false };
+  try {
+    const raw = bridge.getWorkspaceNodeRuntimeState(workspaceId);
+    const p = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    return { installed: p?.state?.nodeModulesExists === true, inSync: p?.state?.dependenciesInSync === true };
+  } catch { return { installed: false, inSync: false }; }
+}
+
+export function installProjectDependencies(workspaceId: string): { success: boolean; error?: string; stdout?: string; stderr?: string } {
+  const bridge = runtimeBridge() as any;
+  if (!bridge?.installWorkspaceDependencies) return { success: false, error: '当前运行环境不支持 Node 依赖安装' };
+  try {
+    const raw = bridge.installWorkspaceDependencies(workspaceId, 120000);
+    const p = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    return { success: p?.success === true, error: p?.error, stdout: p?.stdout, stderr: p?.stderr };
+  } catch (e: any) { return { success: false, error: e?.message || String(e) }; }
+}
