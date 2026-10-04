@@ -256,7 +256,8 @@ export function applyAgentTaskProgress(plan: AgentTaskPlan, text: string): Agent
   if (!match) return plan;
   try {
     const raw = JSON.parse(match[1]);
-    const completed = new Set(Array.isArray(raw?.completed) ? raw.completed.map(String) : []);
+    // Model progress is narrative only. It may describe active/blocked work,
+    // but it must never promote a checklist item to "completed".
     const inProgress = new Set(Array.isArray(raw?.inProgress) ? raw.inProgress.map(String) : []);
     const blocked = new Map<string, string>();
     if (Array.isArray(raw?.blocked)) {
@@ -274,19 +275,40 @@ export function applyAgentTaskProgress(plan: AgentTaskPlan, text: string): Agent
       ...plan,
       checklist: plan.checklist.map(item => {
         const nextEvidence = evidence.get(item.id) || blocked.get(item.id) || item.evidence;
-        if (blocked.has(item.id)) return { ...item, status: 'blocked' as const, evidence: nextEvidence };
-        if (completed.has(item.id)) {
-          return areTaskDependenciesCompleted(plan, item)
-            ? { ...item, status: 'completed' as const, evidence: nextEvidence }
-            : { ...item, status: 'in_progress' as const, evidence: nextEvidence || '等待前置任务完成' };
+        if (blocked.has(item.id) && item.status !== 'completed') {
+          return { ...item, status: 'blocked' as const, evidence: nextEvidence };
         }
-        if (inProgress.has(item.id)) return { ...item, status: 'in_progress' as const, evidence: nextEvidence };
+        if (inProgress.has(item.id) && item.status !== 'completed') {
+          return { ...item, status: 'in_progress' as const, evidence: nextEvidence };
+        }
         return nextEvidence ? { ...item, evidence: nextEvidence } : item;
       }),
     };
   } catch {
     return plan;
   }
+}
+
+export function completeAgentTaskFromEvidence(
+  plan: AgentTaskPlan,
+  completedIds: string[],
+  evidenceById: Record<string, string> = {},
+): AgentTaskPlan {
+  const completed = new Set(completedIds);
+  return {
+    ...plan,
+    checklist: plan.checklist.map(item => {
+      if (!completed.has(item.id)) return item;
+      if (!areTaskDependenciesCompleted(plan, item)) {
+        return { ...item, status: 'in_progress' as const, evidence: evidenceById[item.id] || item.evidence || '等待前置任务完成' };
+      }
+      return {
+        ...item,
+        status: 'completed' as const,
+        evidence: evidenceById[item.id] || item.evidence,
+      };
+    }),
+  };
 }
 
 export function stripAgentProgressBlock(text: string): string {
