@@ -16,6 +16,11 @@ import android.graphics.Canvas
 import android.graphics.Rect
 import android.view.WindowInsets
 import android.view.WindowManager
+import android.view.MotionEvent
+import android.view.KeyEvent
+import android.os.SystemClock
+import android.content.ClipData
+import android.content.ClipboardManager
 import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewFeature
 import org.json.JSONObject
@@ -698,7 +703,7 @@ class AndroidBridge(
     }
 
     @JavascriptInterface
-    fun captureProjectRuntimeScreenshot(workspaceId: String, quality: Int = 72): String {
+    fun captureProjectRuntimeScreenshot(workspaceId: String, quality: Int = 72, viewport: String = "mobile"): String {
         val result = AtomicReference<JSONObject?>(null)
         val latch = CountDownLatch(1)
         activity.runOnUiThread {
@@ -752,6 +757,7 @@ class AndroidBridge(
                             .put("workspaceId", workspaceId)
                             .put("width", right - left)
                             .put("height", bottom - top)
+                            .put("viewport", viewport)
                             .put("dataUrl", dataUrl))
                     } catch (e: Throwable) {
                         result.set(JSONObject().put("success", false).put("error", e.message ?: e.javaClass.simpleName))
@@ -769,6 +775,200 @@ class AndroidBridge(
         }
         return (result.get() ?: JSONObject().put("success", false).put("error", "项目预览截图失败")).toString()
     }
+
+    @JavascriptInterface
+    fun interactProjectPreview(
+        workspaceId: String,
+        action: String,
+        target: String = "",
+        value: String = "",
+        x: Int = -1,
+        y: Int = -1,
+    ): String {
+        val started = SystemClock.uptimeMillis()
+        val normalized = action.trim().lowercase()
+        if (normalized !in setOf("tap", "type", "scroll", "back", "wait")) {
+            return JSONObject().put("success", false).put("error", "不支持的交互动作: $action").toString()
+        }
+        fun finish(success: Boolean, message: String? = null, error: String? = null): String =
+            JSONObject().put("success", success).put("action", normalized).put("workspaceId", workspaceId)
+                .put("message", message ?: JSONObject.NULL).put("error", error ?: JSONObject.NULL)
+                .put("durationMs", SystemClock.uptimeMillis() - started).toString()
+        if (normalized == "wait") {
+            val delay = value.toLongOrNull()?.coerceIn(0L, 5000L) ?: 500L
+            Thread.sleep(delay)
+            return finish(true, "已等待 ${delay}ms")
+        }
+        val result = AtomicReference<JSONObject?>(null)
+        val latch = CountDownLatch(1)
+        activity.runOnUiThread {
+            try {
+                val boundsScript = """
+                    (() => {
+                      const iframe = document.querySelector('iframe[title="Workspace Preview"]');
+                      if (!iframe) return '';
+                      const r = iframe.getBoundingClientRect();
+                      return JSON.stringify({left:r.left, top:r.top, width:r.width, height:r.height, dpr:window.devicePixelRatio || 1});
+                    })()
+                """.trimIndent()
+                webView.evaluateJavascript(boundsScript) { rawBounds ->
+                    try {
+                        val jsonText = try { (org.json.JSONTokener(rawBounds ?: "").nextValue() as? String) ?: "" } catch (_: Throwable) { "" }
+                        if (jsonText.isBlank()) {
+                            result.set(JSONObject().put("success", false).put("error", "当前没有可交互的手机项目 iframe"))
+                            latch.countDown()
+                            return@evaluateJavascript
+                        }
+                        val bounds = JSONObject(jsonText)
+                        val dpr = bounds.optDouble("dpr", 1.0).coerceIn(1.0, 3.0)
+                        val left = bounds.optDouble("left")
+                        val top = bounds.optDouble("top")
+                        val width = bounds.optDouble("width")
+                        val height = bounds.optDouble("height")
+                        fun nativePoint(px: Int, py: Int): Pair<Float, Float> {
+                            val cx = px.coerceIn(0, width.toInt().coerceAtLeast(1))
+                            val cy = py.coerceIn(0, height.toInt().coerceAtLeast(1))
+                            return Pair(((left + cx) * dpr).toFloat(), ((top + cy) * dpr).toFloat())
+                        }
+                        fun dispatchTap(px: Int, py: Int) {
+                            val (tx, ty) = nativePoint(px, py)
+                            val t = SystemClock.uptimeMillis()
+                            webView.dispatchTouchEvent(MotionEvent.obtain(t, t, MotionEvent.ACTION_DOWN, tx, ty, 0))
+                            webView.dispatchTouchEvent(MotionEvent.obtain(t, t + 45, MotionEvent.ACTION_UP, tx, ty, 0))
+                        }
+                        when (normalized) {
+                            "tap" -> {
+                                if (target.isNotBlank()) {
+                                    val script = """
+                                        (() => {
+                                          try {
+                                            const iframe = document.querySelector('iframe[title="Workspace Preview"]');
+                                            const doc = iframe?.contentDocument;
+                                            const el = doc?.querySelector(${JSONObject.quote(target)});
+                                            if (!el) return JSON.stringify({success:false,error:"未找到 selector"});
+                                            el.scrollIntoView({block:"center",inline:"center"});
+                                            el.click();
+                                            return JSON.stringify({success:true,message:"selector click"});
+                                          } catch (e) {
+                                            return JSON.stringify({success:false,error:"iframe DOM 不可访问，请改用坐标点击"});
+                                          }
+                                        })()
+                                    """.trimIndent()
+                                    webView.evaluateJavascript(script) { raw ->
+                                        val text = try { (org.json.JSONTokener(raw ?: "").nextValue() as? String) ?: "" } catch (_: Throwable) { "" }
+                                        result.set(if (text.isNotBlank()) JSONObject(text) else JSONObject().put("success", false).put("error", "selector 点击无返回"))
+                                        latch.countDown()
+                                    }
+                                    return@evaluateJavascript
+                                }
+                                if (x < 0 || y < 0) result.set(JSONObject().put("success", false).put("error", "tap 需要 target 或 x/y"))
+                                else { dispatchTap(x, y); result.set(JSONObject().put("success", true).put("message", "已执行手机坐标点击 (${x},${y})")) }
+                            }
+                            "type" -> {
+                                if (target.isNotBlank()) {
+                                    val script = """
+                                        (() => {
+                                          try {
+                                            const iframe = document.querySelector('iframe[title="Workspace Preview"]');
+                                            const doc = iframe?.contentDocument;
+                                            const el = doc?.querySelector(${JSONObject.quote(target)});
+                                            if (!el) return JSON.stringify({success:false,error:"未找到输入 selector"});
+                                            el.focus();
+                                            return JSON.stringify({success:true,message:"input focused"});
+                                          } catch (e) {
+                                            return JSON.stringify({success:false,error:"iframe DOM 不可访问，请先坐标点击输入框"});
+                                          }
+                                        })()
+                                    """.trimIndent()
+                                    webView.evaluateJavascript(script) { raw ->
+                                        val text = try { (org.json.JSONTokener(raw ?: "").nextValue() as? String) ?: "" } catch (_: Throwable) { "" }
+                                        val p = if (text.isNotBlank()) JSONObject(text) else JSONObject().put("success", false).put("error", "输入框 focus 无返回")
+                                        if (p.optBoolean("success", false)) { pasteTextIntoFocusedField(value); result.set(JSONObject().put("success", true).put("message", "已向输入框粘贴文本")) }
+                                        else result.set(p)
+                                        latch.countDown()
+                                    }
+                                    return@evaluateJavascript
+                                }
+                                if (value.isBlank()) result.set(JSONObject().put("success", false).put("error", "type 需要输入 value"))
+                                else { pasteTextIntoFocusedField(value); result.set(JSONObject().put("success", true).put("message", "已向当前焦点输入文本")) }
+                            }
+                            "scroll" -> {
+                                val distance = value.toIntOrNull()?.coerceIn(-1200, 1200) ?: 520
+                                val script = """
+                                    (() => {
+                                      try {
+                                        const iframe = document.querySelector('iframe[title="Workspace Preview"]');
+                                        const win = iframe?.contentWindow;
+                                        if (!win) return JSON.stringify({success:false,error:"未找到预览 iframe"});
+                                        win.scrollBy({top:$distance,left:0,behavior:"instant"});
+                                        return JSON.stringify({success:true,message:"iframe scroll"});
+                                      } catch (e) {
+                                        return JSON.stringify({success:false,error:"iframe DOM 不可访问，将使用原生滑动"});
+                                      }
+                                    })()
+                                """.trimIndent()
+                                webView.evaluateJavascript(script) { raw ->
+                                    val text = try { (org.json.JSONTokener(raw ?: "").nextValue() as? String) ?: "" } catch (_: Throwable) { "" }
+                                    val p = if (text.isNotBlank()) JSONObject(text) else JSONObject().put("success", false)
+                                    if (p.optBoolean("success", false)) { result.set(p); latch.countDown() }
+                                    else {
+                                        val fromY = if (distance > 0) height * 0.72 else height * 0.28
+                                        val toY = if (distance > 0) height * 0.28 else height * 0.72
+                                        val (fx, fy) = nativePoint((width / 2).toInt(), fromY.toInt())
+                                        val (_, ty) = nativePoint((width / 2).toInt(), toY.toInt())
+                                        val t = SystemClock.uptimeMillis()
+                                        webView.dispatchTouchEvent(MotionEvent.obtain(t, t, MotionEvent.ACTION_DOWN, fx, fy, 0))
+                                        webView.dispatchTouchEvent(MotionEvent.obtain(t, t + 280, MotionEvent.ACTION_MOVE, fx, ty, 0))
+                                        webView.dispatchTouchEvent(MotionEvent.obtain(t, t + 320, MotionEvent.ACTION_UP, fx, ty, 0))
+                                        result.set(JSONObject().put("success", true).put("message", "已执行手机原生滑动")); latch.countDown()
+                                    }
+                                }
+                                return@evaluateJavascript
+                            }
+                            "back" -> {
+                                val script = """
+                                    (() => {
+                                      try {
+                                        const iframe = document.querySelector('iframe[title="Workspace Preview"]');
+                                        if (!iframe?.contentWindow) return JSON.stringify({success:false,error:"未找到预览 iframe"});
+                                        iframe.contentWindow.history.back();
+                                        return JSON.stringify({success:true,message:"已执行预览页面返回"});
+                                      } catch (e) {
+                                        return JSON.stringify({success:false,error:"live iframe 跨源无法执行 history.back"});
+                                      }
+                                    })()
+                                """.trimIndent()
+                                webView.evaluateJavascript(script) { raw ->
+                                    val text = try { (org.json.JSONTokener(raw ?: "").nextValue() as? String) ?: "" } catch (_: Throwable) { "" }
+                                    result.set(if (text.isNotBlank()) JSONObject(text) else JSONObject().put("success", false).put("error", "返回操作无结果"))
+                                    latch.countDown()
+                                }
+                                return@evaluateJavascript
+                            }
+                        }
+                    } catch (e: Throwable) {
+                        result.set(JSONObject().put("success", false).put("error", e.message ?: e.javaClass.simpleName)); latch.countDown()
+                    }
+                }
+            } catch (e: Throwable) {
+                result.set(JSONObject().put("success", false).put("error", e.message ?: e.javaClass.simpleName)); latch.countDown()
+            }
+        }
+        if (!latch.await(5, TimeUnit.SECONDS)) return finish(false, error = "手机项目交互超时")
+        val payload = result.get() ?: return finish(false, error = "手机项目交互失败")
+        payload.put("action", normalized).put("workspaceId", workspaceId).put("durationMs", SystemClock.uptimeMillis() - started)
+        return payload.toString()
+    }
+
+    private fun pasteTextIntoFocusedField(text: String) {
+        val clipboard = activity.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val previous = clipboard.primaryClip
+        clipboard.setPrimaryClip(ClipData.newPlainText("MyChat Agent input", text))
+        webView.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_V, KeyEvent.META_CTRL_ON))
+        webView.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_V, KeyEvent.META_CTRL_ON))
+        if (previous != null) clipboard.setPrimaryClip(previous)
+    }
+
 
     @JavascriptInterface
     fun getWorkspaceProjectRuntimeState(workspaceId: String): String {
