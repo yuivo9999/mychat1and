@@ -13,6 +13,7 @@ import {
 import { formatChatContextPrompt, detectWorkspaceIntent, WorkspaceIntent } from './chatContextService';
 import { ChatContext } from '../types/workspace';
 import { executeCode, looksLikePythonSource } from './codeExecutionAdapter';
+import { buildProjectRuntimeReport, inspectProjectRuntime } from './projectRuntimeService';
 
 export { detectWorkspaceIntent, type WorkspaceIntent };
 
@@ -163,6 +164,26 @@ export const WORKSPACE_TOOLS_SPEC = [
     },
   },
   {
+    name: 'inspect_project',
+    description: '识别当前工作区项目类型、包管理器、依赖清单、可用脚本以及推荐的构建/测试检查命令。开始编程任务时优先调用。',
+    parameters: { type: 'object', properties: {} },
+  },
+  {
+    name: 'install_dependencies',
+    description: '根据项目类型安装运行依赖。Node/TypeScript 项目使用 npm install；执行后必须读取输出，若失败应分析错误再修改项目。',
+    parameters: { type: 'object', properties: {} },
+  },
+  {
+    name: 'run_project_check',
+    description: '运行项目自动检查（typecheck/lint/test/build 中已配置的脚本），用于验证 AI 修改。一次调用只执行一个检查阶段；失败后应根据错误继续修复。',
+    parameters: {
+      type: 'object',
+      properties: {
+        command: { type: 'string', description: '可选检查命令；留空时使用项目检测得到的第一个推荐命令。' },
+      },
+    },
+  },
+  {
     name: 'run_python',
     description: '执行 Python 源代码。直接传入 Python 代码即可，不需要写 python -c；MyChat 会自动选择 Android 原生 Python 运行时或服务器 Python 运行时。此工具在“运行脚本与命令”权限开启时可用。',
     parameters: {
@@ -288,6 +309,13 @@ ${corePrinciples}
 
 ## 🤖 多轮自主探索、跨文件规划与多文件协同修改规范 (必须连贯执行):
 当 Agent 模式开启时，系统支持你在一个交互任务中【多次连续被调用（支持最高 12 轮自主交互）】。你应充分利用多轮自主迭代的能力，按部就班地完成从“查阅探查”到“多文件协同修改”的全闭环：
+
+### 阶段 0：项目运行时识别与验证闭环 (Runtime)
+- 只要任务涉及“写代码、修 Bug、重构、构建、测试、打包”，先调用 `inspect_project`，不要凭经验猜项目类型。
+- Node/TypeScript/React/Vite 等项目：先识别 package.json 与 scripts；必要时调用 `install_dependencies`，然后调用 `run_project_check`。
+- 检查失败时，把 stdout/stderr/退出码当作真实证据：定位错误文件与行号 → 读取相关代码 → 修改 → 再次检查。
+- 默认最多进行有限次验证迭代，不要无限重复同一条失败命令；若环境缺少运行时或依赖，明确告诉用户“环境限制”，不要伪造通过。
+- Android 运行时优先使用 npm/Node 适配层；不要要求模型自行拼接平台特定的 python -c 等命令。
 
 ### 阶段 1：多文件全面查阅与依赖摸排 (Explore)
 - 严禁在未读取真实代码的情况下凭空猜测或直接盲改。
@@ -920,6 +948,65 @@ export async function executeWorkspaceTool(
           stepTitle: `Context7 连接失败: [${library}]`,
         };
       }
+    }
+
+    case 'inspect_project': {
+      const info = inspectProjectRuntime(ws);
+      return {
+        result: JSON.parse(buildProjectRuntimeReport(ws)),
+        updatedWorkspace: ws,
+        stepIcon: 'search',
+        stepTitle: '识别项目运行时: ' + info.kind,
+      };
+    }
+
+    case 'install_dependencies': {
+      const info = inspectProjectRuntime(ws);
+      if (!info.dependencyInstallCommand) {
+        return {
+          result: { kind: info.kind, installed: false, reason: '当前项目没有可安全自动安装的依赖命令。' },
+          updatedWorkspace: ws,
+          errorMessage: '当前项目类型暂不支持自动依赖安装，请根据项目实际工具链处理。',
+          stepIcon: 'code',
+          stepTitle: '依赖安装暂不支持: ' + info.kind,
+        };
+      }
+      const runData = await executeCode({ language: 'shell', code: info.dependencyInstallCommand, timeoutMs: 120_000, workspaceId: ws.id });
+      if (runData.success) {
+        return {
+          result: { command: info.dependencyInstallCommand, stdout: runData.stdout, stderr: runData.stderr, exitCode: runData.exitCode, runtime: runData.runtime },
+          updatedWorkspace: ws, stepIcon: 'lightning',
+          stepTitle: '依赖安装成功: ' + info.dependencyInstallCommand,
+        };
+      }
+      return {
+        result: { command: info.dependencyInstallCommand, stdout: runData.stdout, stderr: runData.stderr, exitCode: runData.exitCode, error: runData.error, runtime: runData.runtime },
+        updatedWorkspace: ws,
+        errorMessage: runData.error || runData.stderr || ('依赖安装失败，退出码: ' + runData.exitCode),
+        stepIcon: 'lightning',
+        stepTitle: '依赖安装失败: ' + info.dependencyInstallCommand,
+      };
+    }
+
+    case 'run_project_check': {
+      const info = inspectProjectRuntime(ws);
+      const requested = String(args.command || '').trim();
+      const command = requested || info.checkCommands[0];
+      if (!command) {
+        return {
+          result: { kind: info.kind, checked: false, reason: '未找到可执行的项目检查命令。' },
+          updatedWorkspace: ws, errorMessage: '未识别到可执行的项目检查命令。',
+          stepIcon: 'search', stepTitle: '项目检查跳过: 未找到检查命令',
+        };
+      }
+      const runData = await executeCode({ language: 'shell', code: command, timeoutMs: 120_000, workspaceId: ws.id });
+      const result = { command, stdout: runData.stdout, stderr: runData.stderr, exitCode: runData.exitCode, error: runData.error, runtime: runData.runtime };
+      if (runData.success) return { result, updatedWorkspace: ws, stepIcon: 'code', stepTitle: '项目检查通过: ' + command };
+      return {
+        result, updatedWorkspace: ws,
+        errorMessage: runData.error || runData.stderr || ('项目检查失败，退出码: ' + runData.exitCode),
+        stepIcon: 'lightning', stepTitle: '项目检查失败: ' + command,
+      };
     }
 
     case 'run_python': {
