@@ -199,7 +199,8 @@ function migrateLegacyRecords(project: Project): ProjectMemoryRecord[] {
 export function formatProjectMemoryPrompt(
   project: Project,
   projectConversations: Conversation[],
-  currentConvId?: string
+  currentConvId?: string,
+  relevanceQuery?: string
 ): string {
   const sections: string[] = [];
   const identityLines = [
@@ -223,11 +224,30 @@ export function formatProjectMemoryPrompt(
     .filter(r => r.status === 'active')
     .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
 
+  // 当前问题存在时，优先把最相关的项目决定放到上下文前面；仍保留少量最新决定作为兜底。
+  const queryTokens = (relevanceQuery || '')
+    .toLowerCase()
+    .split(/[^\\p{L}\\p{N}_+#.-]+/u)
+    .map(t => t.trim())
+    .filter(t => t.length >= 2);
+  const relevantRecords = [...activeRecords]
+    .map((record, index) => ({
+      record,
+      index,
+      score: queryTokens.length === 0 ? 0 : queryTokens.reduce(
+        (score, token) => score + (record.content.toLowerCase().includes(token) ? 1 : 0),
+        0
+      ),
+    }))
+    .sort((a, b) => b.score - a.score || (b.record.updatedAt || 0) - (a.record.updatedAt || 0))
+    .slice(0, queryTokens.length > 0 ? 10 : 20)
+    .map(item => item.record);
+
   if (activeRecords.length > 0) {
     sections.push(
       `### [L2 跨会话累计沉淀的核心决策与设计约定 (Key Decisions)]\n` +
       `*(以下只展示当前仍有效的主动记忆；被新决定取代或已归档的旧记忆不会污染当前上下文。)*\n` +
-      activeRecords.map((r, idx) => `${idx + 1}. ${r.content}`).join('\n')
+      relevantRecords.map((r, idx) => `${idx + 1}. ${r.content}`).join('\n')
     );
   }
 
