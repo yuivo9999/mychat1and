@@ -1,10 +1,11 @@
 import React, { useMemo } from 'react';
 import { Check, Circle, Loader2, AlertTriangle, PauseCircle, Bot } from 'lucide-react';
-import { Message } from '../types';
+import { AgentTaskState, Message } from '../types';
 import { getConversations } from '../services/db';
 
 type ProgressItem = {
   id: string;
+  title?: string;
   status: 'pending' | 'in_progress' | 'completed' | 'blocked';
   evidence?: string;
 };
@@ -78,10 +79,63 @@ function parseAgentProgress(content: string): { payload: AgentProgressPayload; i
   }
 }
 
+function buildTaskStateView(task: AgentTaskState | null): { payload: AgentProgressPayload; items: ProgressItem[] } | null {
+  if (!task?.checklist?.length) return null;
+  return {
+    payload: {
+      round: task.round,
+      maxRounds: task.maxRounds,
+      phase: task.phase,
+      status: task.status === 'failed' ? 'blocked' : task.status === 'paused' ? 'waiting_user' : task.status,
+      summary: task.progressSummary,
+      currentStep: task.currentStep,
+      nextStep: task.nextStep,
+    },
+    items: task.checklist.map(item => ({
+      id: item.id,
+      title: item.title,
+      status: item.status,
+      evidence: item.evidence,
+    })),
+  };
+}
+
 export const AgentProgressCard: React.FC<AgentProgressCardProps> = ({ message, compact = false }) => {
   const parsed = useMemo(() => parseAgentProgress(message.content), [message.content]);
-  if (!parsed?.items.length) return null;
-  const { items, payload } = parsed;
+  const [taskState, setTaskState] = React.useState<AgentTaskState | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const conversations = await getConversations();
+        const owner = conversations.find(conversation =>
+          conversation.messages?.some(candidate => candidate.id === message.id)
+        );
+        if (!cancelled) setTaskState(owner?.agentTask || null);
+      } catch {
+        if (!cancelled) setTaskState(null);
+      }
+    };
+    refresh();
+    const timer = window.setInterval(refresh, 1500);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [message.id]);
+
+  const taskView = useMemo(() => buildTaskStateView(taskState), [taskState]);
+  const view = taskView || parsed;
+  if (!view?.items.length) return null;
+  const { items } = view;
+  const payload = {
+    ...parsed?.payload,
+    ...view.payload,
+    summary: view.payload.summary || parsed?.payload.summary,
+    currentStep: view.payload.currentStep || parsed?.payload.currentStep,
+    nextStep: view.payload.nextStep || parsed?.payload.nextStep,
+  };
 
   const completed = items.filter(item => item.status === 'completed').length;
   const active = items.find(item => item.status === 'in_progress');
@@ -147,8 +201,8 @@ export const AgentProgressCard: React.FC<AgentProgressCardProps> = ({ message, c
                     ? 'text-[10px] text-amber-700 dark:text-amber-300'
                     : 'text-[10px] text-neutral-600 dark:text-neutral-300'
               }>
-                {item.id}
-                {item.status === 'blocked' && item.evidence ? \` · \${item.evidence}\` : ''}
+                {item.title || item.id}
+                {item.status === 'blocked' && item.evidence ? ' · ' + item.evidence : ''}
               </span>
             </div>
           ))}
