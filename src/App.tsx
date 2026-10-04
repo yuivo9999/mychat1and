@@ -1106,7 +1106,7 @@ export default function App() {
       // Context7 is an actual documentation-grounding step, independent from chat-history compaction.
       if (isContext7Enabled) {
         setStatusMessage('Context7 正在检索相关官方技术文档...');
-        const context7Result = await searchContext7(adaptedContent);
+        const context7Result = await searchContext7(adaptedContent, undefined, undefined, undefined, settings.context7ApiKey);
         if (context7Result.success) {
           const grounding = formatContext7Grounding(context7Result.data);
           if (grounding.trim()) {
