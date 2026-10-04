@@ -109,10 +109,9 @@ export function isModelWebSearchSupported(
     return { supported: false, reason: '未选择有效模型' };
   }
 
-  // Explicit false flag
-  if (model.supportsWebSearch === false) {
-    return { supported: false, reason: `当前模型 [${model.name || model.id}] 已配置不支持联网搜索` };
-  }
+  // MyChat performs web retrieval itself and injects the results into the model context.
+  // Therefore provider-native "web search" support is not required for this feature.
+  // Keep the model flag for metadata/UI, but never use it as a hard gate here.
 
   const rawId = getRawModelId(model).toLowerCase();
 
