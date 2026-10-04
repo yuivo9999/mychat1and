@@ -158,12 +158,26 @@ export interface Project {
 
 export type AgentTaskStatus = 'running' | 'paused' | 'waiting_user' | 'completed' | 'stopped' | 'failed';
 
+export type AgentTaskChecklistStatus = 'pending' | 'in_progress' | 'completed' | 'blocked';
+
+export interface AgentTaskChecklistItem {
+  id: string;
+  title: string;
+  status: AgentTaskChecklistStatus;
+  evidence?: string;
+}
+
 export interface AgentTaskState {
   taskId: string;
   status: AgentTaskStatus;
   phase: string;
   round: number;
   maxRounds: number;
+  goal: string;
+  definitionOfDone: string[];
+  checklist: AgentTaskChecklistItem[];
+  currentStep?: string;
+  nextStep?: string;
   progressSummary?: string;
   pauseReason?: string;
   updatedAt: number;
