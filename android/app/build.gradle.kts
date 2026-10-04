@@ -50,8 +50,8 @@ android {
         applicationId = "com.yuivo9999.mychat"
         minSdk = 24
         targetSdk = 36
-        versionCode = 4
-        versionName = "0.1.3"
+        versionCode = 5
+        versionName = "0.1.4"
 
         ndk {
             abiFilters += listOf("arm64-v8a", "x86_64")
