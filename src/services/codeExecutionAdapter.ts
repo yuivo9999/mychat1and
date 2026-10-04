@@ -34,6 +34,7 @@ interface AndroidExecutionBridge {
   executeNode?: (command: string, timeoutMs?: number, workspaceId?: string) => Promise<unknown> | unknown;
   getWorkspaceNodeRuntimeState?: (workspaceId: string) => Promise<unknown> | unknown;
   markWorkspaceDependenciesInstalled?: (workspaceId: string) => Promise<unknown> | unknown;
+  installWorkspaceDependencies?: (workspaceId: string, timeoutMs?: number) => Promise<unknown> | unknown;
 }
 
 declare global {
@@ -282,6 +283,26 @@ export interface WorkspaceNodeRuntimeState {
   installedDependencyFingerprint?: string;
   dependenciesInSync?: boolean;
   lockfile?: string | null;
+}
+
+export async function installWorkspaceDependencies(workspaceId: string, timeoutMs = 120_000): Promise<CodeExecutionResult> {
+  if (window.MyChatAndroid?.installWorkspaceDependencies) {
+    try {
+      const raw = await window.MyChatAndroid.installWorkspaceDependencies(workspaceId, timeoutMs);
+      const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      return {
+        success: parsed?.success === true,
+        stdout: parsed?.stdout || '',
+        stderr: parsed?.stderr || '',
+        exitCode: typeof parsed?.exitCode === 'number' ? parsed.exitCode : (parsed?.success ? 0 : -1),
+        error: parsed?.error,
+        runtime: 'android',
+      };
+    } catch (error: any) {
+      return { success: false, stdout: '', stderr: '', exitCode: -1, error: error?.message || String(error), runtime: 'android' };
+    }
+  }
+  return executeCode({ language: 'shell', code: 'npm install --no-audit --no-fund', timeoutMs, workspaceId });
 }
 
 export async function markWorkspaceDependenciesInstalled(workspaceId: string): Promise<{ ok: boolean; fingerprint?: string; error?: string }> {
