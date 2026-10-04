@@ -34,6 +34,17 @@ interface GitHubRelease {
   prerelease?: boolean;
 }
 
+interface GitHubCommit {
+  sha?: string;
+  html_url?: string;
+  message?: string;
+  author?: { login?: string } | null;
+  commit?: {
+    message?: string;
+    author?: { name?: string; date?: string } | null;
+  };
+}
+
 export interface GitHubResearchResponse {
   results: WebSearchResult[];
   pageContents: WebPageContent[];
@@ -41,6 +52,7 @@ export interface GitHubResearchResponse {
   issues: number;
   pullRequests: number;
   releases: number;
+  commits: number;
   sourceFiles: number;
 }
 
@@ -202,11 +214,28 @@ async function fetchRepositoryFiles(fullName: string, branch: string, query: str
   }
 }
 
-async function fetchReleases(fullName: string, results: WebSearchResult[]): Promise<number> {
+async function fetchReleases(fullName: string, results: WebSearchResult[], pageContents: WebPageContent[]): Promise<number> {
   const response = await requestJson(`https://api.github.com/repos/${fullName}/releases?per_page=5`);
   if (!response.ok) return 0;
   try {
     const releases: GitHubRelease[] = JSON.parse(response.body);
+    const history = releases
+      .filter(release => release.tag_name)
+      .map(release => [
+        `版本：${release.tag_name}`,
+        `名称：${release.name || release.tag_name}`,
+        `类型：${release.prerelease ? '预发布' : '正式发布'}`,
+        release.published_at ? `发布时间：${release.published_at}` : '',
+        release.body || '',
+      ].filter(Boolean).join('；'))
+      .join('\n');
+    if (history) {
+      pageContents.push({
+        url: `https://github.com/${fullName}/releases`,
+        title: `GitHub Release History: ${fullName}`,
+        content: cleanText(history, 9000),
+      });
+    }
     for (const release of releases) {
       if (!release.html_url || !release.tag_name) continue;
       pushResult(
@@ -223,6 +252,115 @@ async function fetchReleases(fullName: string, results: WebSearchResult[]): Prom
   }
 }
 
+async function fetchCommitHistory(
+  fullName: string,
+  query: string,
+  results: WebSearchResult[],
+  pageContents: WebPageContent[],
+): Promise<number> {
+  const response = await requestJson(`https://api.github.com/repos/${fullName}/commits?per_page=8`);
+  if (!response.ok) return 0;
+
+  try {
+    const commits: GitHubCommit[] = JSON.parse(response.body);
+    const relevant = commits
+      .filter(commit => commit.sha && commit.html_url)
+      .slice(0, 8);
+
+    for (const commit of relevant) {
+      const message = commit.message || commit.commit?.message || '';
+      const author = commit.author?.login || commit.commit?.author?.name || 'unknown';
+      const date = commit.commit?.author?.date || '';
+      pushResult(
+        results,
+        `GitHub Commit: ${fullName} ${commit.sha!.slice(0, 7)}`,
+        commit.html_url!,
+        [message.split('\n')[0], `作者：${author}`, date ? `时间：${date}` : ''].filter(Boolean).join('；'),
+        94,
+      );
+    }
+
+    if (relevant.length) {
+      pageContents.push({
+        url: `https://github.com/${fullName}/commits`,
+        title: `GitHub Commit History: ${fullName}`,
+        content: cleanText(
+          relevant.map(commit => {
+            const message = commit.message || commit.commit?.message || '';
+            const author = commit.author?.login || commit.commit?.author?.name || 'unknown';
+            const date = commit.commit?.author?.date || '';
+            return [
+              `Commit: ${commit.sha!.slice(0, 12)}`,
+              `时间：${date || 'unknown'}`,
+              `作者：${author}`,
+              `消息：${message}`,
+              `链接：${commit.html_url}`,
+            ].join('\n');
+          }).join('\n\n'),
+          10000,
+        ),
+      });
+    }
+
+    const tokens = tokenize(query);
+    const candidatePaths = pageContents
+      .filter(page => page.title.startsWith(`${fullName} / `))
+      .slice(0, 3)
+      .map(page => page.title.slice(`${fullName} / `.length))
+      .filter(Boolean);
+
+    const pathCommits = await Promise.all(candidatePaths.map(async path => {
+      const pathResponse = await requestJson(
+        `https://api.github.com/repos/${fullName}/commits?path=${encodeURIComponent(path)}&per_page=5`,
+      );
+      if (!pathResponse.ok) return [];
+      try {
+        const items: GitHubCommit[] = JSON.parse(pathResponse.body);
+        return items.filter(item => item.sha && item.html_url).slice(0, 5).map(item => ({
+          path,
+          item,
+        }));
+      } catch {
+        return [];
+      }
+    }));
+
+    const uniquePathCommits = new Map<string, { path: string; item: GitHubCommit }>();
+    pathCommits.flat().forEach(entry => {
+      uniquePathCommits.set(entry.item.sha!, entry);
+    });
+
+    for (const { path, item } of uniquePathCommits.values()) {
+      const message = item.message || item.commit?.message || '';
+      pushResult(
+        results,
+        `GitHub File Commit: ${path} @ ${item.sha!.slice(0, 7)}`,
+        item.html_url!,
+        [message.split('\n')[0], `关联文件：${path}`, item.commit?.author?.date ? `时间：${item.commit.author.date}` : ''].filter(Boolean).join('；'),
+        95,
+      );
+    }
+
+    if (tokens.length) {
+      const matched = relevant.filter(commit => {
+        const message = (commit.message || commit.commit?.message || '').toLowerCase();
+        return tokens.some(token => message.includes(token));
+      });
+      if (matched.length) {
+        results.forEach(result => {
+          if (result.title.startsWith(`GitHub Commit: ${fullName}`) && matched.some(commit => result.url === commit.html_url)) {
+            result.score = Math.min(99, (result.score || 94) + 3);
+          }
+        });
+      }
+    }
+
+    return relevant.length + uniquePathCommits.size;
+  } catch {
+    return 0;
+  }
+}
+
 async function fetchIssuesForRepo(fullName: string, query: string, results: WebSearchResult[]): Promise<{ issues: number; pullRequests: number }> {
   const scopedQuery = query
     .replace(/github\.com[/:][^\s]+/i, '')
@@ -234,6 +372,7 @@ async function fetchIssuesForRepo(fullName: string, query: string, results: WebS
 
   let issues = 0;
   let pullRequests = 0;
+  let commits = 0;
   try {
     const data = JSON.parse(response.body);
     for (const item of (data.items || []) as GitHubIssue[]) {
@@ -319,7 +458,7 @@ async function enrichTopIssuesAndPullRequests(
 export async function performGitHubResearch(rawQuery: string): Promise<GitHubResearchResponse> {
   const query = rawQuery.trim().slice(0, 160);
   if (!query) {
-    return { results: [], pageContents: [], repositories: [], issues: 0, pullRequests: 0, releases: 0, sourceFiles: 0 };
+    return { results: [], pageContents: [], repositories: [], issues: 0, pullRequests: 0, releases: 0, commits: 0, sourceFiles: 0 };
   }
 
   const repoRef = looksLikeRepoRef(query);
@@ -393,8 +532,11 @@ export async function performGitHubResearch(rawQuery: string): Promise<GitHubRes
     const [readme, files, releaseCount] = await Promise.all([
       fetchReadme(fullName),
       fetchRepositoryFiles(fullName, branch, query),
-      fetchReleases(fullName, results),
+      Promise.resolve(null),
     ]);
+
+    const releaseCount = await fetchReleases(fullName, results, pageContents);
+    commits += await fetchCommitHistory(fullName, query, results, pageContents);
 
     if (readme) pageContents.push(readme);
     pageContents.push(...files);
@@ -409,6 +551,7 @@ export async function performGitHubResearch(rawQuery: string): Promise<GitHubRes
     issues,
     pullRequests,
     releases: results.filter(item => item.title.startsWith('GitHub Release:')).length,
+    commits,
     sourceFiles: pageContents.filter(item => item.title.includes(' / ')).length,
   };
 }
