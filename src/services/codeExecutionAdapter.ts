@@ -33,6 +33,7 @@ interface AndroidExecutionBridge {
   executeCommand?: (command: string, timeoutMs?: number, workspaceId?: string) => Promise<unknown> | unknown;
   executeNode?: (command: string, timeoutMs?: number, workspaceId?: string) => Promise<unknown> | unknown;
   getWorkspaceNodeRuntimeState?: (workspaceId: string) => Promise<unknown> | unknown;
+  readWorkspaceFile?: (workspaceId: string, relativePath: string) => Promise<unknown> | unknown;
   markWorkspaceDependenciesInstalled?: (workspaceId: string) => Promise<unknown> | unknown;
   installWorkspaceDependencies?: (workspaceId: string, timeoutMs?: number) => Promise<unknown> | unknown;
 }
@@ -322,6 +323,24 @@ export async function markWorkspaceDependenciesInstalled(workspaceId: string): P
   } catch (error: any) {
     return { ok: false, error: error?.message || String(error) };
   }
+}
+
+export async function readWorkspaceFile(workspaceId: string, relativePath: string): Promise<{ ok: boolean; exists: boolean; content?: string; error?: string } | null> {
+  if (window.MyChatAndroid?.readWorkspaceFile) {
+    try {
+      const raw = await window.MyChatAndroid.readWorkspaceFile(workspaceId, relativePath);
+      const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw as any;
+      return {
+        ok: parsed?.ok === true,
+        exists: parsed?.exists === true,
+        content: typeof parsed?.content === 'string' ? parsed.content : undefined,
+        error: parsed?.error,
+      };
+    } catch (error: any) {
+      return { ok: false, exists: false, error: error?.message || String(error) };
+    }
+  }
+  return null;
 }
 
 export async function getWorkspaceNodeRuntimeState(workspaceId: string): Promise<WorkspaceNodeRuntimeState | null> {
