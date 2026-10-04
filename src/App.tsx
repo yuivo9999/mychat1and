@@ -1295,7 +1295,7 @@ export default function App() {
               const textChunk = safeExtractText(chunk);
               if (!textChunk) return;
               turnAccumulatedText += textChunk;
-              const cleanTurnText = cleanResponseText(turnAccumulatedText);
+              const cleanTurnText = cleanResponseText(stripAgentPlanBlock(turnAccumulatedText));
               const fullNarrativeSoFar = cumulativeAssistantNarrative
                 ? (cleanTurnText ? `${cumulativeAssistantNarrative}\n\n${cleanTurnText}` : cumulativeAssistantNarrative)
                 : cleanTurnText;
@@ -1336,8 +1336,15 @@ export default function App() {
           } : undefined
         );
 
-        finalFullText = turnAccumulatedText;
-        const cleanedThisTurn = cleanResponseText(turnAccumulatedText);
+        finalFullText = stripAgentPlanBlock(turnAccumulatedText);
+        const cleanedThisTurn = cleanResponseText(stripAgentPlanBlock(turnAccumulatedText));
+
+        if (workspaceAgentEnabled && agentLoopState.round === 0) {
+          const parsedPlan = parseAgentTaskPlan(turnAccumulatedText, text);
+          if (parsedPlan) {
+            agentTaskPlan = parsedPlan;
+          }
+        }
         if (cleanedThisTurn && !currentTurnIsMemoryAudit) {
           cumulativeAssistantNarrative = cumulativeAssistantNarrative
             ? `${cumulativeAssistantNarrative}\n\n${cleanedThisTurn}`
