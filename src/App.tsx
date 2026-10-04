@@ -1044,6 +1044,7 @@ export default function App() {
 
       // 3. System Prompt: ONLY inject Workspace Summary, Tools Protocol & Diagnosis Protocol when Workspace Agent is explicitly enabled!
       const historySearchEnabled = settings.enableHistorySearch ?? false;
+      const projectMemoryEnabled = settings.enableProjectMemory ?? true;
       if (workspaceAgentEnabled) {
         effectiveSystemPrompt = buildAgentSystemPrompt(
           wsToOperate,
@@ -1061,8 +1062,8 @@ export default function App() {
         }
       }
 
-        if (historySearchEnabled) {
-          const historySearchPrompt = '## 🔎 本地历史对话搜索\\n仅在当前问题确有必要时调用 search_local_memory；默认优先当前项目。工具只返回少量相关片段，不要无目的扫描全部历史，也不要编造未检索到的历史结论。\\n\\n工具：search_local_memory（检索历史对话）、get_project_memory（读取当前项目记忆）、update_project_memory（更新已有记忆）、archive_project_memory（归档记忆）。只有在当前上下文不足或确认历史决定已变化时才调用；不要无目的扫描。';
+        if (historySearchEnabled || projectMemoryEnabled) {
+          const historySearchPrompt = '## 🔎 本地历史与项目记忆工具\\n仅在当前问题确有必要时调用搜索或记忆工具。历史搜索默认优先当前项目；项目记忆只保存稳定、可复用的项目级共识。\\n\\n记忆生命周期规则：1) 普通进度、一次性报错、临时代码细节、已修改文件列表不要进入长期记忆；2) 新内容若与现有记忆相同，不要重复新增；3) 若只是澄清/细化已有记录，优先 update_project_memory；4) 明确替代旧决定时，先读取相关记录，再 update_project_memory 或 create_project_memory 让旧记录进入 superseded；5) 已失效的规则使用 archive_project_memory；6) 无法判断是否应该长期保存时不要写入。\\n\\n工具：search_local_memory、get_project_memory、create_project_memory、update_project_memory、archive_project_memory。不要为了普通背景了解而无目的扫描历史或改写记忆。';
           effectiveSystemPrompt = effectiveSystemPrompt ? `${effectiveSystemPrompt}\\n\\n${historySearchPrompt}` : historySearchPrompt;
         }
       // 4. Project Collective Memory (Multiple chats inside same project share project memory)
@@ -1201,7 +1202,7 @@ export default function App() {
 
       let turn = 0;
       // Provide ample turns (up to 12 turns) for multi-file inspection, plan formulation, and multi-file modification
-      const maxAgentTurns = workspaceAgentEnabled ? 12 : historySearchEnabled ? 6 : 1;
+      const maxAgentTurns = workspaceAgentEnabled ? 12 : (historySearchEnabled || (projectMemoryEnabled && !!targetConv.projectId)) ? 6 : 1;
       let finalFullText = '';
       let cumulativeAssistantNarrative = '';
       let validationFailureCount = 0;
