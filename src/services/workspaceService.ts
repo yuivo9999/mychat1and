@@ -36,7 +36,7 @@ export function createEmptyWorkspace(name = '新工作区'): Workspace {
   const initialFiles: Record<string, WorkspaceFile> = {
     'README.md': {
       path: 'README.md',
-      content: `# ${name}\n\n当前工作区已创建。您可以在此上传 ZIP 项目包、查看代码、让 AI 检索和修改文件。\n\n> ⚠️ 注意：AI 仅负责代码分析与修改，严禁也无法在云端执行代码或运行测试，请自行在本地运行和测试。`,
+      content: `# ${name}\n\n当前工作区已创建。您可以在此上传 ZIP 项目包、查看代码、让 AI 检索、修改并在 Android App 原生 Python 运行时中验证脚本。\n\n> ℹ️ Android App 可在当前工作区内直接运行 Python；浏览器开发模式仍受本地执行后端约束。`,
       size: 180,
       updatedAt: now,
     },
@@ -62,8 +62,8 @@ export function createEmptyWorkspace(name = '新工作区'): Workspace {
     metadata: {
       projectName: name,
       rules: [
-        'AI 负责分析和修改代码，严禁在工作区执行任何命令或测试',
-        '用户在本地自行运行测试并反馈错误信息',
+        'AI 负责分析、修改代码；Android App 可在工作区原生 Python 运行时执行验证脚本',
+        'Android App 优先由原生 Python 运行时执行测试；浏览器开发模式可由用户在本地运行测试',
       ],
     },
   };
