@@ -1877,7 +1877,8 @@ export async function executeWorkspaceTool(
               disappeared: stateDelta.disappeared?.map((e: any) => e.text || e.aria || e.role).filter(Boolean).slice(0, 8) || [],
               changedValues: stateDelta.changedValues?.slice(0, 8) || [],
             },
-            nextAction: '优先定位目标元素对应的组件、事件处理器和状态更新代码；修复后重新运行同一手机路径验证，不要盲改无关文件。',
+            nextAction: '先调用 trace_mobile_ui_source，用目标文字/selector/role/action 与 stateDelta 追踪对应源码候选；再读取候选组件上下文，定位事件处理器、状态更新和条件渲染；修复后重新运行同一手机路径验证，不要盲改无关文件。',
+            sourceTraceRequired: true,
           };
           break;
         }
@@ -1888,7 +1889,7 @@ export async function executeWorkspaceTool(
         failedAt: failedAt === -1 ? null : failedAt, failure: failure || null, evidence,
         repairHint: failedAt === -1
           ? '动作链执行完成。请结合结构化断言与 baseline/最后截图判断按钮状态、输入结果、滚动位置、键盘遮挡、溢出与空白区域；若发现明确 UI 问题，优先定位对应组件与事件处理器后修复，再执行同一流程验证。'
-          : '先读取失败步骤的 repairDiagnosis、stateDelta 与 assertion；优先定位目标元素对应组件、事件处理器和状态更新代码。修复后重新启动/检查项目，再执行同一手机路径验证；不要把 selector 跨域失败误判成业务按钮不存在。'
+          : '先读取失败步骤的 repairDiagnosis、stateDelta 与 assertion；调用 trace_mobile_ui_source 追踪目标元素对应源码候选，再读取候选组件上下文定位事件处理器、状态更新和条件渲染。修复后重新启动/检查项目，再执行同一手机路径验证；不要把 selector 跨域失败误判成业务按钮不存在。'
       }};
       const result = {
         success: flow?.result?.success === true,
