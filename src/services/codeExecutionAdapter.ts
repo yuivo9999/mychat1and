@@ -32,6 +32,7 @@ interface AndroidExecutionBridge {
   executePython?: (code: string, timeoutMs?: number, workspaceId?: string) => Promise<unknown> | unknown;
   executeCommand?: (command: string, timeoutMs?: number, workspaceId?: string) => Promise<unknown> | unknown;
   executeNode?: (command: string, timeoutMs?: number, workspaceId?: string) => Promise<unknown> | unknown;
+  getWorkspaceNodeRuntimeState?: (workspaceId: string) => Promise<unknown> | unknown;
 }
 
 declare global {
@@ -234,4 +235,29 @@ export function looksLikePythonSource(command: string): boolean {
   if (!value || /^python(?:3)?(?:\s|$)/i.test(value)) return false;
 
   return /^(?:print\s*\(|import\s+\w+|from\s+\w+\s+import\s+|def\s+\w+\s*\(|class\s+\w+\s*[:(]|if\s+__name__\s*==|for\s+\w+\s+in\s+|while\s+.+:)/m.test(value);
+}
+
+export interface WorkspaceNodeRuntimeState {
+  workspaceId: string;
+  workspacePath: string;
+  nodeModulesExists: boolean;
+  nodeModulesCount: number;
+  packageJsonExists: boolean;
+  packageLockExists: boolean;
+  packageLockModifiedAt: number;
+  runtimePersistent: boolean;
+}
+
+export async function getWorkspaceNodeRuntimeState(workspaceId: string): Promise<WorkspaceNodeRuntimeState | null> {
+  if (typeof window === 'undefined' || !window.MyChatAndroid?.getWorkspaceNodeRuntimeState) {
+    return null;
+  }
+  try {
+    const raw = await window.MyChatAndroid.getWorkspaceNodeRuntimeState(workspaceId);
+    const payload = typeof raw === 'string' ? JSON.parse(raw) : raw as any;
+    if (payload?.ok !== true || !payload?.state) return null;
+    return payload.state as WorkspaceNodeRuntimeState;
+  } catch {
+    return null;
+  }
 }
