@@ -752,6 +752,25 @@ export async function saveConversation(conversation: Conversation): Promise<void
   });
 }
 
+export async function stopAgentTask(conversationId: string, reason = '用户手动停止 Agent 任务'): Promise<boolean> {
+  const conversation = await getConversation(conversationId);
+  if (!conversation?.agentTask) return false;
+  const now = Date.now();
+  conversation.agentTask = {
+    ...conversation.agentTask,
+    status: 'stopped',
+    phase: 'completed',
+    progressSummary: 'Agent 任务已停止',
+    currentStep: undefined,
+    nextStep: undefined,
+    pauseReason: reason,
+    updatedAt: now,
+  };
+  conversation.updatedAt = now;
+  await saveConversation(conversation);
+  return true;
+}
+
 export async function deleteConversation(id: string): Promise<void> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
