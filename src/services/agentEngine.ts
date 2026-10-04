@@ -1659,6 +1659,46 @@ export async function executeWorkspaceTool(
           visibleElementCountAfter: after.count ?? 0,
         };
       };
+      const buildExpectation = (step: any, before: any) => {
+        const text = String(step?.target || '').toLowerCase();
+        const action = String(step?.action || '');
+        const expectsInput = action === 'type';
+        const expectsScroll = action === 'scroll';
+        const expectsStateChange = ['tap', 'type', 'back', 'scroll'].includes(action);
+        return {
+          expectsInput,
+          expectsScroll,
+          expectsStateChange,
+          target: text || null,
+          baselineScrollTop: before?.scrollTop ?? null,
+          baselineElementCount: before?.count ?? null,
+          rule: expectsInput
+            ? '输入后应观察到焦点或输入值变化'
+            : expectsScroll
+              ? '滚动后应观察到 scrollTop 变化，若已到边界允许无变化'
+              : expectsStateChange
+                ? '交互后应观察到结构化 UI 状态变化；无变化时标记为可能无响应'
+                : '无需强制状态断言',
+        };
+      };
+      const evaluateExpectation = (expectation: any, delta: any, after: any) => {
+        if (!expectation.expectsStateChange) return { status: 'not-applicable', reason: '该动作不要求状态断言' };
+        if (!delta?.comparable) return { status: 'needs-vision', reason: 'DOM 状态不可比较，需要视觉模型复核' };
+        if (expectation.expectsInput) {
+          const inputChanged = Array.isArray(delta.changedValues) && delta.changedValues.some((x: any) => x.before?.value !== x.after?.value);
+          return inputChanged || delta.activeChanged
+            ? { status: 'passed', reason: '检测到输入值或焦点变化' }
+            : { status: 'failed', reason: '输入动作后未检测到输入值/焦点变化' };
+        }
+        if (expectation.expectsScroll) {
+          return delta.scrollChanged
+            ? { status: 'passed', reason: '检测到 scrollTop 变化' }
+            : { status: 'inconclusive', reason: (after?.scrollHeight ?? 0) <= (after?.clientHeight ?? 0) ? '页面没有可滚动高度，滚动无变化可接受' : '存在可滚动内容但 scrollTop 未变化' };
+        }
+        return delta.elementCountChanged || delta.activeChanged || (delta.changedValues?.length > 0)
+          ? { status: 'passed', reason: '检测到元素数量、焦点或值发生变化' }
+          : { status: 'failed', reason: '交互成功但未检测到结构化状态变化；可能点击未生效' };
+      };
       const evidence: Array<Record<string, any>> = [];
       let failedAt = -1;
       let failure: string | undefined;
@@ -1669,6 +1709,8 @@ export async function executeWorkspaceTool(
         const interaction = interactProjectPreview(ws.id, step.action as any, { target: step.target, value: step.value, x: step.x, y: step.y });
         const afterState = summarizeMobileState(discoverProjectPreviewElements(ws.id));
         const stateDelta = diffMobileState(beforeState, afterState);
+        const expectation = buildExpectation(step, beforeState);
+        const assertion = evaluateExpectation(expectation, stateDelta, afterState);
         const item: Record<string, any> = {
           index: i + 1,
           action: step,
@@ -1685,6 +1727,8 @@ export async function executeWorkspaceTool(
           stateBefore: beforeState,
           stateAfter: afterState,
           stateDelta,
+          expectation,
+          assertion,
         };
         const shot = captureProjectRuntimeScreenshot(ws.id, 72, 'mobile');
         item.screenshot = shot.success ? { width: shot.width, height: shot.height, dataUrl: shot.dataUrl } : null;
@@ -1725,6 +1769,7 @@ export async function executeWorkspaceTool(
         }
         evidence.push(item);
         if (!interaction.success) { failedAt = i + 1; failure = interaction.error || '手机预览交互失败'; break; }
+        if (assertion.status === 'failed') { failedAt = i + 1; failure = assertion.reason; break; }
       }
       const flow = { result: {
         success: failedAt === -1, visualVerificationRequired: true, viewport: 'mobile-390x780',
