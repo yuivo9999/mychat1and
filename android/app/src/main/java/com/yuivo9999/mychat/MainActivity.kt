@@ -68,6 +68,33 @@ class AndroidBridge(
      * app-private and can later be exported through the Android Storage Access Framework.
      */
     @JavascriptInterface
+    fun syncWorkspaceManifest(workspaceId: String, manifestJson: String): String {
+        return try {
+            val root = workspaceRoot(workspaceId)
+            val manifest = JSONObject(manifestJson)
+            val expected = mutableSetOf<String>()
+            val files = manifest.optJSONArray("files") ?: org.json.JSONArray()
+            for (i in 0 until files.length()) {
+                val relativePath = files.getString(i)
+                workspaceFile(workspaceId, relativePath)
+                expected.add(relativePath)
+            }
+            var deletedCount = 0
+            root.walkTopDown().filter { it.isFile }.forEach { file ->
+                val relative = root.toPath().relativize(file.toPath()).toString().replace(File.separatorChar, '/')
+                if (relative == ".mychat-runtime/dependency-state.json" ||
+                    relative.startsWith(".mychat-runtime/")) return@forEach
+                if (!expected.contains(relative)) {
+                    if (file.delete()) deletedCount++
+                }
+            }
+            JSONObject().put("ok", true).put("deletedCount", deletedCount).toString()
+        } catch (e: Throwable) {
+            JSONObject().put("ok", false).put("error", e.message ?: e.javaClass.simpleName).toString()
+        }
+    }
+
+    @JavascriptInterface
     fun writeWorkspaceFile(workspaceId: String, relativePath: String, content: String): String {
         return try {
             val file = workspaceFile(workspaceId, relativePath)
