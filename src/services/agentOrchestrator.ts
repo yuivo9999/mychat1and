@@ -458,6 +458,7 @@ export function createAgentLoopState(maxRounds = 12): AgentLoopState {
     maxRounds,
     noProgressRounds: 0,
     progressKind: 'plan',
+    verificationPassed: false,
   };
 }
 
