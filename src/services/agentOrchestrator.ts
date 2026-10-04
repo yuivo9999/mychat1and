@@ -566,7 +566,8 @@ export function buildAgentLoopFeedback(
     '4. 验证失败 → 定位根因、修复、再验证；\\n' +
     '5. 所有 required 子任务和 Definition of Done 都满足后，才停止调用工具并总结；\\n' +
     '6. 只有确实缺少用户才能提供的信息才进入等待用户，不要因为“暂停一下”而人为停止任务。\\n' +
-    '\\n每轮结束时，如能判断子任务状态，请输出 <agent_progress> JSON；只报告有真实证据支持的 completed/inProgress/blocked 状态，不要猜测。\\n\\n' +
+    '\\n每轮结束时必须输出一个 <agent_progress> JSON；只报告有真实证据支持的状态，不要猜测。\\n' +
+    '格式固定为：<agent_progress>{"round":本轮编号,"maxRounds":最大轮数,"phase":"planning|exploring|implementing|verifying|fixing|reverifying|memory_audit|waiting_user|completed","status":"running|blocked|waiting_user|completed","summary":"本轮最核心进展","currentStep":"当前正在做什么","result":"本轮真实结果","nextStep":"下一步","completed":["已完成子任务ID"],"inProgress":["正在执行子任务ID"],"blocked":[{"id":"阻塞子任务ID","evidence":"阻塞证据"}],"evidence":[{"id":"子任务ID","text":"真实证据"}]}<\\/agent_progress>。\\n\\n' +
     '## 用户可见的 Agent 核心进度输出协议（重要）\\n' +
     '当前已启用“核心内容 + 操作步骤”式 Agent 进度表达。你给用户看的自然语言回复必须是高信息密度的工作快照，而不是长篇过程记录。\\n' +
     '固定优先顺序：\\n' +
