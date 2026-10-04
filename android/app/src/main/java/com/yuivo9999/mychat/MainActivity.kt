@@ -41,6 +41,18 @@ class MainActivity : Activity() {
             .build()
 
         webView = WebView(this).apply {
+            // Fullscreen mode removes the status-bar inset, so explicitly apply the IME
+            // inset to the WebView content when the Android keyboard is visible.
+            setOnApplyWindowInsetsListener { view, insets ->
+                val imeBottom = if (android.os.Build.VERSION.SDK_INT >= 30) {
+                    insets.getInsets(WindowInsets.Type.ime()).bottom
+                } else {
+                    @Suppress("DEPRECATION")
+                    insets.systemWindowInsetBottom
+                }
+                view.setPadding(0, 0, 0, imeBottom)
+                insets
+            }
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             settings.allowFileAccess = true
