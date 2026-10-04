@@ -934,7 +934,7 @@ export async function executeWorkspaceTool(
         };
       }
 
-      const runData = await executeCode({ language: 'python', code, timeoutMs: 20_000 });
+      const runData = await executeCode({ language: 'python', code, timeoutMs: 20_000, workspaceId: ws.id });
       if (runData.success) {
         return {
           result: { stdout: runData.stdout, stderr: runData.stderr, exitCode: runData.exitCode, runtime: runData.runtime },
@@ -968,7 +968,7 @@ export async function executeWorkspaceTool(
       // Android compatibility: if the caller supplied raw Python source,
       // do not force the model to remember "python -c" syntax.
       if (looksLikePythonSource(command)) {
-        const runData = await executeCode({ language: 'python', code: command, timeoutMs: 20_000 });
+        const runData = await executeCode({ language: 'python', code: command, timeoutMs: 20_000, workspaceId: ws.id });
         if (runData.success) {
           return {
             result: { stdout: runData.stdout, stderr: runData.stderr, exitCode: runData.exitCode, runtime: runData.runtime },
