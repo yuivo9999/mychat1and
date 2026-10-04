@@ -334,7 +334,8 @@ export function buildAgentSystemPrompt(
   baseSystemPrompt?: string,
   isDiagnosisMode?: boolean,
   executeScriptEnabled?: boolean,
-  historySearchEnabled?: boolean
+  historySearchEnabled?: boolean,
+  visionAvailable: boolean = true
 ): string {
   const customPrompt = baseSystemPrompt || '你是一个专业严谨的高级编程助手。';
 
@@ -347,13 +348,17 @@ ${getWorkspaceDirectoryTree(workspace).slice(0, 1500)}${Object.keys(workspace.fi
 
   const chatPrivateMemory = formatChatContextPrompt(chatContext);
 
+  const visionProtocol = visionAvailable
+    ? '## 👁️ 手机视觉验证模式（当前模型支持视觉）\n- 当前模型可以读取图片附件；真实 390×780 截图可以作为模型直接判断的视觉证据。\n- 涉及布局、空白页、遮挡、溢出、按钮可见性、弹窗越界、键盘遮挡时，必须结合截图 + DOM/运行时/交互证据判断。\n- “动作 API 成功”不等于 UI 正确；必须观察真实状态变化。\n- 发现明确视觉问题才修改代码；修改后重新截图验证，最多 2 轮。'
+    : '## 🧩 手机程序化验证模式（当前模型不支持视觉输入）\n- 当前模型不能读取或理解截图内容。绝对不要声称“看到了截图”，也不要根据截图外观下结论。\n- 仍必须使用 discover_mobile_preview、interact_project_preview、inspect_project_runtime、Accessibility/DOM 几何与结构化交互结果完成手机测试。\n- 截图只能记录为“已生成、供用户或视觉模型查看的证据”，不能当作当前模型可读证据。\n- 空白页、像素级布局、遮挡细节、颜色/字体观感、弹窗裁切等纯视觉问题，如果 DOM/运行时无法证明，必须标记为“需要视觉模型复核”。\n- 可以继续写代码和修复程序化可证明的问题，不要因为没有视觉能力而停止 Agent。';
+
   const diagnosisProtocol = `
 ## 🤖 手机 UI 自动规划协议:
 当需要验证一个尚未明确测试路径的手机项目时：
-1. 先调用 discover_mobile_preview 获取真实交互元素与 baseline 截图。
+1. 先调用 discover_mobile_preview 获取真实交互元素与 baseline 结构化证据；当前模型支持视觉时再结合截图判断。
 2. DOM 可访问时，优先使用 selector 规划 2~8 步关键路径；DOM 跨域时不要伪造 selector，改用截图视觉判断 + 390×780 坐标。
 3. 流程应优先覆盖页面最主要的按钮/链接、输入框/表单和提交后状态；页面有明显长内容时增加一次滚动。
-4. 自动规划后调用 run_mobile_preview_flow 执行，并逐步截图；完成后结合截图判断“点击是否产生状态变化”，而不是只看动作 API 返回成功。
+4. 自动规划后调用 run_mobile_preview_flow 执行；视觉模型结合截图判断状态变化，非视觉模型使用元素状态、几何、DOM/runtime 与 visualDelta 判断，不把截图当作可读证据。
 5. 发现明确 UI 问题才修改代码；修改后重新发现元素并重新跑流程，最多 2 轮。
 6. 只测手机 390×780，不扩展电脑、平板或 Network。
  
