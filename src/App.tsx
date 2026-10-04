@@ -1044,14 +1044,14 @@ export default function App() {
 
       // 3. System Prompt: ONLY inject Workspace Summary, Tools Protocol & Diagnosis Protocol when Workspace Agent is explicitly enabled!
       const historySearchEnabled = settings.enableHistorySearch ?? false;
-      if (workspaceAgentEnabled || historySearchEnabled) {
+      if (workspaceAgentEnabled) {
         effectiveSystemPrompt = buildAgentSystemPrompt(
           wsToOperate,
           targetConv.chatContext,
           effectiveSystemPrompt,
           isDiagnosisMode,
           activeParams.executeScript,
-          settings.enableHistorySearch ?? false
+          historySearchEnabled
         );
       } else {
         // Pure chat mode / Agent OFF: only append chat's own private memory if present AND enabled, ZERO workspace tools protocol or directory trees
