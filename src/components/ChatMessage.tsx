@@ -278,7 +278,72 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
     };
   }, [isUser, responseOutline.length, htmlContent]);
 
-  // Upgrade rendered tables/quotes into directly usable AI content units.\n  useEffect(() => {\n    if (isUser || !messageContentRef.current) return;\n    const root = messageContentRef.current;\n    const cleanup: Array<() => void> = [];\n\n    root.querySelectorAll('.ai-table-unit').forEach((tableUnit) => {\n      if (tableUnit.querySelector('.ai-table-copy-btn')) return;\n      const table = tableUnit.querySelector('table');\n      if (!table) return;\n      const toolbar = document.createElement('div');\n      toolbar.className = 'ai-table-toolbar';\n      const button = document.createElement('button');\n      button.type = 'button';\n      button.className = 'ai-table-copy-btn';\n      button.textContent = '复制表格';\n      button.title = '复制为制表符分隔文本，可直接粘贴到表格软件';\n      const onClick = async () => {\n        const rows = Array.from(table.querySelectorAll('tr')).map((row) =>\n          Array.from(row.querySelectorAll('th,td')).map((cell) => (cell.textContent || '').replace(/\\s+/g, ' ').trim()).join('\\t')\n        );\n        try {\n          await navigator.clipboard.writeText(rows.join('\\n'));\n          button.textContent = '已复制';\n          window.setTimeout(() => { button.textContent = '复制表格'; }, 1600);\n        } catch {\n          button.textContent = '复制失败';\n          window.setTimeout(() => { button.textContent = '复制表格'; }, 1600);\n        }\n      };\n      button.addEventListener('click', onClick);\n      toolbar.appendChild(button);\n      tableUnit.insertBefore(toolbar, tableUnit.firstChild);\n      cleanup.push(() => button.removeEventListener('click', onClick));\n    });\n\n    const sources = message.webSearchResults || [];\n    if (sources.length) {\n      root.querySelectorAll('.ai-quote-unit').forEach((quote) => {\n        if (quote.querySelector('.ai-quote-source')) return;\n        const quoteText = (quote.textContent || '').trim().toLowerCase();\n        if (!quoteText) return;\n        const match = sources\n          .map((source) => {\n            const haystack = (source.title + ' ' + source.snippet).toLowerCase();\n            const words = quoteText.split(/\\s+/).filter((word) => word.length >= 4).slice(0, 24);\n            const score = words.reduce((sum, word) => sum + (haystack.includes(word) ? 1 : 0), 0);\n            return { source, score };\n          })\n          .sort((a, b) => b.score - a.score)[0];\n        if (!match || match.score < 2) return;\n        const sourceLink = document.createElement('a');\n        sourceLink.className = 'ai-quote-source';\n        sourceLink.href = match.source.url;\n        sourceLink.target = '_blank';\n        sourceLink.rel = 'noopener noreferrer';\n        sourceLink.textContent = '联网来源 · ' + match.source.title;\n        sourceLink.title = match.source.url;\n        quote.appendChild(sourceLink);\n      });\n    }\n\n    return () => cleanup.forEach((fn) => fn());\n  }, [isUser, htmlContent, message.webSearchResults]);\n\n  const jumpToOutlineItem = (outlineIndex: number) => {
+  // Upgrade rendered tables/quotes into directly usable AI content units.
+  useEffect(() => {
+    if (isUser || !messageContentRef.current) return;
+    const root = messageContentRef.current;
+    const cleanup: Array<() => void> = [];
+
+    root.querySelectorAll('.ai-table-unit').forEach((tableUnit) => {
+      if (tableUnit.querySelector('.ai-table-copy-btn')) return;
+      const table = tableUnit.querySelector('table');
+      if (!table) return;
+      const toolbar = document.createElement('div');
+      toolbar.className = 'ai-table-toolbar';
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'ai-table-copy-btn';
+      button.textContent = '复制表格';
+      button.title = '复制为制表符分隔文本，可直接粘贴到表格软件';
+      const onClick = async () => {
+        const rows = Array.from(table.querySelectorAll('tr')).map((row) =>
+          Array.from(row.querySelectorAll('th,td')).map((cell) => (cell.textContent || '').replace(/\s+/g, ' ').trim()).join('\t')
+        );
+        try {
+          await navigator.clipboard.writeText(rows.join('\n'));
+          button.textContent = '已复制';
+          window.setTimeout(() => { button.textContent = '复制表格'; }, 1600);
+        } catch {
+          button.textContent = '复制失败';
+          window.setTimeout(() => { button.textContent = '复制表格'; }, 1600);
+        }
+      };
+      button.addEventListener('click', onClick);
+      toolbar.appendChild(button);
+      tableUnit.insertBefore(toolbar, tableUnit.firstChild);
+      cleanup.push(() => button.removeEventListener('click', onClick));
+    });
+
+    const sources = message.webSearchResults || [];
+    if (sources.length) {
+      root.querySelectorAll('.ai-quote-unit').forEach((quote) => {
+        if (quote.querySelector('.ai-quote-source')) return;
+        const quoteText = (quote.textContent || '').trim().toLowerCase();
+        if (!quoteText) return;
+        const match = sources
+          .map((source) => {
+            const haystack = (source.title + ' ' + source.snippet).toLowerCase();
+            const words = quoteText.split(/\s+/).filter((word) => word.length >= 4).slice(0, 24);
+            const score = words.reduce((sum, word) => sum + (haystack.includes(word) ? 1 : 0), 0);
+            return { source, score };
+          })
+          .sort((a, b) => b.score - a.score)[0];
+        if (!match || match.score < 2) return;
+        const sourceLink = document.createElement('a');
+        sourceLink.className = 'ai-quote-source';
+        sourceLink.href = match.source.url;
+        sourceLink.target = '_blank';
+        sourceLink.rel = 'noopener noreferrer';
+        sourceLink.textContent = '联网来源 · ' + match.source.title;
+        sourceLink.title = match.source.url;
+        quote.appendChild(sourceLink);
+      });
+    }
+
+    return () => cleanup.forEach((fn) => fn());
+  }, [isUser, htmlContent, message.webSearchResults]);
+
+  const jumpToOutlineItem = (outlineIndex: number) => {
     const root = messageContentRef.current;
     if (!root) return;
     const headings = Array.from(root.querySelectorAll('h1, h2, h3')) as HTMLElement[];
