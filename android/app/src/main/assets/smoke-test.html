@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>MyChat Android Smoke Test</title>
+</head>
+<body>
+<script>
+(async function () {
+  function assert(condition, message) {
+    if (!condition) throw new Error(message);
+  }
+
+  try {
+    assert(window.MyChatAndroid, "Android bridge is missing");
+
+    const runtime = JSON.parse(window.MyChatAndroid.getRuntimeInfo());
+    assert(runtime.platform === "android", "platform mismatch");
+    assert(runtime.python, "python runtime missing");
+    assert(runtime.node === "bundled", "node runtime missing");
+    console.log("MYCHAT_SMOKE_RUNTIME_OK");
+
+    const python = JSON.parse(
+      window.MyChatAndroid.executePython(
+        "print('MYCHAT_PYTHON_BRIDGE_OK')",
+        15000
+      )
+    );
+    assert(python.success === true, "python failed: " + JSON.stringify(python));
+    assert(python.stdout.includes("MYCHAT_PYTHON_BRIDGE_OK"), "python output mismatch");
+    console.log("MYCHAT_SMOKE_PYTHON_OK");
+
+    const node = JSON.parse(
+      window.MyChatAndroid.executeNode(
+        "node -e \"console.log('MYCHAT_NODE_BRIDGE_OK')\"",
+        15000
+      )
+    );
+    assert(node.success === true, "node failed: " + JSON.stringify(node));
+    assert(node.stdout.includes("MYCHAT_NODE_BRIDGE_OK"), "node output mismatch");
+    console.log("MYCHAT_SMOKE_NODE_OK");
+
+    const shell = JSON.parse(
+      window.MyChatAndroid.executeCommand(
+        "echo MYCHAT_SHELL_BRIDGE_OK",
+        15000
+      )
+    );
+    assert(shell.success === true, "shell failed: " + JSON.stringify(shell));
+    assert(shell.stdout.includes("MYCHAT_SHELL_BRIDGE_OK"), "shell output mismatch");
+    console.log("MYCHAT_SMOKE_SHELL_OK");
+
+    console.log("MYCHAT_SMOKE_TEST_PASS");
+  } catch (error) {
+    console.log("MYCHAT_SMOKE_TEST_FAIL:" + (error && error.stack ? error.stack : error));
+  }
+})();
+</script>
+</body>
+</html>
