@@ -18,6 +18,8 @@ import {
 import { Workspace } from '../types/workspace';
 import {
   ProjectRuntimeState,
+  ProjectRuntimeHealth,
+  checkProjectRuntimeHealth,
   getProjectRuntimeState,
   startProjectRuntime,
   stopProjectRuntime,
@@ -64,6 +66,7 @@ export const WorkspacePreviewModal: React.FC<WorkspacePreviewModalProps> = ({
   const [runtimeState, setRuntimeState] = useState<ProjectRuntimeState>({ supported: false, running: false, status: 'unknown' });
   const [runtimeBusy, setRuntimeBusy] = useState(false);
   const [runtimeMode, setRuntimeMode] = useState<'static' | 'live'>('static');
+  const [runtimeHealth, setRuntimeHealth] = useState<ProjectRuntimeHealth>({ ok: false });
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -151,6 +154,36 @@ export const WorkspacePreviewModal: React.FC<WorkspacePreviewModalProps> = ({
       const state = startProjectRuntime(activeWorkspace);
       setRuntimeState(state);
       if (state.port) setRuntimeMode('live');
+    } finally {
+      setRuntimeBusy(false);
+    }
+  };
+
+  const handleCheckRuntime = () => {
+    if (!runtimeState.port) return;
+    const health = checkProjectRuntimeHealth(runtimeState.port, 1500);
+    setRuntimeHealth(health);
+    if (!health.ok) {
+      setRuntimeState(prev => ({
+        ...prev,
+        status: prev.running ? 'error' : prev.status,
+        stderr: health.error || prev.stderr,
+      }));
+    }
+  };
+
+  const handleRestartRuntime = () => {
+    if (!activeWorkspace || runtimeBusy) return;
+    setRuntimeBusy(true);
+    try {
+      stopProjectRuntime(activeWorkspace.id);
+      setRuntimeHealth({ ok: false });
+      const state = startProjectRuntime(activeWorkspace);
+      setRuntimeState(state);
+      if (state.port) {
+        setRuntimeMode('live');
+        window.setTimeout(handleCheckRuntime, 250);
+      }
     } finally {
       setRuntimeBusy(false);
     }
@@ -335,17 +368,34 @@ export const WorkspacePreviewModal: React.FC<WorkspacePreviewModalProps> = ({
             )}
 
             {runtimeState.supported && !!activeWorkspace && !!buildProjectStartCommand(activeWorkspace) && (
-              runtimeState.running ? (
-                <button type="button" onClick={handleStopRuntime} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300 border border-red-200 dark:border-red-800 text-xs font-medium" title="停止真实项目进程">
-                  <span className="w-2 h-2 rounded-full bg-red-500" />停止运行
-                </button>
-              ) : (
-                <button type="button" onClick={handleStartRuntime} disabled={runtimeBusy} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-xs font-medium disabled:opacity-50" title="安装依赖并启动真实项目">
-                  <Play className="w-3 h-3 fill-current" />{runtimeBusy ? '启动中…' : '运行项目'}
-                </button>
-              )
+              <>
+                {runtimeState.running && runtimeState.port && (
+                  <button
+                    type="button"
+                    onClick={handleCheckRuntime}
+                    className="hidden sm:inline-flex items-center gap-1 px-2 py-1 rounded-xl border border-neutral-200 dark:border-neutral-700 text-xs font-medium"
+                    title="检查本机运行服务是否正常响应"
+                  >
+                    <span className={`w-2 h-2 rounded-full ${runtimeHealth.ok ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                    {runtimeHealth.ok ? `正常 · ${runtimeHealth.latencyMs || 0}ms` : '检查运行状态'}
+                  </button>
+                )}
+                {runtimeState.running ? (
+                  <>
+                    <button type="button" onClick={handleRestartRuntime} disabled={runtimeBusy} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800 text-xs font-medium disabled:opacity-50" title="停止并重新启动真实项目">
+                      <RefreshCw className="w-3 h-3" />重启
+                    </button>
+                    <button type="button" onClick={handleStopRuntime} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300 border border-red-200 dark:border-red-800 text-xs font-medium" title="停止真实项目进程">
+                      <span className="w-2 h-2 rounded-full bg-red-500" />停止运行
+                    </button>
+                  </>
+                ) : (
+                  <button type="button" onClick={handleStartRuntime} disabled={runtimeBusy} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-xs font-medium disabled:opacity-50" title="安装依赖并启动真实项目">
+                    <Play className="w-3 h-3 fill-current" />{runtimeBusy ? '启动中…' : '运行项目'}
+                  </button>
+                )}
+              </>
             )}
-
             <button
               type="button"
               onClick={handleRefresh}
