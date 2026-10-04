@@ -133,6 +133,82 @@ export function parseAgentTaskPlan(text: string, fallbackGoal: string): AgentTas
   }
 }
 
+export function buildAgentReplanPrompt(plan: AgentTaskPlan, trigger = '执行过程中发现新证据'): string {
+  return '[Agent 动态重规划协议]\\n' +
+    '当前触发原因：' + trigger + '\\n' +
+    '当前计划：\\n' +
+    JSON.stringify({ goal: plan.goal, definitionOfDone: plan.definitionOfDone, checklist: plan.checklist }, null, 2) + '\\n\\n' +
+    '只有在原计划已经不再准确、任务被真实阻塞、用户要求发生变化、或工具/运行结果与原假设冲突时才重规划。\\n' +
+    '如果需要重规划，请只输出一个机器可读块，并继续执行新的计划，不要因为重规划而结束任务：\\n' +
+    '<agent_replan>\\n' +
+    '{"reason":"为什么原计划需要改变","goal":"新的最终目标","definitionOfDone":["新的可验证完成条件"],"checklist":[{"id":"稳定ID","title":"具体子任务","required":true,"dependsOn":[],"acceptanceCriteria":["可验证事实"]}]}\\n' +
+    '</agent_replan>\\n\\n' +
+    '重规划要求：最多 ' + MAX_DYNAMIC_CHECKLIST_ITEMS + ' 项；保留仍然有效的已完成任务 ID，以便系统继承已有证据；新增任务使用新 ID；不要删除仍然是完成条件所必需的已完成任务；dependsOn 必须引用本次清单中存在的 ID，且不能形成循环；重规划后按依赖顺序继续执行。\\n' +
+    '如果原计划仍然有效，不要输出 agent_replan。';
+}
+
+export function parseAgentTaskReplan(text: string, currentPlan: AgentTaskPlan): AgentTaskPlan | null {
+  const match = text.match(/<agent_replan>\\s*([\\s\\S]*?)\\s*<\\/agent_replan>/i);
+  if (!match) return null;
+  try {
+    const raw = JSON.parse(match[1]);
+    if (!raw || typeof raw !== 'object' || !Array.isArray(raw.checklist)) return null;
+    const checklistRaw = raw.checklist.slice(0, MAX_DYNAMIC_CHECKLIST_ITEMS);
+    const rawIds = new Set<string>();
+    const checklist: AgentTaskChecklistItem[] = checklistRaw
+      .filter((item: any) => item && typeof item.title === 'string' && item.title.trim())
+      .map((item: any, index: number) => {
+        let id = normalizePlanString(item.id, 'task_' + (index + 1));
+        if (rawIds.has(id)) id = 'task_' + (index + 1);
+        rawIds.add(id);
+        return {
+          id,
+          title: item.title.trim(),
+          status: 'pending' as const,
+          required: item.required !== false,
+          acceptanceCriteria: normalizePlanStringList(item.acceptanceCriteria, []),
+          dependsOn: Array.isArray(item.dependsOn) ? item.dependsOn.map(String).filter(Boolean) : [],
+        };
+      });
+    if (checklist.length === 0) return null;
+
+    const ids = new Set(checklist.map(item => item.id));
+    checklist.forEach((item, index) => {
+      item.dependsOn = Array.from(new Set(item.dependsOn || []))
+        .filter(dep => ids.has(dep) && dep !== item.id)
+        .filter(dep => {
+          const depIndex = checklist.findIndex(candidate => candidate.id === dep);
+          return depIndex >= 0 && depIndex < index;
+        });
+    });
+
+    const previousById = new Map(currentPlan.checklist.map(item => [item.id, item]));
+    const mergedChecklist = checklist.map(item => {
+      const previous = previousById.get(item.id);
+      if (!previous) return item;
+      const sameWork = previous.title.trim() === item.title.trim();
+      if (!sameWork) return item;
+      return {
+        ...item,
+        status: previous.status,
+        evidence: previous.evidence,
+      };
+    });
+
+    return {
+      goal: normalizePlanString(raw.goal, currentPlan.goal),
+      definitionOfDone: normalizePlanStringList(raw.definitionOfDone, currentPlan.definitionOfDone),
+      checklist: mergedChecklist,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function stripAgentReplanBlock(text: string): string {
+  return text.replace(/<agent_replan>\\s*[\\s\\S]*?\\s*<\\/agent_replan>/gi, '').trim();
+}
+
 export function stripAgentPlanBlock(text: string): string {
   return text.replace(/<agent_plan>\s*[\s\S]*?\s*<\/agent_plan>/gi, '').trim();
 }
@@ -468,7 +544,7 @@ export function buildAgentLoopFeedback(
     '## Definition of Done\\n' + definitionOfDone + '\\n\\n' +
     '## 动态子任务清单\\n' + checklist + '\\n\\n' +
     '## 依赖调度\\n下一项可执行任务：' + nextTaskText + '\\n被依赖阻塞：' + blockedText + '\\n\\n' +
-    '上一轮工具结果：\\n' + toolResults + '\\n\\n' +
+    '上一轮工具结果：\\n' + toolResults + '\\n\\n' +\n    buildAgentReplanPrompt(plan || createAgentTaskPlan('未明确任务'), '结合上一轮工具结果判断当前计划是否仍然成立') + '\\n\\n' +
     '请根据真实证据决定下一步：\\n' +
     '1. 优先执行“下一项可执行任务”；如果任务有未完成 dependsOn，不得抢跑；\\n' +
     '2. 每完成一个子任务，必须让其 acceptanceCriteria 有真实证据支撑；\\n' +
