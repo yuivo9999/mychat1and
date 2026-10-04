@@ -101,3 +101,14 @@ export function parseHttpError(status: number, errorData: any, statusText: strin
   if (status >= 500) return `服务提供商接口故障 (${status}): ${detail || statusText || '提供商服务器错误，请稍后再试'}`;
   return `请求失败 (${status} ${statusText}): ${detail || '未知错误'}`;
 }
+
+export function isConciseReplyModeEnabled(parameters?: ModelParameters): boolean {
+  if (parameters?.conciseReplyMode === true) return true;
+  if (typeof localStorage === 'undefined') return false;
+  try {
+    const settings = JSON.parse(localStorage.getItem('omnichat_settings_cache') || '{}');
+    return settings?.conciseReplyMode === true;
+  } catch {
+    return false;
+  }
+}
