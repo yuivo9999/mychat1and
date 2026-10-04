@@ -212,7 +212,7 @@ export const WORKSPACE_TOOLS_SPEC = [
   {
     name: 'capture_project_runtime_screenshot',
     description: '截取当前真实项目预览区的页面画面，并把截图作为下一轮多模态模型的视觉证据。仅在项目已启动且需要判断布局、空白页、溢出、遮挡等视觉问题时使用。',
-    parameters: { type: 'object', properties: {} },
+    parameters: { type: 'object', properties: { viewport: { type:'string', enum:['mobile'], description:'手机 390×780 视口' } } },
   },
   {
     name: 'run_python',
@@ -1399,7 +1399,7 @@ export async function executeWorkspaceTool(
     }
 
     case 'capture_project_runtime_screenshot': {
-      const screenshot = captureProjectRuntimeScreenshot(ws.id, 72);
+      const screenshot = captureProjectRuntimeScreenshot(ws.id, 72, 'mobile');
       if (!screenshot.success || !screenshot.dataUrl) {
         return { result: { success: false, error: screenshot.error || '项目预览截图失败' }, updatedWorkspace: ws, errorMessage: screenshot.error || '项目预览截图失败', stepIcon: 'lightning', stepTitle: '项目视觉检查失败' };
       }

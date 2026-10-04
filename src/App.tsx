@@ -2999,13 +2999,7 @@ export default function App() {
       />
 
       {/* Workspace Web Project Live Preview Modal */}
-      <WorkspacePreviewModal
-        isOpen={isPreviewOpen}
-        onClose={() => setIsPreviewOpen(false)}
-        workspaces={workspaces}
-        initialWorkspaceId={currentWorkspace?.id}
-        onSaveWorkspace={handleSaveWorkspaceState}
-      />
+      <WorkspacePreviewModal isOpen={isPreviewOpen} onClose={() => setIsPreviewOpen(false)} workspaces={workspaces} initialWorkspaceId={currentWorkspace?.id} onSaveWorkspace={handleSaveWorkspaceState} onRequestAgentAudit={() => void handleSendMessage('请对当前手机项目执行 AI 预览检查：获取 390×780 真实截图，结合截图、Console、运行时证据与代码检查布局溢出、遮挡、空白、手机响应式、交互和 Accessibility；发现明确问题直接修复并重新截图验证；最多 2 轮；不要检查 Network、电脑或平板端。',[])} />
 
       {/* Workspace AI File Modification Audit Modal (up to 1000 records) */}
       <AiFileAuditModal

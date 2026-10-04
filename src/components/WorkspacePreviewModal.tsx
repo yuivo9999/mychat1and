@@ -3,9 +3,7 @@ import {
   X, 
   RefreshCw, 
   ExternalLink, 
-  Monitor, 
   Smartphone, 
-  Tablet, 
   Terminal, 
   Folder, 
   ChevronDown, 
@@ -38,7 +36,7 @@ interface WorkspacePreviewModalProps {
   onClose: () => void;
   workspaces: Workspace[];
   initialWorkspaceId?: string;
-  onSaveWorkspace?: (workspace: Workspace) => Promise<void>;
+  onSaveWorkspace?: (workspace: Workspace) => Promise<void>; onRequestAgentAudit?: (workspaceId:string)=>void;
 }
 
 interface ConsoleLogItem {
@@ -53,12 +51,12 @@ export const WorkspacePreviewModal: React.FC<WorkspacePreviewModalProps> = ({
   onClose,
   workspaces,
   initialWorkspaceId,
-  onSaveWorkspace,
+  onSaveWorkspace, onRequestAgentAudit,
 }) => {
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>(
     initialWorkspaceId || workspaces[0]?.id || ''
   );
-  const [viewportMode, setViewportMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
+  const [zoom,setZoom]=useState(100); const [shell,setShell]=useState(true); const [inspect,setInspect]=useState(false); const [tab,setTab]=useState<'ai'|'interaction'|'a11y'|'compare'>('ai'); const [before,setBefore]=useState<string|null>(null); const [after,setAfter]=useState<string|null>(null); const [result,setResult]=useState<string[]>([]);
   const [showConsole, setShowConsole] = useState(false);
   const [consoleLogs, setConsoleLogs] = useState<ConsoleLogItem[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -69,6 +67,11 @@ export const WorkspacePreviewModal: React.FC<WorkspacePreviewModalProps> = ({
   const [runtimeHealth, setRuntimeHealth] = useState<ProjectRuntimeHealth>({ ok: false });
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const shot=()=>{if(!activeWorkspace)return;try{const raw=(window as any).MyChatAndroid?.captureProjectRuntimeScreenshot?.(activeWorkspace.id,72,'mobile');const p=typeof raw==='string'?JSON.parse(raw):raw;if(p?.dataUrl){setBefore(after);setAfter(p.dataUrl);setInspect(true);setTab('compare');setResult(['手机 390×780 真实预览截图已更新。']);}}catch(e:any){setResult([e?.message||String(e)]);setInspect(true);}};
+  const a11y=()=>{try{const d=iframeRef.current?.contentDocument;if(!d)throw Error('实时项目跨源，无法读取 DOM');const x:string[]=[];d.querySelectorAll('img').forEach((e:any)=>{if(!e.alt)x.push('图片缺少 alt')});d.querySelectorAll('button').forEach((e:any)=>{if(!(e.innerText||e.getAttribute('aria-label')||e.title))x.push('按钮缺少可访问名称')});setResult(x.length?x.slice(0,10):['未发现明显 Accessibility 问题']);setTab('a11y');setInspect(true)}catch(e:any){setResult([e.message||String(e)]);setTab('a11y');setInspect(true)}};
+  const interaction=()=>{try{const d=iframeRef.current?.contentDocument;if(!d)throw Error('实时项目跨源，无法执行 DOM 交互测试');const es=[...d.querySelectorAll('button,a,input,select,textarea')];let n=0;es.slice(0,8).forEach((e:any)=>{e.focus();if(d.activeElement===e)n++});setResult([`发现 ${es.length} 个交互元素`,`前 ${Math.min(8,es.length)} 个元素成功 focus：${n} 个`]);setTab('interaction');setInspect(true)}catch(e:any){setResult([e.message||String(e)]);setTab('interaction');setInspect(true)}};
+  const fix=()=>{if(consoleLogs.some(l=>l.type==='error'))onRequestAgentAudit?.(activeWorkspace?.id||'');else{setResult(['当前没有 Console Error']);setInspect(true);}};
+
 
   const refreshRuntimeState = () => {
     if (!activeWorkspace) return;
@@ -310,49 +313,7 @@ export const WorkspacePreviewModal: React.FC<WorkspacePreviewModalProps> = ({
             )}
           </div>
 
-          {/* Center: Device Viewport Switcher */}
-          <div className="flex items-center gap-1 bg-neutral-200/60 dark:bg-neutral-800 p-0.5 rounded-xl text-neutral-600 dark:text-neutral-400">
-            <button
-              type="button"
-              onClick={() => setViewportMode('desktop')}
-              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition ${
-                viewportMode === 'desktop' 
-                  ? 'bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-2xs' 
-                  : 'hover:text-neutral-900 dark:hover:text-white'
-              }`}
-              title="桌面全宽端 (100% 宽度)"
-            >
-              <Monitor className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">电脑端</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewportMode('tablet')}
-              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition ${
-                viewportMode === 'tablet' 
-                  ? 'bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-2xs' 
-                  : 'hover:text-neutral-900 dark:hover:text-white'
-              }`}
-              title="平板端 (768px 宽度)"
-            >
-              <Tablet className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">平板</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewportMode('mobile')}
-              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition ${
-                viewportMode === 'mobile' 
-                  ? 'bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-2xs' 
-                  : 'hover:text-neutral-900 dark:hover:text-white'
-              }`}
-              title="手机端 (375px 宽度)"
-            >
-              <Smartphone className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">手机端</span>
-            </button>
-          </div>
-
+          <div className="flex items-center gap-1 bg-neutral-200/60 dark:bg-neutral-800 p-0.5 rounded-xl text-xs"><Smartphone className="w-3.5 h-3.5"/><span>手机 390×780</span><select value={zoom} onChange={e=>setZoom(+e.target.value)} className="bg-transparent ml-2">{[50,67,80,90,100,110,125,150].map(v=><option key={v}>{v}%</option>)}</select><button onClick={()=>setZoom(100)}>适配</button><button onClick={()=>setShell(!shell)}>{shell?'外壳':'无外壳'}</button><button onClick={()=>{setTab('ai');setInspect(true)}}>✨ AI检查</button><button onClick={interaction}>交互</button><button onClick={a11y}>无障碍</button><button onClick={shot}>截图</button><button onClick={fix}>修复错误</button></div>
           {/* Right: Actions */}
           <div className="flex items-center gap-1.5">
             {!runnableInfo.hasRunnableEntry && (
@@ -441,61 +402,8 @@ export const WorkspacePreviewModal: React.FC<WorkspacePreviewModalProps> = ({
           </div>
         </div>
 
-        {/* Main Viewport Container */}
-        <div className="flex-1 bg-neutral-100 dark:bg-neutral-950/60 flex items-center justify-center p-2 sm:p-4 overflow-hidden relative">
-          <div 
-            className={`h-full transition-all duration-300 bg-white rounded-xl shadow-lg border border-neutral-300/80 dark:border-neutral-800 overflow-hidden flex flex-col ${
-              viewportMode === 'desktop' 
-                ? 'w-full' 
-                : viewportMode === 'tablet' 
-                  ? 'w-[768px] max-w-full' 
-                  : 'w-[375px] max-w-full'
-            }`}
-          >
-            {/* Viewport Frame Header (Simulated browser URL bar) */}
-            <div className="h-7 bg-neutral-100 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 px-3 flex items-center gap-2 shrink-0 select-none">
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-red-400/80" />
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-400/80" />
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400/80" />
-              </div>
-              <div className="flex-1 mx-2 bg-white dark:bg-neutral-800/80 rounded-md px-2 py-0.5 text-[10px] text-neutral-400 truncate font-mono text-center border border-neutral-200/60 dark:border-neutral-700/60">
-                {runtimeMode === 'live' && runtimeState.port ? `http://127.0.0.1:${runtimeState.port}` : `静态预览 · ${activeWorkspace?.name || 'workspace'} · ${runnableInfo.entryPath || 'preview'}`}
-              </div>
-            </div>
-
-            {runtimeMode === 'live' && (
-              <div className="h-6 px-3 flex items-center gap-3 bg-neutral-50 dark:bg-neutral-950 border-b border-neutral-200 dark:border-neutral-800 text-[10px] shrink-0">
-                <span className={`inline-flex items-center gap-1 font-medium ${runtimeState.status === 'error' ? 'text-red-500' : runtimeState.running ? 'text-emerald-500' : 'text-amber-500'}`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${runtimeState.status === 'error' ? 'bg-red-500' : runtimeState.running ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-                  {runtimeState.status === 'error' ? '运行异常' : runtimeState.running ? '运行中' : '启动中'}
-                </span>
-                {runtimeState.port && <span className="text-neutral-500">端口 {runtimeState.port}</span>}
-                {runtimeState.pid && <span className="text-neutral-500">PID {runtimeState.pid}</span>}
-                {runtimeHealth.checkedAt && (
-                  <span className={runtimeHealth.ok ? 'text-emerald-500' : 'text-red-500'}>
-                    HTTP {runtimeHealth.status ?? '—'} · {runtimeHealth.latencyMs ?? '—'}ms
-                  </span>
-                )}
-                {runtimeHealth.error && <span className="truncate text-red-500" title={runtimeHealth.error}>{runtimeHealth.error}</span>}
-              </div>
-            )}
-
-            {/* Sandboxed Iframe Runner */}
-            <div className="flex-1 relative bg-white overflow-hidden">
-              <iframe
-                ref={iframeRef}
-                key={`${selectedWorkspaceId}_${refreshKey}_${runtimeMode}_${runtimeState.port || 'static'}`}
-                src={runtimeMode === 'live' && runtimeState.port ? `http://127.0.0.1:${runtimeState.port}` : undefined}
-                srcDoc={runtimeMode === 'live' && runtimeState.port ? undefined : previewHtml}
-                title="Workspace Preview"
-                sandbox="allow-scripts allow-modals allow-forms allow-same-origin allow-popups"
-                className="w-full h-full border-0 bg-white"
-              />
-            </div>
-          </div>
-        </div>
-
+        <div className="flex-1 bg-neutral-100 dark:bg-neutral-950 flex items-center justify-center overflow-auto"><div className="relative" style={{transform:'scale('+zoom/100+')'}}>{shell&&<div className="absolute -inset-3 rounded-[2.4rem] bg-neutral-950 shadow-2xl pointer-events-none"><div className="absolute top-2 left-1/2 -translate-x-1/2 w-24 h-5 rounded-full bg-black"/></div>}<div className="relative w-[390px] h-[780px] rounded-[2rem] overflow-hidden bg-white border"><iframe ref={iframeRef} key={selectedWorkspaceId+'_'+refreshKey+'_'+runtimeMode} src={runtimeMode==='live'&&runtimeState.port?'http://127.0.0.1:'+runtimeState.port:undefined} srcDoc={runtimeMode==='live'&&runtimeState.port?undefined:previewHtml} title="Workspace Preview" sandbox="allow-scripts allow-modals allow-forms allow-same-origin allow-popups" className="w-full h-full border-0"/></div></div></div>
+        {inspect&&<div className="h-48 border-t bg-white dark:bg-neutral-900 p-2 text-xs overflow-auto"><div className="flex gap-2 mb-2">{['ai','interaction','a11y','compare'].map((x:any)=><button key={x} onClick={()=>setTab(x)}>{x==='ai'?'AI检查':x==='interaction'?'交互':x==='a11y'?'Accessibility':'前后对比'}</button>)}</div>{tab==='ai'&&<><div>{result.length?result.map(x=><div key={x}>• {x}</div>):'AI 将获取真实手机截图并结合代码、Console、运行时证据检查。'}</div><button className="mt-2 px-3 py-1 rounded bg-indigo-600 text-white" onClick={()=>onRequestAgentAudit?.(activeWorkspace?.id||'')}>让 Agent 检查并修复</button></>}{tab==='interaction'&&result.map(x=><div key={x}>• {x}</div>)}{tab==='a11y'&&result.map(x=><div key={x}>• {x}</div>)}{tab==='compare'&&<div className="grid grid-cols-2 gap-2">{before?<img src={before} className="max-h-36 object-contain"/>:<div>暂无上一张</div>}{after?<img src={after} className="max-h-36 object-contain"/>:<div>暂无当前</div>}</div>}</div>}
         {/* Collapsible Console Logs Drawer */}
         {showConsole && (
           <div className="h-44 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-900 text-neutral-200 font-mono text-xs flex flex-col shrink-0">

@@ -191,19 +191,20 @@ export function buildProjectStartCommand(workspace: Workspace): string | null {
   return null;
 }
 
-export function captureProjectRuntimeScreenshot(workspaceId: string, quality = 72): ProjectRuntimeScreenshot {
+export function captureProjectRuntimeScreenshot(workspaceId: string, quality = 72, viewport: ProjectRuntimeViewport = 'mobile'): ProjectRuntimeScreenshot {
   const bridge = runtimeBridge();
   if (!bridge?.captureProjectRuntimeScreenshot) {
     return { success: false, error: '当前环境不支持项目预览截图接口' };
   }
   try {
-    const raw = bridge.captureProjectRuntimeScreenshot(workspaceId, quality);
+    const raw = bridge.captureProjectRuntimeScreenshot(workspaceId, quality, viewport);
     const payload = typeof raw === 'string' ? JSON.parse(raw) : raw;
     return {
       success: payload?.success === true,
       dataUrl: typeof payload?.dataUrl === 'string' ? payload.dataUrl : undefined,
       width: typeof payload?.width === 'number' ? payload.width : undefined,
       height: typeof payload?.height === 'number' ? payload.height : undefined,
+      viewport: payload?.viewport || viewport,
       error: typeof payload?.error === 'string' ? payload.error : undefined,
     };
   } catch (error: any) {
