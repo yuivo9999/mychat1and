@@ -1074,37 +1074,8 @@ export default function App() {
         adaptedContent = optimizePrompt(adaptedContent);
       }
 
-      // Context7 is an actual documentation-grounding step, independent from chat-history compaction.
-      if (isContext7Enabled) {
-        setStatusMessage('Context7 正在检索相关官方技术文档...');
-        const context7Result = await searchContext7(adaptedContent, undefined, undefined, undefined, settings.context7ApiKey);
-        if (context7Result.success) {
-          const grounding = formatContext7Grounding(context7Result.data);
-          if (grounding.trim()) {
-            adaptedContent += `\n\n${grounding}\n\n[Context7 使用规则：以上内容是检索到的技术文档依据。优先遵循其中明确的 API、版本和代码示例；不要把未提供的内容声称为来自 Context7。]`;
-            initialThinkingSteps.push({
-              id: `step_context7_docs_${Date.now()}`,
-              icon: 'search',
-              title: 'Context7 已挂载官方文档与代码示例',
-              status: 'completed',
-            });
-          } else {
-            initialThinkingSteps.push({
-              id: `step_context7_empty_${Date.now()}`,
-              icon: 'search',
-              title: 'Context7 未返回可用文档，继续使用模型自身知识',
-              status: 'completed',
-            });
-          }
-        } else {
-          initialThinkingSteps.push({
-            id: `step_context7_error_${Date.now()}`,
-            icon: 'search',
-            title: `Context7 检索失败：${context7Result.error}`,
-            status: 'completed',
-          });
-        }
-      }
+      // Context7 已在统一知识检索阶段作为可选补充来源处理。
+      // 这里不再重复请求，避免一次提问产生两次 Context7 调用，也确保 Web/GitHub 始终是主力来源。
 
       // Append natural guidance if attachments were omitted
       if (hasImageAttachments && !isVisionSupported) {
