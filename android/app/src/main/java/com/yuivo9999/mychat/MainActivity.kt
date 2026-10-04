@@ -322,6 +322,91 @@ class AndroidBridge(
             source.inputStream().use { input -> FileOutputStream(destination).use { output -> input.copyTo(output) } }
         }
     }
+    private fun runNodeCommandInternal(command: String, timeoutMs: Int, workspaceId: String): Map<String, Any?> {
+        val nodeBinary = File(activity.applicationInfo.nativeLibraryDir, "libnode.so")
+        require(nodeBinary.isFile) { "Android Node.js runtime is not bundled" }
+        val workspacePath = if (workspaceId.isBlank()) activity.filesDir.absolutePath else workspaceRoot(workspaceId).absolutePath
+        val trimmed = command.trim()
+        val npmCli = if (trimmed == "npm" || trimmed.startsWith("npm ") || trimmed == "npx" || trimmed.startsWith("npx ")) ensureNpmRuntime() else null
+        val processBuilder = if (npmCli != null) {
+            val isNpx = trimmed == "npx" || trimmed.startsWith("npx ")
+            val rawArgs = if (isNpx) trimmed.removePrefix("npx").trim() else trimmed.removePrefix("npm").trim()
+            val args = if (isNpx) listOf("exec", "--") + rawArgs.split(Regex("\\s+")).filter { it.isNotBlank() } else rawArgs.split(Regex("\\s+")).filter { it.isNotBlank() }
+            ProcessBuilder(listOf(nodeBinary.absolutePath, npmCli.absolutePath) + args)
+        } else {
+            ProcessBuilder("sh", "-c", trimmed)
+        }
+        processBuilder.directory(File(workspacePath))
+        processBuilder.redirectErrorStream(false)
+        processBuilder.environment()["LD_LIBRARY_PATH"] = activity.applicationInfo.nativeLibraryDir
+        processBuilder.environment()["HOME"] = activity.filesDir.absolutePath
+        processBuilder.environment()["npm_config_cache"] = File(activity.filesDir, "npm-cache").absolutePath
+        processBuilder.environment()["npm_config_prefix"] = File(activity.filesDir, "npm-global").absolutePath
+        processBuilder.environment()["npm_config_audit"] = "false"
+        processBuilder.environment()["npm_config_fund"] = "false"
+        processBuilder.environment()["TMPDIR"] = activity.cacheDir.absolutePath
+        val nodeLauncher = ensureNodeLauncher()
+        processBuilder.environment()["PATH"] = nodeLauncher.parentFile!!.absolutePath + File.pathSeparator +
+            activity.applicationInfo.nativeLibraryDir + File.pathSeparator + (processBuilder.environment()["PATH"] ?: "")
+        processBuilder.environment()["npm_node_execpath"] = nodeBinary.absolutePath
+        processBuilder.environment()["npm_execpath"] = npmCli?.absolutePath ?: (processBuilder.environment()["npm_execpath"] ?: "")
+        val process = processBuilder.start()
+        val stdoutFuture = executor.submit(Callable { process.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() } })
+        val stderrFuture = executor.submit(Callable { process.errorStream.bufferedReader(Charsets.UTF_8).use { it.readText() } })
+        val completed = process.waitFor(timeoutMs.coerceIn(1000, 120000).toLong(), TimeUnit.MILLISECONDS)
+        if (!completed) {
+            process.destroyForcibly()
+            return mapOf("success" to false, "stdout" to "", "stderr" to "Node command execution timed out", "exitCode" to -1, "error" to "Node command execution timed out")
+        }
+        return mapOf(
+            "success" to (process.exitValue() == 0),
+            "stdout" to stdoutFuture.get(1000, TimeUnit.MILLISECONDS),
+            "stderr" to stderrFuture.get(1000, TimeUnit.MILLISECONDS),
+            "exitCode" to process.exitValue(),
+            "error" to null
+        )
+    }
+
+    @JavascriptInterface
+    fun installWorkspaceDependencies(workspaceId: String, timeoutMs: Int = 120000): String {
+        return try {
+            val root = workspaceRoot(workspaceId)
+            val packageJson = File(root, "package.json")
+            require(packageJson.isFile) { "当前工作区没有 package.json" }
+            val packageLock = File(root, "package-lock.json")
+            val command = if (packageLock.isFile) "npm ci --no-audit --no-fund" else "npm install --no-audit --no-fund"
+            val nodeModules = File(root, "node_modules")
+            val backup = File(root, ".mychat-runtime/node_modules.backup")
+            backup.parentFile?.mkdirs()
+            if (backup.exists()) backup.deleteRecursively()
+            var hadExisting = nodeModules.isDirectory
+            if (hadExisting) check(nodeModules.renameTo(backup)) { "无法保护现有 node_modules" }
+            val result = try {
+                runNodeCommandInternal(command, timeoutMs, workspaceId)
+            } catch (e: Throwable) {
+                mapOf<String, Any?>("success" to false, "stdout" to "", "stderr" to "", "exitCode" to -1, "error" to (e.message ?: e.javaClass.simpleName))
+            }
+            val success = result["success"] == true
+            if (success) {
+                if (backup.exists()) backup.deleteRecursively()
+            } else {
+                if (nodeModules.exists()) nodeModules.deleteRecursively()
+                if (hadExisting && backup.exists()) check(backup.renameTo(nodeModules)) { "依赖安装失败，且旧 node_modules 恢复失败" }
+            }
+            JSONObject().apply {
+                put("success", success)
+                put("command", command)
+                put("stdout", result["stdout"]?.toString() ?: "")
+                put("stderr", result["stderr"]?.toString() ?: "")
+                put("exitCode", (result["exitCode"] as? Number)?.toInt() ?: -1)
+                if (result["error"] != null) put("error", result["error"].toString())
+                put("recoveredPreviousDependencies", !success && hadExisting && nodeModules.isDirectory)
+            }.toString()
+        } catch (e: Throwable) {
+            JSONObject().put("success", false).put("error", e.message ?: e.javaClass.simpleName).toString()
+        }
+    }
+
     @JavascriptInterface
     fun executeNode(command: String, timeoutMs: Int, workspaceId: String = ""): String {
         val nodeBinary = File(activity.applicationInfo.nativeLibraryDir, "libnode.so")
