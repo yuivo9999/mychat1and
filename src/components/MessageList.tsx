@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ArrowDown } from 'lucide-react';
 import { Message, ModelItem, UserSettings } from '../types';
 import { ChatMessage } from './ChatMessage';
+import { AgentProgressCard } from './AgentProgressCard';
 
 interface MessageListProps {
   messages: Message[];
@@ -83,7 +84,11 @@ export const MessageList: React.FC<MessageListProps> = ({
         <div className="flex-1" />
       ) : (
         <div className="w-full max-w-4xl mx-auto divide-y divide-neutral-100 dark:divide-neutral-800/60 pb-8">
-          {messages.map((msg) => (
+          {messages.map((msg, index) => (
+            <React.Fragment key={msg.id}>
+              {!msg.role || (msg.role === 'assistant' && index === messages.length - 1) ? (
+                <AgentProgressCard message={msg} compact />
+              ) : null}
             <ChatMessage
               key={msg.id}
               message={msg}
@@ -100,6 +105,7 @@ export const MessageList: React.FC<MessageListProps> = ({
               onSaveWorkspace={onSaveWorkspace}
               onOpenWorkspace={onOpenWorkspace}
             />
+            </React.Fragment>
           ))}
           <div ref={bottomRef} className="h-4" />
         </div>
