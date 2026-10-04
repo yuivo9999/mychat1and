@@ -1070,7 +1070,7 @@ export default function App() {
         const currentProj = projects.find(p => p.id === targetConv.projectId);
         if (currentProj) {
           const projConvs = conversations.filter(c => c.projectId === currentProj.id);
-          const projPrompt = formatProjectMemoryPrompt(currentProj, projConvs, targetConv.id);
+          const projPrompt = formatProjectMemoryPrompt(currentProj, projConvs, targetConv.id, text);
           if (projPrompt) {
             effectiveSystemPrompt = effectiveSystemPrompt ? `${effectiveSystemPrompt}\n\n${projPrompt}` : projPrompt;
           }
