@@ -1159,12 +1159,35 @@ export async function executeWorkspaceTool(
               : '依赖安装成功，但未确认 node_modules 持久化',
         };
       }
+      const failureCategory = (runData as any).failureCategory || 'unknown';
+      const recoveredPreviousDependencies = (runData as any).recoveredPreviousDependencies === true;
+      const categoryHint: Record<string, string> = {
+        permission: '权限/文件访问问题',
+        network: '网络或 registry 访问问题',
+        timeout: '安装超时',
+        'package-not-found': '依赖包不存在或 registry 返回 404',
+        'dependency-conflict': '依赖版本或 peer dependency 冲突',
+        'native-module': '原生模块编译/预构建二进制问题',
+        'missing-runtime-file': '运行时文件缺失',
+        unknown: '未分类 npm 错误',
+      };
+      const diagnostic = categoryHint[failureCategory] || categoryHint.unknown;
       return {
-        result: { command: info.dependencyInstallCommand, stdout: runData.stdout, stderr: runData.stderr, exitCode: runData.exitCode, error: runData.error, runtime: runData.runtime },
+        result: {
+          command: info.dependencyInstallCommand,
+          stdout: runData.stdout,
+          stderr: runData.stderr,
+          exitCode: runData.exitCode,
+          error: runData.error,
+          runtime: runData.runtime,
+          failureCategory,
+          diagnosis: diagnostic,
+          recoveredPreviousDependencies,
+        },
         updatedWorkspace: ws,
-        errorMessage: runData.error || runData.stderr || ('依赖安装失败，退出码: ' + runData.exitCode),
+        errorMessage: (runData.error || runData.stderr || ('依赖安装失败，退出码: ' + runData.exitCode)) + '。分类：' + diagnostic + '。' + (recoveredPreviousDependencies ? '已自动恢复安装前的 node_modules，当前项目依赖未被本次失败安装破坏。' : '未检测到可恢复的旧 node_modules，请先处理安装错误再继续。'),
         stepIcon: 'lightning',
-        stepTitle: '依赖安装失败: ' + info.dependencyInstallCommand,
+        stepTitle: '依赖安装失败：' + diagnostic,
       };
     }
 
