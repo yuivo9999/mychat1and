@@ -239,6 +239,7 @@ export interface UserSettings {
   corsProxyUrl?: string;
   sidebarOpen: boolean;
   fontFamily?: string; // 全局中文字体 ID 或自定义字体名称
+  context7ApiKey?: string; // Context7 官方 API Key（仅本地保存）
 }
 
 export interface CustomFontItem {
