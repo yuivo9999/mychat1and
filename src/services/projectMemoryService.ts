@@ -37,6 +37,30 @@ function looksLikeSupersedingDecision(value: string): boolean {
   return /改成|改为|调整为|换成|替换|取消|不再|停止使用|弃用|废弃|最终决定|最终采用|现在采用|改用|重新确定|不使用|删除掉|移除/i.test(value);
 }
 
+function inferMemoryCategory(content: string): ProjectMemoryCategory {
+  const value = normalizeDecision(content);
+  if (/必须|不得|禁止|严禁|规范|约束|规则|统一要求|始终|不能/i.test(value)) return 'rule';
+  if (/限制|兼容|支持范围|边界|前提|要求/i.test(value)) return 'constraint';
+  if (/架构|分层|模块|状态管理|数据流|服务层|repository|service|store/i.test(value)) return 'architecture';
+  if (/技术栈|框架|库|依赖|typescript|react|android|kotlin|java|sqlite|vite|tailwind|context7|python|node/i.test(value)) return 'technology';
+  if (/ui|ux|界面|主题|配色|颜色|布局|交互|按钮|输入框|键盘|动画|字体|图标|视觉/i.test(value)) return 'ui';
+  if (/流程|步骤|发布|构建|测试|部署|提交|检查|验证|工作流/i.test(value)) return 'workflow';
+  if (/决定|最终|改成|改为|调整为|换成|替换|采用|方案|选用/i.test(value)) return 'decision';
+  return 'other';
+}
+
+function memoryPriority(category: ProjectMemoryCategory, content: string, confidence = 0.55): number {
+  const base: Record<ProjectMemoryCategory, number> = {
+    rule: 100, constraint: 95, architecture: 90, technology: 85,
+    decision: 80, ui: 75, workflow: 70, other: 60,
+  };
+  let score = base[category];
+  if (/最终|正式|确定|确认|必须|不得|统一|始终/i.test(content)) score += 5;
+  if (/改成|改为|调整为|换成|替换|现在采用|最终采用/i.test(content)) score += 3;
+  score += Math.round(Math.max(0, Math.min(1, confidence)) * 5);
+  return Math.min(110, score);
+}
+
 function memoryConfidence(content: string, updatedAt: number): number {
   let score = 0.55;
   if (looksLikeSupersedingDecision(content)) score += 0.25;
