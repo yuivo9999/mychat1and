@@ -12,6 +12,7 @@ import {
 } from './workspaceService';
 import { formatChatContextPrompt, detectWorkspaceIntent, WorkspaceIntent } from './chatContextService';
 import { ChatContext } from '../types/workspace';
+import { isAndroidRuntime, runPythonInWorkspace } from './nativeRuntime';
 
 export { detectWorkspaceIntent, type WorkspaceIntent };
 
