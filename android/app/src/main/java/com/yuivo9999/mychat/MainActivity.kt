@@ -82,7 +82,8 @@ class AndroidBridge(
             var deletedCount = 0
             root.walkTopDown().filter { it.isFile }.forEach { file ->
                 val relative = root.toPath().relativize(file.toPath()).toString().replace(File.separatorChar, '/')
-                if (relative == ".mychat-runtime/dependency-state.json" ||
+                if (relative.startsWith("node_modules/") ||
+                    relative == ".mychat-runtime" ||
                     relative.startsWith(".mychat-runtime/")) return@forEach
                 if (!expected.contains(relative)) {
                     if (file.delete()) deletedCount++
