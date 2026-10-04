@@ -146,11 +146,14 @@ export interface ProjectRuntimeHealth {
   error?: string;
 }
 
+export type ProjectRuntimeViewport = 'mobile' | 'tablet' | 'desktop';
+
 export interface ProjectRuntimeScreenshot {
   success: boolean;
   dataUrl?: string;
   width?: number;
   height?: number;
+  viewport?: ProjectRuntimeViewport;
   error?: string;
 }
 
@@ -168,7 +171,7 @@ export interface ProjectRuntimeState {
 
 interface AndroidProjectRuntimeBridge {
   httpRequest?: (url: string, method: string, headersJson: string, body: string, timeoutMs: number) => string;
-  captureProjectRuntimeScreenshot?: (workspaceId: string, quality?: number) => string;
+  captureProjectRuntimeScreenshot?: (workspaceId: string, quality?: number, viewport?: string) => string;
   startWorkspaceProject?: (workspaceId: string, command: string, timeoutMs?: number) => string;
   getWorkspaceProjectRuntimeState?: (workspaceId: string) => string;
   stopWorkspaceProject?: (workspaceId: string) => string;
