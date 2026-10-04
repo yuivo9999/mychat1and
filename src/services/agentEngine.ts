@@ -175,7 +175,7 @@ export const WORKSPACE_TOOLS_SPEC = [
   },
   {
     name: 'install_dependencies',
-    description: '根据项目类型安装运行依赖。Node/TypeScript 项目使用 npm install；执行后必须读取输出，若失败应分析错误再修改项目。',
+    description: '根据项目类型安装运行依赖。Node 项目若存在 package-lock.json 使用 npm ci --no-audit --no-fund 固定依赖树；没有 lockfile 才使用 npm install --no-audit --no-fund。执行后必须读取输出，若失败应分析错误再修改项目。',
     parameters: { type: 'object', properties: {} },
   },
   {
