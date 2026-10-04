@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.webkit.WebViewAssetLoader
 import android.webkit.WebChromeClient
 import android.webkit.ConsoleMessage
 import android.util.Log
@@ -27,12 +28,31 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        val assetLoader = WebViewAssetLoader.Builder()
+            .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
+            .build()
+
         webView = WebView(this).apply {
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             settings.allowFileAccess = true
             settings.allowContentAccess = true
-            webViewClient = WebViewClient()
+            webViewClient = object : WebViewClient() {
+                override fun shouldInterceptRequest(
+                    view: WebView,
+                    request: android.webkit.WebResourceRequest,
+                ): android.webkit.WebResourceResponse? {
+                    return assetLoader.shouldInterceptRequest(request.url)
+                }
+
+                @Suppress("DEPRECATION")
+                override fun shouldInterceptRequest(
+                    view: WebView,
+                    url: String,
+                ): android.webkit.WebResourceResponse? {
+                    return assetLoader.shouldInterceptRequest(android.net.Uri.parse(url))
+                }
+            }
             webChromeClient = object : WebChromeClient() {
                 override fun onConsoleMessage(consoleMessage: ConsoleMessage): Boolean {
                     Log.i("MyChatSmoke", consoleMessage.message())
@@ -42,8 +62,8 @@ class MainActivity : Activity() {
             addJavascriptInterface(AndroidBridge(this@MainActivity, this), "MyChatAndroid")
             val smokeTest = intent.getBooleanExtra("mychat_smoke_test", false)
             loadUrl(
-                if (smokeTest) "file:///android_asset/smoke-test.html"
-                else "file:///android_asset/www/index.html"
+                if (smokeTest) "https://appassets.androidplatform.net/assets/smoke-test.html"
+                else "https://appassets.androidplatform.net/assets/www/index.html"
             )
         }
 
