@@ -1,0 +1,36 @@
+name: Integrate Verified Free AI Models
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/integrate-free-models.py'
+      - '.github/workflows/integrate-free-models.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Integrate verified free models into runtime catalog
+        run: python3 scripts/integrate-free-models.py
+
+      - name: Commit runtime catalog
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if git diff --quiet -- src/services/db.ts; then
+            echo 'No runtime catalog changes needed.'
+            exit 0
+          fi
+          git add src/services/db.ts
+          git commit -m 'feat: add verified NVIDIA and OpenRouter free models'
+          git push

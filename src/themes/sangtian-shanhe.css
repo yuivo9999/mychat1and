@@ -1,0 +1,1137 @@
+/* ==========================================================================
+   《桑田山河 · 朱印》主题样式表
+   Sangtian Shanhe · Vermilion Seal Theme
+   ========================================================================== */
+
+/* 01. 主题变量 */
+html.theme-sangtian-shanhe {
+  /* 宣纸 / 麦黄色系 */
+  --sth-paper: #F4E8C8;
+  --sth-paper-deep: #EAD8AD;
+  --sth-paper-light: #FFF5DC;
+
+  /* 木色系 */
+  --sth-wood: #5B3B25;
+  --sth-wood-dark: #3A261A;
+  --sth-wood-light: #76502F;
+
+  /* 墨色系 */
+  --sth-ink: #30271F;
+  --sth-ink-soft: #51463B;
+  --sth-muted: #806F5B;
+
+  /* 稻田青绿系 */
+  --sth-field: #728C48;
+  --sth-field-dark: #5C743A;
+  --sth-field-soft: #9BAE65;
+
+  /* 朱砂红系 */
+  --sth-vermilion: #A9362D;
+  --sth-vermilion-dark: #86271F;
+  --sth-vermilion-soft: #C75B46;
+
+  /* 金色与细线 */
+  --sth-gold: #B18A4A;
+  --sth-line: #C5A873;
+  --sth-line-dark: #80613E;
+
+  /* 阴影 */
+  --sth-shadow: 0 4px 14px rgba(58, 38, 26, 0.12);
+  --sth-shadow-heavy: 0 14px 38px rgba(58, 38, 26, 0.24);
+
+  /* 圆角规范：古风圆角矩形，偏小精致 */
+  --sth-radius-sm: 6px;
+  --sth-radius: 8px;
+  --sth-radius-md: 12px;
+
+  color-scheme: light;
+}
+
+/* 02. 全局背景 */
+html.theme-sangtian-shanhe,
+html.theme-sangtian-shanhe body {
+  background:
+    radial-gradient(circle at 18% 12%, rgba(155, 174, 101, 0.16), transparent 42%),
+    radial-gradient(circle at 82% 8%, rgba(177, 138, 74, 0.13), transparent 38%),
+    radial-gradient(circle at 50% 30%, rgba(255, 245, 220, 0.65), transparent 55%),
+    linear-gradient(135deg, #F8EFD7 0%, #F4E8C8 45%, #EAD8AD 100%) !important;
+  color: var(--sth-ink) !important;
+  min-height: 100vh;
+}
+
+/* 03. 全局字体 */
+.theme-sangtian-shanhe {
+  font-family:
+    "Noto Serif SC",
+    "Source Han Serif SC",
+    "Songti SC",
+    "STSong",
+    "SimSun",
+    "KaiTi",
+    serif !important;
+}
+
+.theme-sangtian-shanhe pre,
+.theme-sangtian-shanhe code,
+.theme-sangtian-shanhe .font-mono {
+  font-family:
+    "JetBrains Mono",
+    Consolas,
+    Monaco,
+    monospace !important;
+}
+
+/* 04. 全局文字 */
+.theme-sangtian-shanhe,
+.theme-sangtian-shanhe input,
+.theme-sangtian-shanhe textarea,
+.theme-sangtian-shanhe select {
+  color: var(--sth-ink);
+}
+
+.theme-sangtian-shanhe .text-neutral-900,
+.theme-sangtian-shanhe .text-neutral-800,
+.theme-sangtian-shanhe .text-neutral-700 {
+  color: var(--sth-ink) !important;
+}
+
+.theme-sangtian-shanhe .text-neutral-600,
+.theme-sangtian-shanhe .text-neutral-500 {
+  color: var(--sth-ink-soft) !important;
+}
+
+.theme-sangtian-shanhe .text-neutral-400 {
+  color: var(--sth-muted) !important;
+}
+
+/* 05. 全局边框与线条 */
+.theme-sangtian-shanhe hr {
+  border-color: var(--sth-line) !important;
+}
+
+/* 06. 全局按钮基础 */
+.theme-sangtian-shanhe button {
+  transition:
+    background-color .18s ease,
+    border-color .18s ease,
+    color .18s ease,
+    box-shadow .18s ease,
+    transform .18s ease;
+  border-radius: var(--sth-radius);
+}
+
+/* 07. 左侧侧边栏 (Sidebar.tsx: 深乌木色古风侧栏 · 文字美化搭配体系) */
+.theme-sangtian-shanhe aside {
+  background: linear-gradient(180deg, #3A261A 0%, #4A3021 50%, #5B3B25 100%) !important;
+  border-right: 1px solid var(--sth-line-dark) !important;
+  color: #F4E8C8 !important;
+  box-shadow: 4px 0 20px rgba(58, 38, 26, 0.22);
+}
+
+/* 侧边栏内部整体文本重置：避免全局深墨黑字覆盖 */
+.theme-sangtian-shanhe aside,
+.theme-sangtian-shanhe aside * {
+  border-color: rgba(181, 142, 85, 0.2);
+}
+
+/* 顶部与边框分割线：含蓄暗金细线 */
+.theme-sangtian-shanhe aside .border-b,
+.theme-sangtian-shanhe aside .border-t,
+.theme-sangtian-shanhe aside .border-neutral-200\/70,
+.theme-sangtian-shanhe aside .border-neutral-800\/70 {
+  border-color: rgba(181, 142, 85, 0.22) !important;
+}
+
+/* 顶部「新聊天」主按钮：朱砂印泥红底 + 纯净羊脂白字 */
+.theme-sangtian-shanhe aside button.bg-neutral-900,
+.theme-sangtian-shanhe aside .bg-neutral-900,
+.theme-sangtian-shanhe aside .bg-indigo-600,
+.theme-sangtian-shanhe aside .bg-indigo-500 {
+  background: linear-gradient(135deg, #B53A2F 0%, #942B22 100%) !important;
+  color: #FFF9EE !important;
+  border: 1px solid rgba(255, 245, 220, 0.25) !important;
+  border-radius: 10px !important;
+  box-shadow: 0 3px 10px rgba(134, 39, 31, 0.4) !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.05em;
+}
+
+.theme-sangtian-shanhe aside button.bg-neutral-900:hover,
+.theme-sangtian-shanhe aside .bg-neutral-900:hover,
+.theme-sangtian-shanhe aside .bg-indigo-600:hover,
+.theme-sangtian-shanhe aside .bg-indigo-500:hover {
+  background: linear-gradient(135deg, #C74538 0%, #A23026 100%) !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 5px 16px rgba(134, 39, 31, 0.55) !important;
+  transform: translateY(-1px);
+}
+
+.theme-sangtian-shanhe aside button.bg-neutral-900 svg,
+.theme-sangtian-shanhe aside .bg-neutral-900 svg {
+  color: #FFF9EE !important;
+}
+
+/* 搜索框与快捷键（搜索聊天... / ⌘K）：淡宣纸竹韵底 + 浅茶色提示文字 */
+.theme-sangtian-shanhe aside .bg-neutral-200\/50,
+.theme-sangtian-shanhe aside .bg-neutral-800\/50 {
+  background: rgba(255, 248, 230, 0.07) !important;
+  border: 1px solid rgba(197, 168, 115, 0.22) !important;
+  color: #D6C2A2 !important;
+}
+
+.theme-sangtian-shanhe aside .bg-neutral-200\/50:hover,
+.theme-sangtian-shanhe aside .bg-neutral-800\/50:hover {
+  background: rgba(255, 248, 230, 0.12) !important;
+  border-color: rgba(226, 186, 118, 0.4) !important;
+  color: #FFF5DC !important;
+}
+
+.theme-sangtian-shanhe aside kbd {
+  background: rgba(226, 186, 118, 0.16) !important;
+  color: #E8D5B5 !important;
+  border: 1px solid rgba(197, 168, 115, 0.35) !important;
+}
+
+/* 分类大标题：「项目」、「聊天」—— 典雅泥金古风标题 */
+.theme-sangtian-shanhe aside .tracking-wide,
+.theme-sangtian-shanhe aside span.text-sm.font-semibold,
+.theme-sangtian-shanhe aside .text-neutral-700,
+.theme-sangtian-shanhe aside .dark\:text-neutral-200 {
+  color: #E6BD76 !important; /* 华贵泥金色 */
+  font-weight: 600 !important;
+  letter-spacing: 0.08em !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+/* 时间分组标签：「今天」、「昨天」、「最近 7 天」、「更早之前」—— 淡金茶素雅色 */
+.theme-sangtian-shanhe aside .uppercase.tracking-wider,
+.theme-sangtian-shanhe aside .text-\[10px\].font-semibold {
+  color: #CBB084 !important; /* 淡金茶色 */
+  letter-spacing: 0.06em !important;
+  opacity: 0.95;
+}
+
+/* 「置顶聊天」专属：朱砂暖金醒目标识 */
+.theme-sangtian-shanhe aside .text-amber-600,
+.theme-sangtian-shanhe aside .text-amber-400,
+.theme-sangtian-shanhe aside .text-amber-500 {
+  color: #F8B44A !important; /* 耀目暖金琥珀 */
+}
+
+/* 项目行：项目容器外框 */
+.theme-sangtian-shanhe aside .rounded-xl.bg-neutral-100\/40,
+.theme-sangtian-shanhe aside .rounded-xl.bg-neutral-800\/30 {
+  background: rgba(255, 245, 220, 0.05) !important;
+  border: 1px solid rgba(197, 168, 115, 0.18) !important;
+}
+
+/* 项目名称文字：温润玉脂素白 */
+.theme-sangtian-shanhe aside span.truncate.text-sm.font-medium,
+.theme-sangtian-shanhe aside .text-neutral-800 {
+  color: #FAF0D8 !important;
+  font-weight: 500 !important;
+}
+
+/* 项目文件夹图标：金珀色 */
+.theme-sangtian-shanhe aside .text-amber-500\/90,
+.theme-sangtian-shanhe aside svg.lucide-folder {
+  color: #E8AA42 !important;
+}
+
+/* 项目聊天计数气泡 (0, 1, 2...)：小巧淡金徽标 */
+.theme-sangtian-shanhe aside span.text-\[10px\].rounded-full {
+  background: rgba(226, 186, 118, 0.18) !important;
+  color: #F8E8C8 !important;
+  border: 1px solid rgba(197, 168, 115, 0.28) !important;
+}
+
+/* 会话列表 - 默认状态标题文字：温润宣白，清晰雅致 */
+.theme-sangtian-shanhe aside .truncate.text-\[13px\],
+.theme-sangtian-shanhe aside .text-neutral-600 {
+  color: #F2E4C4 !important;
+  font-weight: 450 !important;
+  transition: color 0.15s ease;
+}
+
+/* 会话列表 - 副标题（模型名字体）：淡轻檀色/浅绢素，优雅不喧宾夺主 */
+.theme-sangtian-shanhe aside .text-\[10px\].font-mono,
+.theme-sangtian-shanhe aside .text-\[10px\].text-neutral-400,
+.theme-sangtian-shanhe aside .text-\[10px\].text-neutral-500,
+.theme-sangtian-shanhe aside .text-neutral-500,
+.theme-sangtian-shanhe aside .text-neutral-400 {
+  color: #B59F85 !important;
+  letter-spacing: 0.02em;
+}
+
+/* 会话列表 - 鼠标悬停 (Hover) 状态：温润亮白文字与泥金微光底 */
+.theme-sangtian-shanhe aside .group:hover .truncate.text-\[13px\] {
+  color: #FFFDF5 !important;
+}
+
+.theme-sangtian-shanhe aside .group:hover .text-\[10px\].font-mono {
+  color: #D6C2A5 !important;
+}
+
+.theme-sangtian-shanhe aside .group:hover,
+.theme-sangtian-shanhe aside .hover\:bg-neutral-100\/80:hover,
+.theme-sangtian-shanhe aside .hover\:bg-neutral-200\/50:hover,
+.theme-sangtian-shanhe aside .hover\:bg-neutral-800\/60:hover {
+  background: rgba(226, 186, 118, 0.12) !important;
+}
+
+/* 会话列表 - 当前激活会话 (Active)：深朱砂暖棕底 + 鲜明朱砂红立柱线 + 凝脂纯白文字 */
+.theme-sangtian-shanhe aside .bg-neutral-200\/80,
+.theme-sangtian-shanhe aside .bg-neutral-800,
+.theme-sangtian-shanhe aside .bg-indigo-50,
+.theme-sangtian-shanhe aside .bg-indigo-100 {
+  background: linear-gradient(90deg, rgba(169, 54, 45, 0.38) 0%, rgba(134, 39, 31, 0.22) 100%) !important;
+  border-left: 3.5px solid #C75B46 !important;
+  border-radius: 3px 10px 10px 3px !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22) !important;
+}
+
+.theme-sangtian-shanhe aside .bg-neutral-200\/80 .truncate.text-\[13px\],
+.theme-sangtian-shanhe aside .bg-neutral-800 .truncate.text-\[13px\],
+.theme-sangtian-shanhe aside .bg-indigo-50 .truncate.text-\[13px\],
+.theme-sangtian-shanhe aside .bg-indigo-100 .truncate.text-\[13px\] {
+  color: #FFFFFF !important;
+  font-weight: 600 !important;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.theme-sangtian-shanhe aside .bg-neutral-200\/80 .text-\[10px\].font-mono,
+.theme-sangtian-shanhe aside .bg-neutral-800 .text-\[10px\].font-mono,
+.theme-sangtian-shanhe aside .bg-indigo-50 .text-\[10px\].font-mono,
+.theme-sangtian-shanhe aside .bg-indigo-100 .text-\[10px\].font-mono {
+  color: #F1D8BC !important; /* 激活态副标题清晰柔和 */
+}
+
+.theme-sangtian-shanhe aside .bg-neutral-200\/80 svg.text-indigo-600,
+.theme-sangtian-shanhe aside .bg-neutral-800 svg.text-indigo-400,
+.theme-sangtian-shanhe aside .bg-neutral-200\/80 svg,
+.theme-sangtian-shanhe aside .bg-neutral-800 svg {
+  color: #FF8870 !important; /* 朱砂亮点图标 */
+}
+
+/* 图标统一定色：典雅金铜色，Hover 提亮 */
+.theme-sangtian-shanhe aside svg {
+  color: #D4B684 !important;
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+
+.theme-sangtian-shanhe aside button:hover svg,
+.theme-sangtian-shanhe aside [role="button"]:hover svg,
+.theme-sangtian-shanhe aside .group:hover svg {
+  color: #FFF3D8 !important;
+}
+
+/* 按钮基础及悬停 */
+.theme-sangtian-shanhe aside button {
+  color: #EBD8B8 !important;
+}
+
+.theme-sangtian-shanhe aside button:hover {
+  background: rgba(226, 186, 118, 0.15) !important;
+  color: #FFFDF5 !important;
+}
+
+/* 空状态说明文字（"没有项目"、"暂无聊天..."、"暂无独立聊天记录"）*/
+.theme-sangtian-shanhe aside .italic,
+.theme-sangtian-shanhe aside .text-neutral-400\/80,
+.theme-sangtian-shanhe aside .py-6 p,
+.theme-sangtian-shanhe aside .font-normal.text-xs {
+  color: #AFA088 !important;
+  font-style: normal !important;
+}
+
+/* 侧边栏底部（Footer）：「数据本地存储」翡翠青碧色，安全宁静 */
+.theme-sangtian-shanhe aside .border-t .text-emerald-600,
+.theme-sangtian-shanhe aside .border-t .text-emerald-400,
+.theme-sangtian-shanhe aside .border-t span.font-medium {
+  color: #8ADCA0 !important; /* 翡翠翠玉绿 */
+}
+
+.theme-sangtian-shanhe aside .border-t .text-emerald-600 svg,
+.theme-sangtian-shanhe aside .border-t .text-emerald-400 svg {
+  color: #8ADCA0 !important;
+}
+
+/* 底部开启新窗口红印加号按钮 */
+.theme-sangtian-shanhe aside .border-t button[title="开启新窗口"] {
+  background: #A9362D !important;
+  border: 1px solid rgba(255, 245, 220, 0.3) !important;
+}
+
+.theme-sangtian-shanhe aside .border-t button[title="开启新窗口"]:hover {
+  background: #C74538 !important;
+  transform: scale(1.05);
+}
+
+.theme-sangtian-shanhe aside .border-t button[title="开启新窗口"] svg {
+  color: #FFF8EA !important;
+}
+
+/* 侧边栏内三点展开的气泡操作菜单 (统一侧边栏横三点与竖三点下拉菜单：深乌木底 + 金边框 + 宣纸金温润文字 + 泥金图标) */
+.theme-sangtian-shanhe .sidebar-dropdown-menu,
+.theme-sangtian-shanhe .sidebar-dropdown-menu.bg-white,
+.theme-sangtian-shanhe .sidebar-dropdown-menu.dark\:bg-neutral-900,
+.theme-sangtian-shanhe aside .absolute.bg-white,
+.theme-sangtian-shanhe aside .absolute.dark\:bg-neutral-900,
+.theme-sangtian-shanhe .z-9999,
+.theme-sangtian-shanhe .z-9999.bg-white,
+.theme-sangtian-shanhe .z-9999.dark\:bg-neutral-900 {
+  background: #2D1D13 !important; /* 深乌木实色 */
+  background-color: #2D1D13 !important;
+  border: 1px solid #8E6B40 !important;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55) !important;
+  border-radius: 12px !important;
+  color: #FAF0D8 !important;
+}
+
+.theme-sangtian-shanhe .sidebar-dropdown-menu button,
+.theme-sangtian-shanhe .z-9999 button,
+.theme-sangtian-shanhe aside .absolute.bg-white button,
+.theme-sangtian-shanhe aside .absolute.dark\:bg-neutral-900 button {
+  color: #FAF0D8 !important;
+  background: transparent !important;
+}
+
+.theme-sangtian-shanhe .sidebar-dropdown-menu button span,
+.theme-sangtian-shanhe .z-9999 button span,
+.theme-sangtian-shanhe aside .absolute.bg-white button span,
+.theme-sangtian-shanhe aside .absolute.dark\:bg-neutral-900 button span {
+  color: #FAF0D8 !important;
+}
+
+.theme-sangtian-shanhe .sidebar-dropdown-menu button:hover,
+.theme-sangtian-shanhe .z-9999 button:hover,
+.theme-sangtian-shanhe aside .absolute.bg-white button:hover,
+.theme-sangtian-shanhe aside .absolute.dark\:bg-neutral-900 button:hover {
+  background: rgba(169, 54, 45, 0.42) !important; /* 朱砂红高亮悬浮底 */
+  color: #FFFFFF !important;
+}
+
+.theme-sangtian-shanhe .sidebar-dropdown-menu button:hover span,
+.theme-sangtian-shanhe .z-9999 button:hover span,
+.theme-sangtian-shanhe aside .absolute.bg-white button:hover span,
+.theme-sangtian-shanhe aside .absolute.dark\:bg-neutral-900 button:hover span {
+  color: #FFFFFF !important;
+}
+
+.theme-sangtian-shanhe .sidebar-dropdown-menu button svg,
+.theme-sangtian-shanhe .z-9999 button svg,
+.theme-sangtian-shanhe aside .absolute.bg-white button svg,
+.theme-sangtian-shanhe aside .absolute.dark\:bg-neutral-900 button svg {
+  color: #E8AA42 !important; /* 金珀泥金色图标 */
+  stroke: #E8AA42 !important;
+}
+
+.theme-sangtian-shanhe .sidebar-dropdown-menu button:hover svg,
+.theme-sangtian-shanhe .z-9999 button:hover svg,
+.theme-sangtian-shanhe aside .absolute.bg-white button:hover svg,
+.theme-sangtian-shanhe aside .absolute.dark\:bg-neutral-900 button:hover svg {
+  color: #FFFFFF !important;
+  stroke: #FFFFFF !important;
+}
+
+.theme-sangtian-shanhe .sidebar-dropdown-menu .border-t,
+.theme-sangtian-shanhe .z-9999 .border-t {
+  border-color: rgba(181, 142, 85, 0.28) !important;
+}
+
+/* 08. 顶部栏 (TopBar.tsx: 深乌木色古风顶部栏) */
+.theme-sangtian-shanhe header {
+  background: #3A261A !important;
+  border-top: 1px solid #80613E;
+  border-bottom: 1px solid var(--sth-line-dark) !important;
+  box-shadow: 0 4px 16px rgba(58, 38, 26, 0.15);
+  color: #F3E4C5 !important;
+}
+
+.theme-sangtian-shanhe header button {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid #80613E !important;
+  color: #F3E4C5 !important;
+  border-radius: 8px !important;
+}
+
+.theme-sangtian-shanhe header button:hover {
+  background: #76502F !important;
+  color: #FFF5DC !important;
+  border-color: #B18A4A !important;
+}
+
+.theme-sangtian-shanhe header svg {
+  color: #C5AD83 !important;
+}
+
+.theme-sangtian-shanhe header button:hover svg {
+  color: #FFF5DC !important;
+}
+
+.theme-sangtian-shanhe header .text-neutral-400,
+.theme-sangtian-shanhe header .text-neutral-500 {
+  color: #BDA77B !important;
+}
+
+/* 09. 主界面 (Main: 山河田园工作台) */
+.theme-sangtian-shanhe main {
+  background:
+    radial-gradient(circle at 50% 10%, rgba(155, 174, 101, 0.10), transparent 50%),
+    transparent !important;
+}
+
+/* 10. 聊天内容显示区域 (MessageList.tsx & ChatMessage.tsx) */
+.theme-sangtian-shanhe .markdown-body {
+  color: var(--sth-ink) !important;
+  line-height: 1.78;
+}
+
+/* 用户消息气泡：朱砂印记 + 宣纸卡片 */
+.theme-sangtian-shanhe .user-message,
+.theme-sangtian-shanhe .bg-indigo-50,
+.theme-sangtian-shanhe .bg-indigo-100,
+.theme-sangtian-shanhe .bg-indigo-950\/20,
+.theme-sangtian-shanhe .bg-indigo-950\/30 {
+  background: linear-gradient(135deg, #FFF6E0 0%, #FAECD0 100%) !important;
+  border: 1px solid rgba(169, 54, 45, 0.30) !important;
+  border-radius: 10px !important;
+  color: var(--sth-ink) !important;
+  box-shadow: 0 4px 12px rgba(91, 59, 37, 0.06);
+}
+
+/* AI 消息区域：宣纸正文区域 */
+.theme-sangtian-shanhe .assistant-message {
+  background: rgba(255, 248, 226, 0.68) !important;
+  border: 1px solid var(--sth-line) !important;
+  border-radius: 10px !important;
+  padding: 16px 18px;
+  box-shadow: var(--sth-shadow);
+}
+
+/* 头像印章化 */
+.theme-sangtian-shanhe .user-message-avatar {
+  background: var(--sth-vermilion) !important;
+  color: #FFF3D8 !important;
+  border-radius: 6px !important;
+}
+
+.theme-sangtian-shanhe .ai-message-avatar {
+  background: var(--sth-wood) !important;
+  color: #F4E8C8 !important;
+  border: 1px solid var(--sth-line) !important;
+  border-radius: 6px !important;
+}
+
+/* 11. Markdown 标题、排版与引用 */
+.theme-sangtian-shanhe .markdown-body h1 {
+  color: var(--sth-ink) !important;
+  border-left: 3px solid var(--sth-vermilion) !important;
+  border-bottom: 1px solid var(--sth-line) !important;
+  padding-left: 8px;
+  padding-bottom: 4px;
+}
+
+.theme-sangtian-shanhe .markdown-body h2 {
+  color: var(--sth-ink) !important;
+  border-left: 2px solid var(--sth-gold) !important;
+  border-bottom: 1px dashed var(--sth-line) !important;
+  padding-left: 6px;
+  padding-bottom: 3px;
+}
+
+.theme-sangtian-shanhe .markdown-body h3,
+.theme-sangtian-shanhe .markdown-body h4 {
+  color: var(--sth-ink) !important;
+}
+
+.theme-sangtian-shanhe .markdown-body a {
+  color: var(--sth-vermilion) !important;
+  text-decoration: underline;
+  text-decoration-color: rgba(169, 54, 45, 0.35);
+}
+
+.theme-sangtian-shanhe .markdown-body a:hover {
+  color: var(--sth-vermilion-dark) !important;
+}
+
+.theme-sangtian-shanhe .markdown-body blockquote {
+  border-left: 3px solid var(--sth-vermilion) !important;
+  background-color: #F6ECD1 !important;
+  color: var(--sth-ink-soft) !important;
+  padding: 8px 14px !important;
+  border-radius: 0 8px 8px 0 !important;
+}
+
+/* 乌木代码板 */
+.theme-sangtian-shanhe .markdown-body pre,
+.theme-sangtian-shanhe pre {
+  background: #29231D !important;
+  border: 1px solid #66523B !important;
+  color: #E9D9B8 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 8px 24px rgba(41, 35, 29, 0.3);
+}
+
+.theme-sangtian-shanhe pre code {
+  color: #E9D9B8 !important;
+  background: transparent !important;
+}
+
+/* 行内代码 */
+.theme-sangtian-shanhe .markdown-body code:not(pre code) {
+  background: #EAD8AD !important;
+  color: #86271F !important;
+  border: 1px solid #C5A873 !important;
+  border-radius: 4px !important;
+  padding: 2px 6px !important;
+}
+
+/* 12. 聊天输入框 (ChatComposer.tsx: 宣纸书案式输入区) */
+.theme-sangtian-shanhe textarea {
+  background: #FFF5DC !important;
+  border: 1px solid #C5A873 !important;
+  color: #30271F !important;
+  border-radius: 12px !important;
+  box-shadow: 0 6px 18px rgba(75, 48, 25, 0.10) !important;
+}
+
+.theme-sangtian-shanhe textarea:focus {
+  outline: none !important;
+  border-color: #A9362D !important;
+  box-shadow:
+    0 0 0 3px rgba(169, 54, 45, 0.14),
+    0 6px 18px rgba(75, 48, 25, 0.12) !important;
+}
+
+.theme-sangtian-shanhe textarea::placeholder {
+  color: #9A876C !important;
+}
+
+/* 发送按钮：朱砂印章按钮 */
+.theme-sangtian-shanhe button[type="submit"],
+.theme-sangtian-shanhe button[title="发送消息"],
+.theme-sangtian-shanhe .send-button {
+  background: var(--sth-vermilion) !important;
+  color: #FFF3D8 !important;
+  border-radius: 8px !important;
+  border: 1px solid rgba(255, 243, 216, 0.2) !important;
+  box-shadow: 0 4px 14px rgba(134, 39, 31, 0.35) !important;
+}
+
+.theme-sangtian-shanhe button[type="submit"]:hover,
+.theme-sangtian-shanhe button[title="发送消息"]:hover,
+.theme-sangtian-shanhe .send-button:hover {
+  background: var(--sth-vermilion-dark) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(134, 39, 31, 0.45) !important;
+}
+
+.theme-sangtian-shanhe button[type="submit"]:active,
+.theme-sangtian-shanhe button[title="发送消息"]:active,
+.theme-sangtian-shanhe .send-button:active {
+  background: #712019 !important;
+  transform: translateY(0);
+}
+
+.theme-sangtian-shanhe button[type="submit"] svg,
+.theme-sangtian-shanhe button[title="发送消息"] svg {
+  color: #FFF3D8 !important;
+}
+
+/* 输入区功能状态切换（联网、思考、Agent 等） */
+.theme-sangtian-shanhe .text-indigo-600,
+.theme-sangtian-shanhe .text-indigo-500,
+.theme-sangtian-shanhe .text-indigo-400 {
+  color: var(--sth-vermilion) !important;
+}
+
+.theme-sangtian-shanhe .border-indigo-600,
+.theme-sangtian-shanhe .border-indigo-500 {
+  border-color: var(--sth-vermilion) !important;
+}
+
+/* 附件纸签 */
+.theme-sangtian-shanhe [class*="attachment"],
+.theme-sangtian-shanhe .attachment-item {
+  background: #F4E8C8 !important;
+  border: 1px solid #C5A873 !important;
+  color: var(--sth-ink) !important;
+  border-radius: 6px !important;
+}
+
+.theme-sangtian-shanhe [class*="attachment"] svg {
+  color: var(--sth-vermilion) !important;
+}
+
+/* 输入框上方淡墨色波浪纹 (Ink Wash Wave Pattern) */
+.theme-sangtian-shanhe .ink-wave-layer {
+  opacity: 0.95 !important;
+}
+
+.theme-sangtian-shanhe .ink-wave-layer path:nth-child(1) {
+  fill: #8D7B68 !important;
+  fill-opacity: 0.22 !important;
+}
+
+.theme-sangtian-shanhe .ink-wave-layer path:nth-child(2) {
+  fill: #726252 !important;
+  fill-opacity: 0.25 !important;
+}
+
+.theme-sangtian-shanhe .ink-wave-layer path:nth-child(3) {
+  fill: #51463B !important;
+  fill-opacity: 0.30 !important;
+}
+
+/* 13. 模型设置 (AiModelConfigModal.tsx: 古籍卷轴式设置窗口) */
+.theme-sangtian-shanhe .model-config-modal > div,
+.theme-sangtian-shanhe .model-config-modal {
+  background: #F4E8C8 !important;
+  border: 1px solid #C5A873 !important;
+  border-radius: 14px !important;
+  box-shadow: var(--sth-shadow-heavy) !important;
+  color: var(--sth-ink) !important;
+}
+
+.theme-sangtian-shanhe .model-config-modal h1,
+.theme-sangtian-shanhe .model-config-modal h2,
+.theme-sangtian-shanhe .model-config-modal h3,
+.theme-sangtian-shanhe .model-config-modal h4 {
+  color: #30271F !important;
+}
+
+.theme-sangtian-shanhe .model-config-modal svg {
+  color: var(--sth-vermilion) !important;
+}
+
+.theme-sangtian-shanhe .model-config-modal .bg-\[\#151821\],
+.theme-sangtian-shanhe .model-config-modal .bg-\[\#181c26\],
+.theme-sangtian-shanhe .model-config-modal .bg-\[\#12141a\] {
+  background: #FFF5DC !important;
+  color: var(--sth-ink) !important;
+  border-color: #C5A873 !important;
+}
+
+.theme-sangtian-shanhe .model-config-modal input,
+.theme-sangtian-shanhe .model-config-modal select {
+  background: #FFF4D8 !important;
+  color: #35291F !important;
+  border: 1px solid #C7AA73 !important;
+  border-radius: 8px !important;
+}
+
+.theme-sangtian-shanhe .model-config-modal input:focus,
+.theme-sangtian-shanhe .model-config-modal select:focus {
+  border-color: #A9362D !important;
+}
+
+/* 测试连接按钮适配 */
+.theme-sangtian-shanhe .test-conn-btn {
+  background-color: #EAD8AD !important;
+  color: #30271F !important;
+  border: 1px solid #C5A873 !important;
+  border-radius: 8px !important;
+}
+
+.theme-sangtian-shanhe .test-conn-btn:hover {
+  background-color: #E2CCA0 !important;
+  color: #86271F !important;
+  border-color: #A9362D !important;
+}
+
+.theme-sangtian-shanhe .test-conn-btn svg {
+  color: #86271F !important;
+}
+
+/* 14. 参数设置 (ParametersModal.tsx: 古代军政/农政册页) */
+.theme-sangtian-shanhe .parameters-card {
+  background: #F4E8C8 !important;
+  border: 1px solid #C5A873 !important;
+  border-radius: 14px !important;
+  box-shadow: var(--sth-shadow-heavy) !important;
+  color: var(--sth-ink) !important;
+}
+
+.theme-sangtian-shanhe .parameters-header {
+  background: #EAD8AD !important;
+  border-bottom: 1px solid #C5A873 !important;
+}
+
+.theme-sangtian-shanhe .parameters-modal .param-modal-title,
+.theme-sangtian-shanhe .parameters-modal .param-item-label {
+  color: #30271F !important;
+}
+
+.theme-sangtian-shanhe .parameters-modal .param-modal-sub,
+.theme-sangtian-shanhe .parameters-modal .param-item-sub,
+.theme-sangtian-shanhe .parameters-modal .param-slider-ticks,
+.theme-sangtian-shanhe .parameters-modal .param-model-target {
+  color: #3d2b1c !important; /* Deeper wood brown for high readability on warm paper bg */
+}
+
+.theme-sangtian-shanhe .param-icon {
+  color: var(--sth-vermilion) !important;
+}
+
+.theme-sangtian-shanhe .param-slider {
+  accent-color: var(--sth-vermilion) !important;
+  background-color: #D6C298 !important;
+}
+
+.theme-sangtian-shanhe .param-input {
+  background: #FFF5DC !important;
+  border: 1px solid #C5A873 !important;
+  color: var(--sth-ink) !important;
+  border-radius: 8px !important;
+}
+
+.theme-sangtian-shanhe .param-input:focus {
+  border-color: var(--sth-vermilion) !important;
+}
+
+.theme-sangtian-shanhe .param-toggle.bg-\[\#84cc16\] {
+  background-color: var(--sth-field) !important;
+}
+
+/* 15. 客户端系统设置 (SettingsModal.tsx: 古代府衙设置册) */
+.theme-sangtian-shanhe .settings-modal {
+  background: #F4E8C8 !important;
+  border: 1px solid #C5A873 !important;
+  border-radius: 14px !important;
+  box-shadow: var(--sth-shadow-heavy) !important;
+  color: var(--sth-ink) !important;
+}
+
+.theme-sangtian-shanhe .settings-modal nav button {
+  color: var(--sth-ink-soft) !important;
+  border-radius: 8px !important;
+}
+
+.theme-sangtian-shanhe .settings-modal nav button:hover {
+  background: #EAD8AD !important;
+  color: var(--sth-ink) !important;
+}
+
+.theme-sangtian-shanhe .settings-modal nav button.bg-neutral-100,
+.theme-sangtian-shanhe .settings-modal nav button.bg-neutral-200,
+.theme-sangtian-shanhe .settings-modal nav button.bg-indigo-50 {
+  background: var(--sth-vermilion) !important;
+  color: #FFF5DC !important;
+  border-left: 3px solid #712019 !important;
+}
+
+.theme-sangtian-shanhe .settings-modal nav button.bg-neutral-100 svg,
+.theme-sangtian-shanhe .settings-modal nav button.bg-neutral-200 svg,
+.theme-sangtian-shanhe .settings-modal nav button.bg-indigo-50 svg {
+  color: #FFF5DC !important;
+}
+
+.theme-sangtian-shanhe input[type="checkbox"] {
+  accent-color: var(--sth-vermilion) !important;
+}
+
+/* 16. 工作区 (WorkspaceDrawer.tsx: 古代书案 / 木制档案柜) */
+.theme-sangtian-shanhe .workspace-drawer {
+  background: #EAD8AD !important;
+  border: 1px solid #B18A4A !important;
+  border-radius: 10px !important;
+  box-shadow: var(--sth-shadow-heavy) !important;
+  color: var(--sth-ink) !important;
+}
+
+.theme-sangtian-shanhe .workspace-drawer .bg-neutral-50\/50,
+.theme-sangtian-shanhe .workspace-drawer .bg-neutral-900\/50 {
+  background: #5B3B25 !important;
+  color: #F4E8C8 !important;
+  border-bottom: 1px solid #B18A4A !important;
+}
+
+/* 统一工作区抽屉头部所有 5 个操作按钮的背景、边框、高度与高对比度图标色彩 (Sangtian Shanhe Theme High Contrast) */
+.theme-sangtian-shanhe .workspace-drawer-header-btn {
+  background: #FFF5DC !important;
+  border: 1px solid #B58E55 !important;
+  color: #3A261A !important;
+  border-radius: 12px !important;
+  height: 36px !important;
+  box-shadow: 0 1px 4px rgba(58, 38, 26, 0.22) !important;
+  transition: all 0.15s ease-in-out !important;
+}
+
+.theme-sangtian-shanhe .workspace-drawer-header-btn:hover {
+  background: #FFFFFF !important;
+  border-color: #8C5F2B !important;
+  color: #3A261A !important;
+  box-shadow: 0 2px 8px rgba(58, 38, 26, 0.3) !important;
+}
+
+.theme-sangtian-shanhe .workspace-drawer-header-btn span {
+  color: #3A261A !important;
+}
+
+.theme-sangtian-shanhe .workspace-drawer-header-btn span.text-neutral-400,
+.theme-sangtian-shanhe .workspace-drawer-header-btn span.text-\[9px\] {
+  color: #7A5835 !important;
+}
+
+.theme-sangtian-shanhe .workspace-drawer-header-btn svg {
+  color: #3A261A !important;
+  stroke: #3A261A !important;
+}
+
+/* Layers Icon Vermilion Accent */
+.theme-sangtian-shanhe .workspace-drawer-header-btn svg.text-indigo-600,
+.theme-sangtian-shanhe .workspace-drawer-header-btn svg.text-indigo-400,
+.theme-sangtian-shanhe .workspace-drawer-header-btn svg.text-indigo-500 {
+  color: #B83B24 !important;
+  stroke: #B83B24 !important;
+}
+
+/* Dropdown Chevron Icon */
+.theme-sangtian-shanhe .workspace-drawer-header-btn svg.text-neutral-400 {
+  color: #7A5835 !important;
+  stroke: #7A5835 !important;
+}
+
+.theme-sangtian-shanhe .workspace-drawer input {
+  background: #FFF1D2 !important;
+  border: 1px solid #C7AA73 !important;
+  color: var(--sth-ink) !important;
+}
+
+.theme-sangtian-shanhe .workspace-drawer input:focus {
+  border-color: var(--sth-vermilion) !important;
+}
+
+.theme-sangtian-shanhe .workspace-drawer [role="button"]:hover {
+  background: #F4E8C8 !important;
+}
+
+.theme-sangtian-shanhe .workspace-drawer .file-action-menu {
+  background: #FFF5DC !important;
+  border: 1px solid #C5A873 !important;
+}
+
+/* 工作区切换与管理弹窗 (Workspace Manager Dropdown) */
+.theme-sangtian-shanhe .workspace-dropdown-menu {
+  background: #FFF8EA !important;
+  border: 1px solid #B18A4A !important;
+  box-shadow: 0 12px 36px rgba(58, 38, 26, 0.35) !important;
+  color: var(--sth-ink) !important;
+  border-radius: 14px !important;
+}
+
+.theme-sangtian-shanhe .workspace-dropdown-menu .border-b,
+.theme-sangtian-shanhe .workspace-dropdown-menu .border-t {
+  border-color: rgba(181, 142, 85, 0.25) !important;
+}
+
+.theme-sangtian-shanhe .workspace-dropdown-menu input {
+  background: #FFF1D2 !important;
+  border: 1px solid #B18A4A !important;
+  color: var(--sth-ink) !important;
+}
+
+.theme-sangtian-shanhe .workspace-dropdown-menu .bg-indigo-50\/80,
+.theme-sangtian-shanhe .workspace-dropdown-menu .bg-indigo-950\/50 {
+  background: rgba(169, 54, 45, 0.12) !important;
+  border-color: rgba(169, 54, 45, 0.35) !important;
+}
+
+.theme-sangtian-shanhe .workspace-dropdown-menu .text-indigo-700,
+.theme-sangtian-shanhe .workspace-dropdown-menu .text-indigo-600 {
+  color: #A9362D !important;
+}
+
+.theme-sangtian-shanhe .workspace-dropdown-menu .bg-indigo-600 {
+  background: #A9362D !important;
+}
+
+.theme-sangtian-shanhe .workspace-dropdown-menu button.bg-neutral-900 {
+  background: #A9362D !important;
+  color: #FFF8EA !important;
+}
+
+.theme-sangtian-shanhe .workspace-dropdown-menu button.bg-neutral-900:hover {
+  background: #C74538 !important;
+}
+
+/* 17. 其它弹窗 (Search, Export, Batch, Project Modals) */
+.theme-sangtian-shanhe .fixed.inset-0.z-50 > div,
+.theme-sangtian-shanhe .fixed.inset-0.z-60 > div {
+  border-radius: 12px;
+}
+
+/* 18. 下拉菜单、列表框与 Portal 悬浮菜单 */
+.theme-sangtian-shanhe [role="menu"],
+.theme-sangtian-shanhe [role="listbox"],
+.theme-sangtian-shanhe .dropdown-menu,
+.theme-sangtian-shanhe .popover,
+.theme-sangtian-shanhe .z-9999 {
+  background: #FFF5DC !important;
+  color: #30271F !important;
+  border: 1px solid #C5A873 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 10px 28px rgba(58, 38, 26, 0.18) !important;
+}
+
+.theme-sangtian-shanhe [role="menuitem"]:hover,
+.theme-sangtian-shanhe [role="option"]:hover,
+.theme-sangtian-shanhe .z-9999 button:hover {
+  background: #F4E8C8 !important;
+  color: #86271F !important;
+}
+
+.theme-sangtian-shanhe [aria-selected="true"] {
+  background: #EAD8AD !important;
+  color: #86271F !important;
+}
+
+/* 19. 原生 Select / Option */
+.theme-sangtian-shanhe select {
+  background-color: #FFF1D2 !important;
+  color: #35291F !important;
+  border: 1px solid #C5A873 !important;
+  border-radius: 8px !important;
+}
+
+.theme-sangtian-shanhe option {
+  background-color: #FFF5DC !important;
+  color: #35291F !important;
+}
+
+/* 20. 状态颜色与主动作按钮统一 */
+.theme-sangtian-shanhe .bg-indigo-600,
+.theme-sangtian-shanhe .bg-indigo-500 {
+  background: var(--sth-vermilion) !important;
+  color: #FFF3D8 !important;
+  border-radius: 8px !important;
+}
+
+.theme-sangtian-shanhe .bg-indigo-600:hover,
+.theme-sangtian-shanhe .bg-indigo-500:hover {
+  background: var(--sth-vermilion-dark) !important;
+}
+
+.theme-sangtian-shanhe .text-emerald-500,
+.theme-sangtian-shanhe .text-emerald-600,
+.theme-sangtian-shanhe .text-green-500,
+.theme-sangtian-shanhe .text-green-600 {
+  color: var(--sth-field) !important;
+}
+
+.theme-sangtian-shanhe .bg-emerald-500,
+.theme-sangtian-shanhe .bg-emerald-600 {
+  background: var(--sth-field) !important;
+  color: #FFF5DC !important;
+}
+
+.theme-sangtian-shanhe .text-amber-500,
+.theme-sangtian-shanhe .text-orange-500 {
+  color: var(--sth-gold) !important;
+}
+
+.theme-sangtian-shanhe .text-red-500,
+.theme-sangtian-shanhe .text-red-600 {
+  color: var(--sth-vermilion-dark) !important;
+}
+
+.theme-sangtian-shanhe .bg-red-500,
+.theme-sangtian-shanhe .bg-red-600 {
+  background: var(--sth-vermilion-dark) !important;
+  color: #FFF5DC !important;
+}
+
+/* 21. Modal 遮罩层 (暖色暗棕遮罩) */
+.theme-sangtian-shanhe .fixed.inset-0.bg-black\/60,
+.theme-sangtian-shanhe .fixed.inset-0.bg-black\/75,
+.theme-sangtian-shanhe .fixed.inset-0.bg-black\/80 {
+  background: rgba(43, 30, 20, 0.58) !important;
+  backdrop-filter: blur(2px);
+}
+
+/* 22. 滚动条 (古朴木色滑块) */
+.theme-sangtian-shanhe ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.theme-sangtian-shanhe ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.theme-sangtian-shanhe ::-webkit-scrollbar-thumb {
+  background: rgba(118, 80, 47, 0.45);
+  border-radius: 999px;
+}
+
+.theme-sangtian-shanhe ::-webkit-scrollbar-thumb:hover {
+  background: var(--sth-vermilion);
+}
+
+/* 23. 文字选中效果 */
+.theme-sangtian-shanhe ::selection {
+  background: rgba(169, 54, 45, 0.22) !important;
+  color: var(--sth-ink) !important;
+}
+
+/* 24. 移动端响应式适配 */
+@media (max-width: 768px) {
+  .theme-sangtian-shanhe .model-config-modal,
+  .theme-sangtian-shanhe .parameters-modal,
+  .theme-sangtian-shanhe .settings-modal,
+  .theme-sangtian-shanhe .workspace-drawer {
+    width: calc(100vw - 20px) !important;
+    max-width: none !important;
+    border-radius: 12px !important;
+  }
+
+  .theme-sangtian-shanhe textarea {
+    border-radius: 10px !important;
+  }
+}
+
+/* 25. Tailwind 最终兜底 */
+.theme-sangtian-shanhe .bg-white,
+.theme-sangtian-shanhe .bg-neutral-50,
+.theme-sangtian-shanhe .bg-neutral-100,
+.theme-sangtian-shanhe .bg-neutral-800,
+.theme-sangtian-shanhe .bg-neutral-900,
+.theme-sangtian-shanhe .bg-neutral-950 {
+  background-color: var(--sth-paper-light) !important;
+  color: var(--sth-ink) !important;
+  border-color: var(--sth-line) !important;
+}
+
+.theme-sangtian-shanhe .border-neutral-100,
+.theme-sangtian-shanhe .border-neutral-200,
+.theme-sangtian-shanhe .border-neutral-300,
+.theme-sangtian-shanhe .border-neutral-700,
+.theme-sangtian-shanhe .border-neutral-800 {
+  border-color: var(--sth-line) !important;
+}
+
+/* 26. 侧边栏气泡菜单最终覆写保证（竖三点与横三点完全同色同质感） */
+.theme-sangtian-shanhe .sidebar-dropdown-menu,
+.theme-sangtian-shanhe .sidebar-dropdown-menu.bg-white,
+.theme-sangtian-shanhe .sidebar-dropdown-menu.dark\:bg-neutral-900,
+.theme-sangtian-shanhe .z-9999,
+.theme-sangtian-shanhe .z-9999.bg-white,
+.theme-sangtian-shanhe .z-9999.dark\:bg-neutral-900 {
+  background-color: #2D1D13 !important;
+  background: #2D1D13 !important;
+  color: #FAF0D8 !important;
+  border: 1px solid #8E6B40 !important;
+}
+
+.theme-sangtian-shanhe .sidebar-dropdown-menu button,
+.theme-sangtian-shanhe .z-9999 button {
+  color: #FAF0D8 !important;
+  background: transparent !important;
+}
+
+.theme-sangtian-shanhe .sidebar-dropdown-menu button svg,
+.theme-sangtian-shanhe .z-9999 button svg {
+  color: #E8AA42 !important;
+  stroke: #E8AA42 !important;
+}

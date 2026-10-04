@@ -1,0 +1,1121 @@
+@import "./themes/sangtian-shanhe.css";
+@import "katex/dist/katex.min.css";
+@import "tailwindcss";
+
+:root {
+  --app-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+body, html, input, textarea, select, button, .markdown-body {
+  font-family: var(--app-font-family);
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
+    overscroll-behavior: none;
+    font-family: var(--app-font-family);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  #root {
+    width: 100%;
+    height: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.3);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(156, 163, 175, 0.5);
+}
+
+/* Markdown Typography styling */
+.markdown-body {
+  line-height: 1.7;
+  font-size: var(--chat-font-size, 0.95rem);
+  word-break: break-word;
+}
+
+.markdown-body h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-top: 1.25rem;
+  margin-bottom: 0.6rem;
+}
+
+.markdown-body h2 {
+  font-size: 1.3rem;
+  font-weight: 600;
+  margin-top: 1.1rem;
+  margin-bottom: 0.5rem;
+}
+
+.markdown-body h3 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin-top: 0.9rem;
+  margin-bottom: 0.4rem;
+}
+
+.markdown-body p {
+  margin-bottom: 0.75rem;
+}
+.markdown-body p:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-body ul {
+  list-style-type: disc;
+  padding-left: 1.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.markdown-body ol {
+  list-style-type: decimal;
+  padding-left: 1.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.markdown-body li {
+  margin-bottom: 0.25rem;
+}
+
+.markdown-body blockquote {
+  border-left: 3px solid #6366f1;
+  padding-left: 1rem;
+  margin: 0.75rem 0;
+  color: #6b7280;
+  font-style: italic;
+}
+.dark .markdown-body blockquote {
+  color: #9ca3af;
+  border-left-color: #818cf8;
+}
+
+.markdown-body hr {
+  border: 0;
+  height: 1px;
+  background: #e5e7eb;
+  margin: 1.25rem 0;
+}
+.dark .markdown-body hr {
+  background: #374151;
+}
+
+.markdown-body code:not(pre code) {
+  font-family: 'JetBrains Mono', monospace;
+  background-color: rgba(125, 125, 125, 0.15);
+  color: #e11d48;
+  padding: 0.15rem 0.35rem;
+  border-radius: 0.35rem;
+  font-size: 0.85em;
+}
+.dark .markdown-body code:not(pre code) {
+  color: #fb7185;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.markdown-body th {
+  padding: 0.6rem 0.85rem;
+  font-weight: 600;
+}
+
+.markdown-body td {
+  padding: 0.55rem 0.85rem;
+}
+
+/* KaTeX Formula Styling Adjustments */
+.katex-block {
+  margin: 0.85rem 0;
+  padding: 0.5rem 0.25rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.katex-display {
+  margin: 0 !important;
+}
+
+/* Syntax Highlighting Base (One Dark / Atom Dark Inspired) */
+.hljs-keyword, .hljs-selector-tag, .hljs-subst { color: #f472b6; font-weight: 500; }
+.hljs-string, .hljs-title, .hljs-section, .hljs-attribute, .hljs-literal, .hljs-template-tag, .hljs-template-variable, .hljs-type, .hljs-addition { color: #34d399; }
+.hljs-comment, .hljs-quote, .hljs-deletion, .hljs-meta { color: #94a3b8; font-style: italic; }
+.hljs-number, .hljs-regexp, .hljs-link { color: #fbbf24; }
+.hljs-variable, .hljs-attr, .hljs-variable.language_ { color: #60a5fa; }
+.hljs-function, .hljs-title.function_ { color: #818cf8; }
+.hljs-built_in, .hljs-class .hljs-title { color: #38bdf8; }
+
+/* ▋ 流式输出呼吸光标动画 */
+@keyframes stream-breath {
+  0% {
+    opacity: 0.25;
+    transform: scaleY(0.85);
+    box-shadow: 0 0 2px rgba(132, 204, 22, 0.3);
+  }
+  50% {
+    opacity: 1;
+    transform: scaleY(1.05);
+    box-shadow: 0 0 8px rgba(132, 204, 22, 0.8);
+  }
+  100% {
+    opacity: 0.25;
+    transform: scaleY(0.85);
+    box-shadow: 0 0 2px rgba(132, 204, 22, 0.3);
+  }
+}
+
+.streaming-cursor {
+  display: inline-block;
+  width: 7px;
+  height: 15px;
+  background: #84cc16;
+  margin-left: 3px;
+  vertical-align: -2px;
+  border-radius: 2px;
+  animation: stream-breath 1s ease-in-out infinite;
+}
+
+/* 🔍 紧凑排版模式 (Compact Mode) */
+.compact-mode .chat-message-row {
+  padding-top: 0.55rem !important;
+  padding-bottom: 0.55rem !important;
+}
+.compact-mode .markdown-body {
+  font-size: 0.875rem !important;
+  line-height: 1.55 !important;
+}
+.compact-mode .markdown-body p {
+  margin-bottom: 0.4rem !important;
+}
+.compact-mode .markdown-body ul,
+.compact-mode .markdown-body ol {
+  margin-bottom: 0.4rem !important;
+}
+.compact-mode .markdown-body h1 {
+  margin-top: 0.8rem !important;
+  margin-bottom: 0.35rem !important;
+  font-size: 1.25rem !important;
+}
+.compact-mode .markdown-body h2 {
+  margin-top: 0.7rem !important;
+  margin-bottom: 0.3rem !important;
+  font-size: 1.15rem !important;
+}
+.compact-mode .markdown-body h3 {
+  margin-top: 0.6rem !important;
+  margin-bottom: 0.25rem !important;
+  font-size: 1rem !important;
+}
+.compact-mode .code-block-wrapper {
+  margin-top: 0.5rem !important;
+  margin-bottom: 0.5rem !important;
+}
+
+/* 古典1 皮肤主题 - 宣纸底色、书香褐墨与朱砂红 */
+html.theme-classic1,
+.theme-classic1 body {
+  font-family: "Noto Serif SC", "Songti SC", "SimSun", "STSong", "KaiTi", Georgia, serif !important;
+  background-color: #f6f0e2 !important;
+  color: #2c221e !important;
+}
+
+.theme-classic1 .bg-white,
+.theme-classic1 .bg-neutral-900,
+.theme-classic1 .bg-neutral-950,
+.theme-classic1 .bg-neutral-800,
+.theme-classic1 .bg-slate-900 {
+  background-color: #ede3cd !important;
+  color: #2b211a !important;
+}
+
+.theme-classic1 .bg-neutral-50,
+.theme-classic1 .bg-neutral-100,
+.theme-classic1 .bg-neutral-50\/50,
+.theme-classic1 .bg-neutral-900\/50,
+.theme-classic1 .bg-neutral-50\/30,
+.theme-classic1 .bg-neutral-900\/30 {
+  background-color: #e4d7bd !important;
+}
+
+.theme-classic1 .border-neutral-200,
+.theme-classic1 .border-neutral-800,
+.theme-classic1 .border-neutral-300,
+.theme-classic1 .border-neutral-700 {
+  border-color: #d1c1a3 !important;
+}
+
+.theme-classic1 .text-neutral-900,
+.theme-classic1 .text-neutral-800,
+.theme-classic1 .text-neutral-100,
+.theme-classic1 .text-neutral-200,
+.theme-classic1 .text-neutral-700,
+.theme-classic1 .text-neutral-300 {
+  color: #2c221e !important;
+}
+
+.theme-classic1 .text-neutral-500,
+.theme-classic1 .text-neutral-400 {
+  color: #6d5849 !important;
+}
+
+.theme-classic1 .bg-indigo-600,
+.theme-classic1 .bg-indigo-500,
+.theme-classic1 .bg-neutral-900,
+.theme-classic1 .bg-emerald-600 {
+  background-color: #8b2626 !important;
+  color: #faf6ee !important;
+}
+
+.theme-classic1 .text-indigo-600,
+.theme-classic1 .text-indigo-500,
+.theme-classic1 .text-indigo-400,
+.theme-classic1 .text-emerald-500 {
+  color: #8b2626 !important;
+}
+
+.theme-classic1 .border-indigo-600,
+.theme-classic1 .border-indigo-500 {
+  border-color: #8b2626 !important;
+}
+
+/* 默认与通用：测试连接按钮样式 */
+.test-conn-btn {
+  background-color: #1e2330 !important;
+  color: #e5e7eb !important;
+  border: 1px solid #374151 !important;
+}
+
+.test-conn-btn:hover {
+  background-color: #262c3d !important;
+  color: #ffffff !important;
+}
+
+.test-conn-btn svg {
+  color: #9ca3af !important;
+}
+
+/* 参数设置默认基础暗色高对比度排版 */
+.parameters-modal .param-modal-title,
+.parameters-modal .param-item-label {
+  color: #f4f4f5 !important;
+}
+
+.parameters-modal .param-modal-sub,
+.parameters-modal .param-item-sub,
+.parameters-modal .param-slider-ticks {
+  color: #a1a1aa !important;
+}
+
+/* 古典1 皮肤下参数设置文字与辅助文字高对比度覆写 */
+.theme-classic1 .parameters-modal h3.param-modal-title {
+  color: #ffffff !important;
+}
+.theme-classic1 .parameters-modal .param-item-label {
+  color: #2c221e !important;
+}
+
+.theme-classic1 .parameters-modal .param-modal-sub,
+.theme-classic1 .parameters-modal .param-item-sub,
+.theme-classic1 .parameters-modal .param-slider-ticks,
+.theme-classic1 .parameters-modal .param-model-target {
+  color: #413129 !important;
+}
+
+/* 现代1 皮肤下参数设置文字与辅助文字高对比度覆写 */
+.theme-modern1 .parameters-modal h3.param-modal-title {
+  color: #ffffff !important;
+}
+.theme-modern1 .parameters-modal .param-item-label {
+  color: #1c2d42 !important;
+}
+
+.theme-modern1 .parameters-modal .param-modal-sub,
+.theme-modern1 .parameters-modal .param-item-sub,
+.theme-modern1 .parameters-modal .param-slider-ticks,
+.theme-modern1 .parameters-modal .param-model-target {
+  color: #2d3d4f !important;
+}
+
+/* 古典1 皮肤下 AI 模型配置弹窗内容及辅助小字高对比度优化 */
+.theme-classic1 .model-config-modal label,
+.theme-classic1 .model-config-modal .text-neutral-400,
+.theme-classic1 .model-config-modal .text-neutral-500 {
+  color: #413129 !important; /* Deeper brown ink for crisp readability on warm paper bg */
+}
+
+.theme-classic1 .model-config-modal .text-neutral-300 {
+  color: #2c221e !important;
+}
+
+/* 古典1 下已选中的服务商高对比度背景与文字 */
+.theme-classic1 .model-config-modal .bg-neutral-800 {
+  background-color: #d8caa7 !important; /* Deeper, solid antique gold for selected */
+}
+
+.theme-classic1 .model-config-modal .bg-neutral-900\/80 {
+  background-color: #ede3cd !important; /* Warm light yellow for unselected */
+}
+
+.theme-classic1 .model-config-modal .text-orange-200 {
+  color: #8b2626 !important; /* 朱砂红 for selected text name */
+}
+
+/* 现代1 皮肤下 AI 模型配置弹窗内容及辅助小字高对比度优化 */
+.theme-modern1 .model-config-modal label,
+.theme-modern1 .model-config-modal .text-neutral-400,
+.theme-modern1 .model-config-modal .text-neutral-500 {
+  color: #2d3d4f !important; /* Deeper navy slate gray for high contrast on ice white bg */
+}
+
+.theme-modern1 .model-config-modal .text-neutral-300 {
+  color: #1c2d42 !important;
+}
+
+/* 现代1 下已选中的服务商高对比度背景与文字 */
+.theme-modern1 .model-config-modal .bg-neutral-800 {
+  background-color: #e0e9f4 !important; /* Cool soft ice blue for selected */
+}
+
+.theme-modern1 .model-config-modal .bg-neutral-900\/80 {
+  background-color: #f4f8fb !important; /* Very light slate gray/white for unselected */
+}
+
+.theme-modern1 .model-config-modal .text-orange-200 {
+  color: #1e64b4 !important; /* 深海蔚蓝色 for selected text name */
+}
+
+.parameters-modal .param-input {
+  background-color: #181818 !important;
+  color: #ffffff !important;
+  border-color: #27272a !important;
+}
+
+.theme-classic1 .model-config-modal select option,
+.theme-modern1 .model-config-modal select option {
+  background-color: #1a1e29 !important;
+  color: #ffffff !important;
+}
+
+/* ==========================================================================
+   古典2 皮肤主题 - 天下舆图黑金古风（全界面严格黑金古风、绝无纯白/浅色背景，红木漆夜与金烫字）
+   ========================================================================== */
+html.theme-classic2,
+.theme-classic2 body {
+  font-family: "Songti SC", "Noto Serif SC", "STSong", "SimSun", "KaiTi", Georgia, serif !important;
+  background-color: #0a0907 !important;
+  color: #f0e2cd !important;
+}
+
+/* 1. 全局容器、卡片、侧边栏、弹窗、下拉框与悬浮层底色 */
+.theme-classic2 .bg-white,
+.theme-classic2 .bg-white\/90,
+.theme-classic2 .bg-white\/80,
+.theme-classic2 .bg-neutral-900,
+.theme-classic2 .bg-neutral-950,
+.theme-classic2 .bg-neutral-800,
+.theme-classic2 .bg-slate-900,
+.theme-classic2 .bg-slate-950,
+.theme-classic2 .bg-neutral-50,
+.theme-classic2 .bg-neutral-100,
+.theme-classic2 .bg-neutral-200,
+.theme-classic2 .bg-neutral-300,
+.theme-classic2 .bg-neutral-50\/50,
+.theme-classic2 .bg-neutral-50\/70,
+.theme-classic2 .bg-neutral-50\/30,
+.theme-classic2 .bg-neutral-900\/50,
+.theme-classic2 .bg-neutral-900\/60,
+.theme-classic2 .bg-neutral-900\/90,
+.theme-classic2 .bg-neutral-950\/20,
+.theme-classic2 .bg-neutral-800\/30,
+.theme-classic2 .bg-neutral-800\/80,
+.theme-classic2 .bg-indigo-50,
+.theme-classic2 .bg-indigo-50\/80,
+.theme-classic2 .bg-indigo-50\/50,
+.theme-classic2 .bg-indigo-100,
+.theme-classic2 .bg-amber-50,
+.theme-classic2 .bg-amber-100,
+.theme-classic2 .bg-sky-50,
+.theme-classic2 .bg-slate-100,
+.theme-classic2 .bg-slate-200,
+.theme-classic2 .light-badge,
+.theme-classic2 .bg-\[\#12141a\],
+.theme-classic2 .bg-\[\#121212\],
+.theme-classic2 .bg-\[\#151821\],
+.theme-classic2 .bg-\[\#181c26\],
+.theme-classic2 .bg-\[\#161616\],
+.theme-classic2 .bg-\[\#181c26\]\/80,
+.theme-classic2 .bg-\[\#221c1f\],
+.theme-classic2 .bg-\[\#1f2430\],
+.theme-classic2 .bg-\[\#1c212e\] {
+  background-color: #171310 !important;
+  color: #f0e2cd !important;
+}
+
+/* 2. 交互区域：输入框、文本域、 Select 下拉框与 option 下拉项 */
+.theme-classic2 input,
+.theme-classic2 select,
+.theme-classic2 textarea,
+.theme-classic2 option {
+  background-color: #231c17 !important;
+  color: #f0e2cd !important;
+  border-color: #4a3e2c !important;
+}
+
+.theme-classic2 input::placeholder,
+.theme-classic2 textarea::placeholder {
+  color: #8e7e6c !important;
+}
+
+/* 3. 下拉菜单与选项悬浮 Hover / Active 效果 */
+.theme-classic2 button:hover,
+.theme-classic2 .hover\:bg-neutral-100:hover,
+.theme-classic2 .hover\:bg-neutral-800:hover,
+.theme-classic2 .hover\:bg-indigo-100:hover {
+  background-color: #2e251e !important;
+  color: #dfb15b !important;
+}
+
+/* 4. 统一边框分割线 */
+.theme-classic2 .border-neutral-200,
+.theme-classic2 .border-neutral-800,
+.theme-classic2 .border-neutral-300,
+.theme-classic2 .border-neutral-700,
+.theme-classic2 .border-neutral-100,
+.theme-classic2 .border-neutral-800\/80,
+.theme-classic2 .border-neutral-700\/60,
+.theme-classic2 .border-indigo-200 {
+  border-color: #4a3e2c !important;
+}
+
+/* 5. 统一文字与图标颜色 */
+.theme-classic2 .text-neutral-900,
+.theme-classic2 .text-neutral-800,
+.theme-classic2 .text-neutral-100,
+.theme-classic2 .text-neutral-200,
+.theme-classic2 .text-neutral-700,
+.theme-classic2 .text-neutral-300,
+.theme-classic2 .text-white,
+.theme-classic2 h1,
+.theme-classic2 h2,
+.theme-classic2 h3,
+.theme-classic2 h4,
+.theme-classic2 label,
+.theme-classic2 span,
+.theme-classic2 p {
+  color: #f0e2cd !important;
+}
+
+.theme-classic2 .text-neutral-500,
+.theme-classic2 .text-neutral-400,
+.theme-classic2 .text-neutral-600 {
+  color: #a3937f !important;
+}
+
+/* 6. 金烫高亮与主要激活项 (如保存、+ 新聊天、当前选中的 Toggle 开关) */
+.theme-classic2 .bg-indigo-600,
+.theme-classic2 .bg-indigo-500,
+.theme-classic2 .bg-emerald-600,
+.theme-classic2 .bg-amber-600,
+.theme-classic2 .bg-orange-500,
+.theme-classic2 .bg-orange-600,
+.theme-classic2 .bg-\[\#84cc16\] {
+  background-color: #dfb15b !important;
+  color: #0a0907 !important;
+  font-weight: 600 !important;
+}
+
+.theme-classic2 .text-indigo-600,
+.theme-classic2 .text-indigo-500,
+.theme-classic2 .text-indigo-400,
+.theme-classic2 .text-emerald-500,
+.theme-classic2 .text-orange-400,
+.theme-classic2 .text-orange-500,
+.theme-classic2 .text-orange-300,
+.theme-classic2 .text-orange-200,
+.theme-classic2 .text-\[\#84cc16\] {
+  color: #dfb15b !important;
+}
+
+.theme-classic2 .border-indigo-600,
+.theme-classic2 .border-indigo-500,
+.theme-classic2 .border-orange-500 {
+  border-color: #dfb15b !important;
+}
+
+/* 6.5 古典2 皮肤主题的 AI 回复与用户回复区块色差优化 */
+.theme-classic2 .user-message {
+  background-color: #0b0907 !important; /* Lacquer charcoal night black */
+  border-bottom: 1px solid #1c1510 !important;
+}
+
+.theme-classic2 .assistant-message {
+  background-color: #1a1511 !important; /* Distinct dark wood bronze lacquer */
+  color: #f0e2cd !important;
+  border-top: 1px solid #36281e !important;
+  border-bottom: 1px solid #36281e !important;
+}
+
+.theme-classic2 .assistant-message p,
+.theme-classic2 .assistant-message span,
+.theme-classic2 .assistant-message .markdown-body {
+  color: #f0e2cd !important;
+}
+
+/* 古典2 皮肤代码块、搜索引用与推理提示条背景高对比度 */
+.theme-classic2 .assistant-message pre {
+  background-color: #0c0a08 !important;
+  border-color: #382d24 !important;
+  color: #f3e6d3 !important;
+}
+
+.theme-classic2 .assistant-message pre code {
+  color: #f3e6d3 !important;
+}
+
+.theme-classic2 .assistant-message code:not(pre code) {
+  background-color: #2a221a !important;
+  color: #dfb15b !important;
+  border: 1px solid #4a3e2c;
+}
+
+.theme-classic2 .assistant-message .thinking-steps-container,
+.theme-classic2 .assistant-message .thinking-log-card,
+.theme-classic2 .assistant-message .agent-tool-slip {
+  background-color: #1d1712 !important;
+  border-color: #3d3126 !important;
+}
+
+/* 古典2 皮肤下 AI 模型名称下方思考/步骤提示 Mini 块的深黑色字高对比度 */
+.theme-classic2 .thinking-steps-card {
+  background-color: #eae1cd !important;
+  border-color: #d1c3a7 !important;
+  color: #120e0a !important;
+}
+
+.theme-classic2 .thinking-steps-card span,
+.theme-classic2 .thinking-steps-card div,
+.theme-classic2 .thinking-steps-card p {
+  color: #120e0a !important;
+}
+
+.theme-classic2 .thinking-steps-card svg {
+  color: #120e0a !important;
+  stroke: #120e0a !important;
+  fill: currentColor !important;
+}
+
+/* 7. 图标 SVG 规则 */
+.theme-classic2 svg {
+  color: #f0e2cd !important;
+  stroke: #f0e2cd !important;
+}
+
+.theme-classic2 .bg-indigo-600 svg,
+.theme-classic2 .bg-indigo-500 svg,
+.theme-classic2 .bg-emerald-600 svg,
+.theme-classic2 .bg-amber-600 svg,
+.theme-classic2 .bg-orange-500 svg,
+.theme-classic2 .bg-orange-600 svg,
+.theme-classic2 .bg-\[\#84cc16\] svg {
+  color: #0a0907 !important;
+  stroke: #0a0907 !important;
+}
+
+/* 现代1 皮肤主题 - 冰蓝清爽极简（冰蓝雾灰底色、深海钢蓝文字与蔚蓝强调） */
+html.theme-modern1,
+.theme-modern1 body {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif !important;
+  background-color: #f0f4f8 !important;
+  color: #1c2d42 !important;
+}
+
+.theme-modern1 .bg-white,
+.theme-modern1 .bg-neutral-900,
+.theme-modern1 .bg-neutral-950,
+.theme-modern1 .bg-neutral-800,
+.theme-modern1 .bg-slate-900 {
+  background-color: #ffffff !important;
+  color: #1c2d42 !important;
+}
+
+.theme-modern1 .bg-neutral-50,
+.theme-modern1 .bg-neutral-100,
+.theme-modern1 .bg-neutral-50\/50,
+.theme-modern1 .bg-neutral-900\/50,
+.theme-modern1 .bg-neutral-50\/30,
+.theme-modern1 .bg-neutral-900\/30,
+.theme-modern1 .bg-neutral-950\/20,
+.theme-modern1 .bg-neutral-800\/30 {
+  background-color: #f4f8fb !important;
+}
+
+.theme-modern1 .border-neutral-200,
+.theme-modern1 .border-neutral-800,
+.theme-modern1 .border-neutral-300,
+.theme-modern1 .border-neutral-700 {
+  border-color: #dbe3ec !important;
+}
+
+.theme-modern1 .text-neutral-900,
+.theme-modern1 .text-neutral-800,
+.theme-modern1 .text-neutral-100,
+.theme-modern1 .text-neutral-200,
+.theme-modern1 .text-neutral-700,
+.theme-modern1 .text-neutral-300 {
+  color: #1c2d42 !important;
+}
+
+.theme-modern1 .text-neutral-500,
+.theme-modern1 .text-neutral-400 {
+  color: #5e6e82 !important;
+}
+
+.theme-modern1 .bg-indigo-600,
+.theme-modern1 .bg-indigo-500,
+.theme-modern1 .bg-neutral-900,
+.theme-modern1 .bg-emerald-600 {
+  background-color: #1e64b4 !important;
+  color: #ffffff !important;
+}
+
+.theme-modern1 .text-indigo-600,
+.theme-modern1 .text-indigo-500,
+.theme-modern1 .text-indigo-400,
+.theme-modern1 .text-emerald-500 {
+  color: #1e64b4 !important;
+}
+
+.theme-modern1 .border-indigo-600,
+.theme-modern1 .border-indigo-500 {
+  border-color: #1e64b4 !important;
+}
+
+/* ==========================================================================
+   「绛笺织影」—— Warm Vermilion Textile Theme
+   温暖宣纸 × 米黄织物 × 朱砂红 × 细密斜向缝线纹理
+   ========================================================================== */
+html.theme-vermilion-textile {
+  --vt-bg: #F3E4C5;
+  --vt-surface: #F8EED9;
+  --vt-surface-2: #EBD7AE;
+  --vt-surface-3: #E2C995;
+  --vt-text: #33251D;
+  --vt-text-soft: #6E5949;
+  --vt-text-muted: #927B67;
+  --vt-line: #D2BA91;
+  --vt-line-strong: #B99A6A;
+  --vt-vermilion: #A52C28;
+  --vt-vermilion-dark: #81211E;
+  --vt-vermilion-soft: #E8B5A6;
+  --vt-ink: #3D3027;
+  --vt-success: #6E7D50;
+  --vt-warning: #A66B2D;
+  --vt-danger: #9C3029;
+}
+
+html.theme-vermilion-textile,
+.theme-vermilion-textile body {
+  font-family: "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", "SimSun", "KaiTi", Georgia, serif !important;
+  background-color: #F3E4C5 !important;
+  background-image: 
+    linear-gradient(135deg, rgba(120, 83, 42, 0.038) 1px, transparent 1px),
+    linear-gradient(45deg, rgba(120, 83, 42, 0.025) 1px, transparent 1px) !important;
+  background-size: 24px 24px, 24px 24px !important;
+  color: #33251D !important;
+}
+
+/* 1. Custom Scrollbar for Vermilion Textile */
+.theme-vermilion-textile ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.theme-vermilion-textile ::-webkit-scrollbar-track {
+  background: transparent;
+}
+.theme-vermilion-textile ::-webkit-scrollbar-thumb {
+  background: rgba(185, 154, 106, 0.35);
+  border-radius: 9999px;
+}
+.theme-vermilion-textile ::-webkit-scrollbar-thumb:hover {
+  background: rgba(165, 44, 40, 0.45);
+}
+
+/* 2. Text Selection */
+.theme-vermilion-textile ::selection {
+  background: rgba(165, 44, 40, 0.18) !important;
+  color: #33251D !important;
+}
+
+/* 3. Surface & Card Overrides */
+.theme-vermilion-textile .bg-white,
+.theme-vermilion-textile .bg-white\/90,
+.theme-vermilion-textile .bg-white\/80,
+.theme-vermilion-textile .bg-white\/60,
+.theme-vermilion-textile .bg-neutral-900,
+.theme-vermilion-textile .bg-neutral-950,
+.theme-vermilion-textile .bg-neutral-800,
+.theme-vermilion-textile .bg-slate-900,
+.theme-vermilion-textile .bg-slate-950 {
+  background-color: #F8EED9 !important;
+  color: #33251D !important;
+}
+
+.theme-vermilion-textile .bg-neutral-50,
+.theme-vermilion-textile .bg-neutral-100,
+.theme-vermilion-textile .bg-neutral-200,
+.theme-vermilion-textile .bg-neutral-300,
+.theme-vermilion-textile .bg-neutral-50\/50,
+.theme-vermilion-textile .bg-neutral-50\/70,
+.theme-vermilion-textile .bg-neutral-50\/30,
+.theme-vermilion-textile .bg-neutral-900\/50,
+.theme-vermilion-textile .bg-neutral-900\/60,
+.theme-vermilion-textile .bg-neutral-900\/90,
+.theme-vermilion-textile .bg-neutral-950\/20,
+.theme-vermilion-textile .bg-neutral-800\/30,
+.theme-vermilion-textile .bg-neutral-800\/40,
+.theme-vermilion-textile .bg-neutral-800\/80,
+.theme-vermilion-textile .bg-slate-100,
+.theme-vermilion-textile .bg-slate-200 {
+  background-color: #EBD7AE !important;
+}
+
+.theme-vermilion-textile .bg-indigo-50,
+.theme-vermilion-textile .bg-indigo-50\/80,
+.theme-vermilion-textile .bg-indigo-50\/50,
+.theme-vermilion-textile .bg-indigo-100,
+.theme-vermilion-textile .bg-amber-50,
+.theme-vermilion-textile .bg-amber-100,
+.theme-vermilion-textile .bg-sky-50 {
+  background-color: #F1DEC1 !important;
+}
+
+/* 4. Fine Borders & Dividers */
+.theme-vermilion-textile .border-neutral-200,
+.theme-vermilion-textile .border-neutral-800,
+.theme-vermilion-textile .border-neutral-300,
+.theme-vermilion-textile .border-neutral-700,
+.theme-vermilion-textile .border-neutral-100,
+.theme-vermilion-textile .border-neutral-800\/80,
+.theme-vermilion-textile .border-neutral-800\/60,
+.theme-vermilion-textile .border-neutral-700\/60,
+.theme-vermilion-textile .border-neutral-700\/80,
+.theme-vermilion-textile .border-neutral-200\/80,
+.theme-vermilion-textile .border-indigo-200 {
+  border-color: #D2BA91 !important;
+}
+
+/* 5. Typography */
+.theme-vermilion-textile .text-neutral-900,
+.theme-vermilion-textile .text-neutral-800,
+.theme-vermilion-textile .text-neutral-100,
+.theme-vermilion-textile .text-neutral-200,
+.theme-vermilion-textile .text-neutral-700,
+.theme-vermilion-textile .text-neutral-300,
+.theme-vermilion-textile .text-white,
+.theme-vermilion-textile h1,
+.theme-vermilion-textile h2,
+.theme-vermilion-textile h3,
+.theme-vermilion-textile h4,
+.theme-vermilion-textile label,
+.theme-vermilion-textile span,
+.theme-vermilion-textile p {
+  color: #33251D !important;
+}
+
+.theme-vermilion-textile .text-neutral-500,
+.theme-vermilion-textile .text-neutral-400,
+.theme-vermilion-textile .text-neutral-600 {
+  color: #6E5949 !important;
+}
+
+/* 6. Vermilion Primary Accents & Buttons */
+.theme-vermilion-textile .bg-indigo-600,
+.theme-vermilion-textile .bg-indigo-500,
+.theme-vermilion-textile .bg-emerald-600,
+.theme-vermilion-textile .bg-neutral-900:not(.theme-vermilion-textile) {
+  background-color: #A52C28 !important;
+  color: #FAF6EE !important;
+}
+
+.theme-vermilion-textile .bg-indigo-600:hover,
+.theme-vermilion-textile .bg-indigo-500:hover,
+.theme-vermilion-textile .bg-neutral-900:hover {
+  background-color: #81211E !important;
+  color: #FAF6EE !important;
+}
+
+.theme-vermilion-textile .text-indigo-600,
+.theme-vermilion-textile .text-indigo-500,
+.theme-vermilion-textile .text-indigo-400,
+.theme-vermilion-textile .text-emerald-500,
+.theme-vermilion-textile .text-[#84cc16] {
+  color: #A52C28 !important;
+}
+
+.theme-vermilion-textile .border-indigo-600,
+.theme-vermilion-textile .border-indigo-500 {
+  border-color: #A52C28 !important;
+}
+
+/* 7. Inputs, Textareas, and Select Fields */
+.theme-vermilion-textile input,
+.theme-vermilion-textile select,
+.theme-vermilion-textile textarea,
+.theme-vermilion-textile option {
+  background-color: #F8EED9 !important;
+  color: #33251D !important;
+  border-color: #D2BA91 !important;
+}
+
+.theme-vermilion-textile input::placeholder,
+.theme-vermilion-textile textarea::placeholder {
+  color: #927B67 !important;
+}
+
+.theme-vermilion-textile input:focus,
+.theme-vermilion-textile textarea:focus,
+.theme-vermilion-textile select:focus {
+  border-color: #A52C28 !important;
+  outline-color: #A52C28 !important;
+  box-shadow: 0 0 0 3px rgba(165, 44, 40, 0.12) !important;
+}
+
+/* 8. Hover Interactions */
+.theme-vermilion-textile .hover\:bg-neutral-100:hover,
+.theme-vermilion-textile .hover\:bg-neutral-200:hover,
+.theme-vermilion-textile .hover\:bg-neutral-800:hover,
+.theme-vermilion-textile .hover\:bg-neutral-700:hover,
+.theme-vermilion-textile .hover\:bg-indigo-50:hover,
+.theme-vermilion-textile .hover\:bg-indigo-100:hover {
+  background-color: rgba(165, 44, 40, 0.08) !important;
+  color: #33251D !important;
+}
+
+/* 9. Markdown Book-Page Styling */
+.theme-vermilion-textile .markdown-body {
+  color: #33251D !important;
+}
+
+.theme-vermilion-textile .markdown-body h1 {
+  border-bottom: 2px solid #A52C28;
+  padding-bottom: 4px;
+  display: inline-block;
+  color: #33251D !important;
+}
+
+.theme-vermilion-textile .markdown-body blockquote {
+  border-left: 3px solid #A52C28 !important;
+  background-color: rgba(235, 215, 174, 0.45) !important;
+  padding: 0.5rem 1rem !important;
+  border-radius: 0 8px 8px 0;
+  color: #6E5949 !important;
+}
+
+.theme-vermilion-textile .markdown-body code:not(pre code) {
+  font-family: 'JetBrains Mono', monospace !important;
+  background-color: #E7D4AD !important;
+  color: #81211E !important;
+  border: 1px solid rgba(185, 154, 106, 0.4);
+}
+
+.theme-vermilion-textile pre,
+.theme-vermilion-textile pre code {
+  background-color: #30261F !important;
+  color: #F1E5CF !important;
+  font-family: 'JetBrains Mono', monospace !important;
+}
+
+.theme-vermilion-textile .markdown-body hr {
+  background-color: #D2BA91 !important;
+}
+
+/* 10. Agent Tool Call Slip Styling */
+.theme-vermilion-textile .agent-tool-slip {
+  background-color: #E7D4AD !important;
+  border-left: 3px solid #A52C28 !important;
+  border-color: #D2BA91 !important;
+}
+
+/* 11. Modal Box Shadows (Soft warm earth shadow) */
+.theme-vermilion-textile .shadow-2xl,
+.theme-vermilion-textile .shadow-xl {
+  box-shadow: 0 18px 55px rgba(73, 49, 28, 0.16) !important;
+}
+
+.theme-vermilion-textile .shadow-lg,
+.theme-vermilion-textile .shadow-md,
+.theme-vermilion-textile .shadow-sm {
+  box-shadow: 0 6px 24px rgba(73, 49, 28, 0.09) !important;
+}
+
+/* 12. Diff Viewer (Olive green add, Vermilion delete, Warm gold edit) */
+.theme-vermilion-textile .diff-added {
+  background-color: #E8EBD8 !important;
+  color: #3D4A27 !important;
+}
+.theme-vermilion-textile .diff-deleted {
+  background-color: #F4DDD8 !important;
+  color: #8A2420 !important;
+}
+.theme-vermilion-textile .diff-modified {
+  background-color: #F5E8C8 !important;
+  color: #6E4E18 !important;
+}
+
+/* 现代1与古典1皮肤下文件编辑器文件名与MD预览标签文字强制白色 */
+.theme-classic1 .file-editor-modal .file-editor-filename,
+.theme-modern1 .file-editor-modal .file-editor-filename,
+.theme-classic1 .file-editor-modal .md-preview-tab,
+.theme-modern1 .file-editor-modal .md-preview-tab,
+.theme-classic1 .file-editor-modal .md-preview-tab span,
+.theme-modern1 .file-editor-modal .md-preview-tab span {
+  color: #ffffff !important;
+}
+
+/* 古典2皮肤下“预览区”按钮颜色搭配的元素改成黑色背景和白色文字 */
+html.theme-classic2 .preview-area-btn,
+.theme-classic2 .preview-area-btn {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+  border-color: #3a322d !important;
+}
+html.theme-classic2 .preview-area-btn svg,
+html.theme-classic2 .preview-area-btn span,
+.theme-classic2 .preview-area-btn svg,
+.theme-classic2 .preview-area-btn span,
+html.theme-classic2 .preview-area-btn *,
+.theme-classic2 .preview-area-btn * {
+  color: #ffffff !important;
+  fill: #ffffff !important;
+}
+html.theme-classic2 .preview-area-btn:hover,
+.theme-classic2 .preview-area-btn:hover {
+  background-color: #1a1512 !important;
+  color: #ffffff !important;
+  border-color: #dfb15b !important;
+}
+
+/* 古典2皮肤下所有运行参数 Toggle 开关样式完全一致且高对比度可见 */
+html.theme-classic2 .param-toggle,
+.theme-classic2 .param-toggle {
+  border: 1px solid #dfb15b !important;
+}
+
+html.theme-classic2 .param-toggle.bg-\[\#84cc16\],
+.theme-classic2 .param-toggle.bg-\[\#84cc16\],
+html.theme-classic2 .param-toggle[class*="bg-[#84cc16]"],
+.theme-classic2 .param-toggle[class*="bg-[#84cc16]"],
+html.theme-classic2 .param-toggle[class*="bg-lime-500"],
+.theme-classic2 .param-toggle[class*="bg-lime-500"] {
+  background-color: #dfb15b !important; /* Gold for ON state */
+}
+
+html.theme-classic2 .param-toggle:not(.bg-\[\#84cc16\]):not([class*="bg-[#84cc16]"]):not([class*="bg-lime-500"]),
+.theme-classic2 .param-toggle:not(.bg-\[\#84cc16\]):not([class*="bg-[#84cc16]"]):not([class*="bg-lime-500"]) {
+  background-color: #2c221e !important; /* Elegant warm dark wood for OFF state */
+  border-color: #55443c !important;
+}
+
+/* 确保开关内的小圆点在 ON/OFF 状态下均高度清晰可见 */
+html.theme-classic2 .param-toggle-dot,
+.theme-classic2 .param-toggle-dot {
+  background-color: #ede3cd !important; /* Warm antique cream dot */
+}
+
+/* 运行参数面板整体卡片选项高级暗色风格定制（完全契合图 2 风格） */
+.parameters-modal .rounded-xl.bg-white,
+.parameters-modal .rounded-2xl.bg-white,
+.parameters-modal .bg-white.dark\:bg-neutral-800 {
+  background-color: #171717 !important; /* 图2风格：高质感哑光暗黑灰色 */
+  border: 1px solid #262626 !important; /* 极细微弱暗色边框线 */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* 强制白色文字及清晰对比度 */
+.parameters-modal .rounded-xl.bg-white .param-item-label,
+.parameters-modal .rounded-xl.bg-white span,
+.parameters-modal .rounded-xl.bg-white label,
+.parameters-modal .bg-white.dark\:bg-neutral-800 .param-item-label,
+.parameters-modal .bg-white.dark\:bg-neutral-800 span,
+.parameters-modal .bg-white.dark\:bg-neutral-800 label {
+  color: #f3f4f6 !important; /* 柔和白色文字 */
+}
+
+/* 图2辅助描述文字：采用中性暗灰，绝不刺眼 */
+.parameters-modal .rounded-xl.bg-white .param-item-sub,
+.parameters-modal .rounded-xl.bg-white .text-neutral-500,
+.parameters-modal .rounded-xl.bg-white .text-neutral-400,
+.parameters-modal .bg-white.dark\:bg-neutral-800 .param-item-sub,
+.parameters-modal .bg-white.dark\:bg-neutral-800 .text-neutral-500,
+.parameters-modal .bg-white.dark\:bg-neutral-800 .text-neutral-400 {
+  color: #737373 !important; /* 图2描述文字的灰色标准 */
+}
+
+/* 滑块及数字输入框统一重绘为深色背景与荧光色/主题色搭配 */
+.parameters-modal .rounded-xl.bg-white .param-input,
+.parameters-modal .rounded-xl.bg-white input[type="number"],
+.parameters-modal .bg-white.dark\:bg-neutral-800 .param-input,
+.parameters-modal .bg-white.dark\:bg-neutral-800 input[type="number"] {
+  background-color: #0c0c0c !important;
+  color: #a3e635 !important; /* 默认荧光绿，或者自适应高亮 */
+  border: 1px solid #404040 !important;
+  border-radius: 0.375rem !important;
+}
+
+.parameters-modal .rounded-xl.bg-white input[type="range"],
+.parameters-modal .bg-white.dark\:bg-neutral-800 input[type="range"] {
+  accent-color: #84cc16 !important; /* 金绿高亮滑块 */
+}
+
+/* 选项卡 hover 时微弱边框高亮 */
+.parameters-modal .rounded-xl.bg-white:hover,
+.parameters-modal .bg-white.dark\:bg-neutral-800:hover {
+  border-color: #404040 !important;
+}
+
+/* 古典2皮肤下运行参数选项卡的专属木香暗金质感 */
+.theme-classic2 .parameters-modal .rounded-xl.bg-white,
+.theme-classic2 .parameters-modal .rounded-2xl.bg-white,
+.theme-classic2 .parameters-modal .bg-white.dark\:bg-neutral-800 {
+  background-color: #16120f !important; /* 雅致黑木纹背景 */
+  border: 1px solid #3a322d !important; /* 描金细边 */
+}
+
+.theme-classic2 .parameters-modal .rounded-xl.bg-white .param-item-label,
+.theme-classic2 .parameters-modal .rounded-xl.bg-white span,
+.theme-classic2 .parameters-modal .rounded-xl.bg-white label,
+.theme-classic2 .parameters-modal .bg-white.dark\:bg-neutral-800 .param-item-label,
+.theme-classic2 .parameters-modal .bg-white.dark\:bg-neutral-800 span,
+.theme-classic2 .parameters-modal .bg-white.dark\:bg-neutral-800 label {
+  color: #ede3cd !important; /* 宣纸乳牙色 */
+}
+
+.theme-classic2 .parameters-modal .rounded-xl.bg-white .param-item-sub,
+.theme-classic2 .parameters-modal .bg-white.dark\:bg-neutral-800 .param-item-sub {
+  color: #8a7b72 !important; /* 暖灰描述文案 */
+}
+
+
