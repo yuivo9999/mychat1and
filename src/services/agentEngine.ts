@@ -12,7 +12,7 @@ import {
 } from './workspaceService';
 import { formatChatContextPrompt, detectWorkspaceIntent, WorkspaceIntent } from './chatContextService';
 import { ChatContext } from '../types/workspace';
-import { executeCode, looksLikePythonSource, getWorkspaceNodeRuntimeState, markWorkspaceDependenciesInstalled } from './codeExecutionAdapter';
+import { executeCode, looksLikePythonSource, getWorkspaceNodeRuntimeState, markWorkspaceDependenciesInstalled } from './codeExecutionAdapter';, installWorkspaceDependencies
 import { buildProjectRuntimeReport, inspectProjectRuntime } from './projectRuntimeService';
 
 export { detectWorkspaceIntent, type WorkspaceIntent };
@@ -1128,7 +1128,7 @@ export async function executeWorkspaceTool(
         };
       }
 
-      const runData = await executeCode({ language: 'shell', code: info.dependencyInstallCommand, timeoutMs: 120_000, workspaceId: ws.id });
+      const runData = await installWorkspaceDependencies(ws.id, 120_000);
       let afterState = await getWorkspaceNodeRuntimeState(ws.id);
       let installRecord: { ok: boolean; fingerprint?: string; error?: string } | null = null;
       if (runData.success && afterState?.nodeModulesExists) {
