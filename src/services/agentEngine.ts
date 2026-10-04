@@ -12,6 +12,7 @@ import {
 } from './workspaceService';
 import { formatChatContextPrompt, detectWorkspaceIntent, WorkspaceIntent } from './chatContextService';
 import { ChatContext } from '../types/workspace';
+import { isAndroidRuntime, runPythonInWorkspace } from './nativeRuntime';
 
 export { detectWorkspaceIntent, type WorkspaceIntent };
 
@@ -163,7 +164,7 @@ export const WORKSPACE_TOOLS_SPEC = [
   },
   {
     name: 'run_command',
-    description: '在工作区服务器端安全终端执行 Shell 命令行与脚本（如编译打包 npm run build、安装运行测试、执行 Python 或 Node 数据分析处理等）。此工具在“运行脚本与命令”权限开启时可用。',
+    description: '执行工作区中的 Python 脚本。Android App 中由原生 Chaquopy Python 运行时执行并把脚本产生的文本文件修改同步回工作区；浏览器开发模式继续使用本地 Node 执行后端。此工具在“运行脚本与命令”权限开启时可用。',
     parameters: {
       type: 'object',
       properties: {
@@ -922,6 +923,95 @@ export async function executeWorkspaceTool(
         };
       }
 
+      // Android App: execute Python inside the native Chaquopy runtime.
+      // The browser never receives shell access and no local Node server is required.
+      if (isAndroidRuntime()) {
+        // Validate only the executable token here. Do not reject valid Python commands
+        // because of leading whitespace, tabs, or arguments after the interpreter.
+        const pythonExecutable = command.trim().split(/\\s+/)[0]?.toLowerCase() || '';
+        if (!['python', 'python3', 'py'].includes(pythonExecutable)) {
+          return {
+            result: null,
+            updatedWorkspace: ws,
+            errorMessage: 'Android 原生运行时目前只执行 Python。请使用 python / python3 / py 脚本或 python -c。',
+            stepIcon: 'lightning',
+            stepTitle: `Android 原生运行时拒绝非 Python 命令: ${command}`,
+          };
+        }
+
+        try {
+          const nativeResult = await runPythonInWorkspace(
+            command,
+            Object.values(ws.files)
+              .filter(file => !file.isBinary)
+              .map(file => ({
+                path: file.path,
+                content: file.content,
+                isBinary: false,
+              })),
+            120000,
+          );
+
+          for (const changed of nativeResult.changedFiles || []) {
+            const valid = validateSafeRelativePath(changed.path || '');
+            if (!valid.valid) continue;
+
+            const path = valid.normalizedPath;
+            if (changed.deleted) {
+              delete ws.files[path];
+              continue;
+            }
+
+            if (changed.isBinary) continue;
+
+            const content = String(changed.content ?? '');
+            ws.files[path] = {
+              path,
+              content,
+              isBinary: false,
+              size: content.length,
+              updatedAt: Date.now(),
+            };
+          }
+
+          const result = {
+            stdout: nativeResult.stdout || '',
+            stderr: nativeResult.stderr || '',
+            exitCode: nativeResult.exitCode,
+            error: nativeResult.error,
+            changedFiles: (nativeResult.changedFiles || []).map(file => file.path),
+            binaryFiles: nativeResult.binaryFiles || [],
+            runtime: 'android-chaquopy',
+          };
+
+          if (nativeResult.success) {
+            return {
+              result,
+              updatedWorkspace: ws,
+              stepIcon: 'lightning',
+              stepTitle: `Android 原生 Python 执行成功: ${command}`,
+            };
+          }
+
+          return {
+            result,
+            updatedWorkspace: ws,
+            errorMessage: nativeResult.error || nativeResult.stderr || `Python 执行失败，退出码: ${nativeResult.exitCode}`,
+            stepIcon: 'lightning',
+            stepTitle: `Android 原生 Python 执行出错: ${command}`,
+          };
+        } catch (e: any) {
+          return {
+            result: null,
+            updatedWorkspace: ws,
+            errorMessage: `Android 原生 Python 执行异常: ${e?.message || e}`,
+            stepIcon: 'lightning',
+            stepTitle: `Android Python 运行时异常: ${command}`,
+          };
+        }
+      }
+
+      // Browser/desktop development fallback: keep the existing local Node server path.
       try {
         const res = await fetch('/api/execute-script', {
           method: 'POST',

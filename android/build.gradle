@@ -1,0 +1,13 @@
+// MyChat Android native runtime.
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.13.0'
+        classpath 'com.chaquo.python:gradle:17.0.0'
+    }
+}
+
+apply from: "variables.gradle"
