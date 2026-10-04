@@ -2,6 +2,7 @@ package com.yuivo9999.mychat;
 
 import com.chaquo.python.PyObject;
 import com.chaquo.python.Python;
+import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -14,11 +15,6 @@ import org.json.JSONObject;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -44,8 +40,9 @@ public class MyChatRuntimePlugin extends Plugin {
     @PluginMethod
     public void runPython(PluginCall call) {
         final String command = call.getString("command", "").trim();
-        final JSONArray files = call.getArray("files");
-        final int timeoutMs = Math.max(1000, Math.min(call.getInt("timeoutMs", 30000), 120000));
+        final JSArray files = call.getArray("files");
+        final Integer requestedTimeout = call.getInt("timeoutMs", 30000);
+        final int timeoutMs = Math.max(1000, Math.min(requestedTimeout == null ? 30000 : requestedTimeout, 120000));
 
         if (command.isEmpty()) {
             call.reject("Python 命令为空。");
@@ -71,7 +68,7 @@ public class MyChatRuntimePlugin extends Plugin {
                     return runner.callAttr("run", command, workspace.getAbsolutePath()).toString();
                 });
 
-                String json;
+                final String json;
                 try {
                     json = future.get(timeoutMs, TimeUnit.MILLISECONDS);
                 } catch (Exception timeout) {
@@ -82,7 +79,8 @@ public class MyChatRuntimePlugin extends Plugin {
                     timeoutResult.put("stderr", "");
                     timeoutResult.put("exitCode", -1);
                     timeoutResult.put("error", "Python 执行超时，已请求停止。");
-                    timeoutResult.put("changedFiles", new JSONArray());
+                    timeoutResult.put("changedFiles", new JSArray());
+                    timeoutResult.put("binaryFiles", new JSArray());
                     call.resolve(timeoutResult);
                     return;
                 }
@@ -94,30 +92,45 @@ public class MyChatRuntimePlugin extends Plugin {
                 result.put("stderr", parsed.optString("stderr", ""));
                 result.put("exitCode", parsed.optInt("exitCode", 1));
                 result.put("error", parsed.optString("error", JSONObject.NULL));
-                result.put("changedFiles", parsed.optJSONArray("changedFiles") != null
-                        ? parsed.optJSONArray("changedFiles") : new JSONArray());
-                result.put("binaryFiles", parsed.optJSONArray("binaryFiles") != null
-                        ? parsed.optJSONArray("binaryFiles") : new JSONArray());
+                result.put("changedFiles", toJsArray(parsed.optJSONArray("changedFiles")));
+                result.put("binaryFiles", toJsArray(parsed.optJSONArray("binaryFiles")));
                 result.put("durationMs", parsed.optLong("durationMs", 0));
                 call.resolve(result);
             } catch (Exception e) {
                 call.reject("Android Python 执行失败: " + (e.getMessage() == null ? e.toString() : e.getMessage()), e);
             } finally {
-                // The workspace is intentionally disposable: the authoritative copy remains in MyChat's JS workspace.
                 deleteRecursively(workspace);
             }
         });
     }
 
-    private void prepareWorkspace(File root, JSONArray files) throws Exception {
+    private JSArray toJsArray(JSONArray array) throws Exception {
+        JSArray result = new JSArray();
+        if (array == null) return result;
+        for (int i = 0; i < array.length(); i++) {
+            Object value = array.get(i);
+            if (value instanceof JSONObject) {
+                result.put(JSObject.fromJSONObject((JSONObject) value));
+            } else {
+                result.put(value);
+            }
+        }
+        return result;
+    }
+
+    private void prepareWorkspace(File root, JSArray files) throws Exception {
         deleteRecursively(root);
         if (!root.mkdirs() && !root.isDirectory()) {
             throw new IllegalStateException("无法创建 Android 工作区目录");
         }
 
         long total = 0;
-        for (int i = 0; i < files.length(); i++) {
-            JSONObject item = files.getJSONObject(i);
+        for (Object raw : files.toList()) {
+            if (!(raw instanceof JSONObject)) {
+                throw new IllegalArgumentException("工作区文件数据格式错误。");
+            }
+
+            JSONObject item = (JSONObject) raw;
             String relative = item.optString("path", "").replace('\\', '/');
             if (!isSafeRelativePath(relative)) {
                 throw new SecurityException("工作区路径非法: " + relative);
@@ -145,7 +158,7 @@ public class MyChatRuntimePlugin extends Plugin {
     }
 
     private boolean isSafeRelativePath(String path) {
-        if (path.isEmpty() || path.startsWith("/") || path.startsWith("\") || path.contains(":")) {
+        if (path.isEmpty() || path.startsWith("/") || path.startsWith("\\") || path.contains(":")) {
             return false;
         }
         String normalized = path.replace('\\', '/');
