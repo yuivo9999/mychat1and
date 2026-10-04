@@ -166,7 +166,7 @@ export function buildAgentReplanPrompt(plan: AgentTaskPlan, trigger = '执行过
 }
 
 export function parseAgentTaskReplan(text: string, currentPlan: AgentTaskPlan): AgentTaskPlan | null {
-  const match = text.match(/<agent_replan>\\s*([\\s\\S]*?)\\s*<\\/agent_replan>/i);
+  const match = text.match(new RegExp('<agent_replan>\\\\s*([\\\\s\\\\S]*?)\\\\s*<\\\\/agent_replan>', 'i'));
   if (!match) return null;
   try {
     const raw = JSON.parse(match[1]);
