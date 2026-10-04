@@ -138,6 +138,14 @@ export function buildProjectRuntimeReport(workspace: Workspace): string {
 }
 
 
+export interface ProjectRuntimeHealth {
+  checkedAt?: number;
+  ok: boolean;
+  status?: number;
+  latencyMs?: number;
+  error?: string;
+}
+
 export interface ProjectRuntimeState {
   supported: boolean;
   running: boolean;
@@ -151,6 +159,7 @@ export interface ProjectRuntimeState {
 }
 
 interface AndroidProjectRuntimeBridge {
+  httpRequest?: (url: string, method: string, headersJson: string, body: string, timeoutMs: number) => string;
   startWorkspaceProject?: (workspaceId: string, command: string, timeoutMs?: number) => string;
   getWorkspaceProjectRuntimeState?: (workspaceId: string) => string;
   stopWorkspaceProject?: (workspaceId: string) => string;
@@ -216,6 +225,28 @@ export function startProjectRuntime(workspace: Workspace): ProjectRuntimeState {
 
 export function stopProjectRuntime(workspaceId: string): void {
   try { runtimeBridge()?.stopWorkspaceProject?.(workspaceId); } catch {}
+}
+
+export function checkProjectRuntimeHealth(port: number, timeoutMs = 2500): ProjectRuntimeHealth {
+  const bridge = runtimeBridge();
+  if (!bridge?.httpRequest) return { ok: false, error: '当前环境不支持原生本机 HTTP 健康检查' };
+  const checkedAt = Date.now();
+  const started = performance.now();
+  try {
+    const raw = bridge.httpRequest(`http://127.0.0.1:${port}/`, 'GET', '{}', '', timeoutMs);
+    const payload = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    const status = typeof payload?.status === 'number' ? payload.status : undefined;
+    const latencyMs = Math.max(0, Math.round(performance.now() - started));
+    return {
+      checkedAt,
+      ok: payload?.success === true && !!status && status >= 200 && status < 500,
+      status,
+      latencyMs,
+      error: payload?.error || (payload?.success === false ? payload?.stderr || 'HTTP 请求失败' : undefined),
+    };
+  } catch (error: any) {
+    return { checkedAt, ok: false, latencyMs: Math.max(0, Math.round(performance.now() - started)), error: error?.message || String(error) };
+  }
 }
 
 export function getNodeDependencyState(workspaceId: string): { installed: boolean; inSync: boolean } {
