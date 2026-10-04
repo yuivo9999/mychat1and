@@ -162,7 +162,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
   const tooltips: Record<string, string> = {
     stream: '开启打字机逐字输出。关闭则等待整体生成完毕后一次性呈现。',
     promptPerfect: '开启后在发送给 AI 之前，由专用引擎自动将您的简短提示词重写为专业、结构清晰、完美的 Prompt 模板，提高生成质量。',
-    context7: '开启后系统将采用“智能 7 轮高精度平衡窗口”，精准维持最近的 7 轮对话为全保真高对比度上下文，超出部分自动由智能摘要压缩。兼顾超长对话记忆与极低 Token 资源消耗。',
+    context7: '开启后会调用 Context7 官方 Search API，检索与当前问题相关的最新官方技术文档和代码示例，并把结果作为回答依据。',
     uiUxSkill: '开启后 AI 同时承担产品设计、UI/UX、移动端/Android 设计与 UI Review 职责。执行界面任务时必须先做信息架构与设计决策，再实现并进行视觉与响应式自检。',
     executeScript: '开启后允许 Agent 运行终端 Shell 命令行及执行脚本（如编译打包、运行测试、Python 或 Node 数据处理等）。提供极致完整的全自动编码体验！',
     maxTokens: '单次回复允许生成的最大 Token 限制（4096 约合 2000 个汉字）。',
@@ -321,7 +321,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
             <div className="flex items-center justify-between p-2.5 rounded-xl bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 shadow-2xs">
               <div className="space-y-0.5 pr-2">
                 <div className="flex items-center gap-1.5 relative">
-                  <span className="param-item-label text-xs font-semibold text-neutral-900 dark:text-neutral-100">Context 7 历史平衡</span>
+                  <span className="param-item-label text-xs font-semibold text-neutral-900 dark:text-neutral-100">Context7 官方技术文档</span>
                   <button
                     type="button"
                     onMouseEnter={() => setActiveTooltip('context7')}
@@ -337,7 +337,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
                     </div>
                   )}
                 </div>
-                <p className="param-item-sub text-[11px] text-neutral-500 dark:text-neutral-400">精准锁固 7 轮高保真上下文记忆</p>
+                <p className="param-item-sub text-[11px] text-neutral-500 dark:text-neutral-400">检索官方技术文档与代码示例</p>
               </div>
 
               <button
