@@ -745,12 +745,38 @@ export async function getConversation(id: string): Promise<Conversation | null> 
 export async function saveConversation(conversation: Conversation): Promise<void> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
-    const request = db.transaction('conversations', 'readwrite').objectStore('conversations').put(conversation);
-    request.onsuccess = () => {
-      notifyConversationChanged(conversation);
-      resolve();
+    const transaction = db.transaction('conversations', 'readwrite');
+    const store = transaction.objectStore('conversations');
+    const existingRequest = store.get(conversation.id);
+
+    existingRequest.onsuccess = () => {
+      const existing = existingRequest.result as Conversation | undefined;
+      const existingTask = existing?.agentTask;
+      const incomingTask = conversation.agentTask;
+
+      // A stopped task is terminal for that taskId. Ignore stale async writes from
+      // the already-aborted Agent loop, while still allowing a brand-new task.
+      if (
+        existingTask?.status === 'stopped' &&
+        existingTask.taskId &&
+        incomingTask?.taskId === existingTask.taskId &&
+        incomingTask.status !== 'stopped'
+      ) {
+        conversation = {
+          ...conversation,
+          agentTask: existingTask,
+          updatedAt: Math.max(conversation.updatedAt, existingTask.updatedAt),
+        };
+      }
+
+      const putRequest = store.put(conversation);
+      putRequest.onsuccess = () => {
+        notifyConversationChanged(conversation);
+        resolve();
+      };
+      putRequest.onerror = () => reject(putRequest.error);
     };
-    request.onerror = () => reject(request.error);
+    existingRequest.onerror = () => reject(existingRequest.error);
   });
 }
 
