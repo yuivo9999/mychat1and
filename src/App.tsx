@@ -100,7 +100,7 @@ import { ArchiveProjectModal } from './components/ArchiveProjectModal';
 import { WorkspacePreviewModal } from './components/WorkspacePreviewModal';
 import { AiFileAuditModal } from './components/AiFileAuditModal';
 import { recordAiFileModifications, backfillAuditRecordsFromConversations } from './services/aiFileAuditService';
-import { createAgentLoopState, advanceAgentLoopState, classifyAgentProgress, getAgentPhaseLabel, getAgentPhaseInstruction, getAgentPauseDelayMs, shouldProtectAgainstNoProgress, buildAgentLoopFeedback, buildAgentTaskPlanPrompt, parseAgentTaskPlan, parseAgentTaskReplan, applyAgentTaskProgress, areAgentTaskRequirementsMet, stripAgentPlanBlock, stripAgentProgressBlock, stripAgentReplanBlock, createAgentTaskPlan, updateAgentTaskChecklist, getAgentTaskStepText, type AgentLoopState } from './services/agentOrchestrator';
+import { createAgentLoopState, advanceAgentLoopState, classifyAgentProgress, getAgentPhaseLabel, getAgentPhaseInstruction, getAgentPauseDelayMs, shouldProtectAgainstNoProgress, buildAgentLoopFeedback, buildAgentTaskPlanPrompt, shouldAgentResearchTask, parseAgentTaskPlan, parseAgentTaskReplan, applyAgentTaskProgress, areAgentTaskRequirementsMet, stripAgentPlanBlock, stripAgentProgressBlock, stripAgentReplanBlock, createAgentTaskPlan, updateAgentTaskChecklist, getAgentTaskStepText, type AgentLoopState } from './services/agentOrchestrator';
 
 const DEFAULT_PARAMETERS: ModelParameters = {
   enableReasoning: false,
@@ -962,8 +962,10 @@ export default function App() {
     let webResults: WebSearchResultItem[] = [];
     let webContext = '';
     let webSearchNotice = '';
+    let agentResearchEvidence = '';
 
-    if (webAccessEnabled || isContext7Enabled) {
+    const agentResearchNeeded = shouldAgentResearchTask(text);
+    if ((webAccessEnabled || isContext7Enabled) && (!agentMode || !currentWorkspace || agentResearchNeeded)) {
       setStatusMessage(webAccessEnabled ? '正在联网检索网页与 GitHub 资料...' : '正在准备官方技术资料...');
       try {
         const knowledgeResult = await runKnowledgeResearch(
@@ -978,8 +980,10 @@ export default function App() {
         if (knowledgeResult.web) {
           webResults = knowledgeResult.web.results;
           webContext = buildUnifiedKnowledgeGrounding(knowledgeResult);
+          agentResearchEvidence = `研究完成：网页/GitHub ${knowledgeResult.web.rounds.length} 轮；网页结果 ${knowledgeResult.web.results.length} 条；GitHub 结果 ${knowledgeResult.github?.results.length || 0} 条；冲突提示 ${knowledgeResult.web.conflictHints.length} 条。`;
         } else if (knowledgeResult.context7Grounding) {
           webContext = buildUnifiedKnowledgeGrounding(knowledgeResult);
+          agentResearchEvidence = '研究完成：已获得补充技术文档资料。';
         }
 
         const updatedSteps: ThinkingStep[] = currentThinkingSteps.map(s => {
@@ -1091,6 +1095,12 @@ export default function App() {
       const workspaceAgentEnabled = agentMode && !!wsToOperate;
       // The model may replace this safe fallback with a structured plan during the first Agent round.
       let agentTaskPlan = createAgentTaskPlan(text);
+      agentTaskPlan.research = {
+        required: agentResearchNeeded,
+        completed: !!webContext,
+        reason: agentResearchNeeded ? '任务复杂度/技术事实判断要求优先研究。' : '任务不明显依赖外部最新事实，可直接执行。',
+        evidence: agentResearchEvidence || undefined,
+      };
 
       // 2. Detect Code Diagnosis intent vs Normal task (only valid when workspace context is enabled)
       const diagIntent = detectDiagnosisIntent(text, targetConv.chatContext);
@@ -1134,8 +1144,8 @@ export default function App() {
 
       if (workspaceAgentEnabled) {
         effectiveSystemPrompt = effectiveSystemPrompt
-          ? effectiveSystemPrompt + '\n\n' + buildAgentTaskPlanPrompt(text)
-          : buildAgentTaskPlanPrompt(text);
+          ? effectiveSystemPrompt + '\n\n' + buildAgentTaskPlanPrompt(text, agentTaskPlan.research)
+          : buildAgentTaskPlanPrompt(text, agentTaskPlan.research);
       }
 
       setStatusMessage(
