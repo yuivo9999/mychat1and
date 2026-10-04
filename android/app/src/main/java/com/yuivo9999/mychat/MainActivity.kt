@@ -187,19 +187,47 @@ class AndroidBridge(
         val npmCli = File(root, "node_modules/npm/bin/npm-cli.js")
         if (npmCli.isFile) return npmCli
 
-        val archive = File(activity.cacheDir, "npm.tar.gz")
-        activity.assets.open("node-runtime/npm.tar.gz").use { input ->
-            FileOutputStream(archive).use { output -> input.copyTo(output) }
-        }
-        root.mkdirs()
-        val process = ProcessBuilder("tar", "-xzf", archive.absolutePath, "-C", root.absolutePath)
-            .redirectErrorStream(true).start()
-        val output = process.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
-        if (!process.waitFor(60, TimeUnit.SECONDS) || process.exitValue() != 0 || !npmCli.isFile) {
-            throw IllegalStateException("npm runtime extraction failed: $output")
-        }
-        archive.delete()
+        val bundledRoot = File(activity.filesDir, "node-runtime")
+        val npmCli = File(bundledRoot, "node_modules/npm/bin/npm-cli.js")
+        if (npmCli.isFile) return npmCli
+
+        val sourceRoot = File(activity.filesDir, "node-runtime-staging")
+        if (sourceRoot.exists()) sourceRoot.deleteRecursively()
+        sourceRoot.mkdirs()
+        copyAssetTree("node-runtime", sourceRoot)
+        val stagedNpm = File(sourceRoot, "node_modules/npm")
+        if (!stagedNpm.isDirectory) throw IllegalStateException("bundled npm runtime is missing")
+        bundledRoot.mkdirs()
+        val targetModules = File(bundledRoot, "node_modules")
+        targetModules.deleteRecursively()
+        copyDirectory(stagedNpm, File(targetModules, "npm"))
+        sourceRoot.deleteRecursively()
         return npmCli
+    }
+
+    private fun copyAssetTree(assetPath: String, destination: File) {
+        val entries = activity.assets.list(assetPath) ?: emptyArray()
+        if (entries.isEmpty()) {
+            destination.parentFile?.mkdirs()
+            activity.assets.open(assetPath).use { input ->
+                FileOutputStream(destination).use { output -> input.copyTo(output) }
+            }
+            return
+        }
+        destination.mkdirs()
+        for (entry in entries) {
+            copyAssetTree("$assetPath/$entry", File(destination, entry))
+        }
+    }
+
+    private fun copyDirectory(source: File, destination: File) {
+        if (source.isDirectory) {
+            destination.mkdirs()
+            source.listFiles()?.forEach { copyDirectory(it, File(destination, it.name)) }
+        } else {
+            destination.parentFile?.mkdirs()
+            source.inputStream().use { input -> FileOutputStream(destination).use { output -> input.copyTo(output) } }
+        }
     }
     @JavascriptInterface
     fun executeNode(command: String, timeoutMs: Int, workspaceId: String = ""): String {
