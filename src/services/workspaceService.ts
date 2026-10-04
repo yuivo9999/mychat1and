@@ -7,8 +7,73 @@ import {
   WORKSPACE_LIMITS, 
   validateSafeRelativePath 
 } from '../types/workspace';
-export { saveWorkspace, getWorkspaces, getWorkspace, deleteWorkspace } from './db';
-import { saveWorkspace, getWorkspaces, getWorkspace, deleteWorkspace } from './db';
+import { saveWorkspace as saveWorkspaceDb, getWorkspaces, getWorkspace, deleteWorkspace as deleteWorkspaceDb } from './db';
+
+interface AndroidWorkspaceBridge {
+  writeWorkspaceFile?: (workspaceId: string, relativePath: string, content: string) => string;
+  deleteWorkspaceFile?: (workspaceId: string, relativePath: string) => string;
+  deleteWorkspaceStorage?: (workspaceId: string) => string;
+}
+
+function getAndroidWorkspaceBridge(): AndroidWorkspaceBridge | null {
+  if (typeof window === 'undefined') return null;
+  const bridge = (window as any).MyChatAndroid;
+  return bridge && typeof bridge.writeWorkspaceFile === 'function' ? bridge : null;
+}
+
+function syncWorkspaceToAndroid(workspace: Workspace): void {
+  const bridge = getAndroidWorkspaceBridge();
+  if (!bridge) return;
+
+  const previous = workspace.originalSnapshot?.files || {};
+  const current = workspace.files || {};
+
+  for (const [path, file] of Object.entries(current)) {
+    if (file.isBinary) continue;
+    try {
+      const raw = bridge.writeWorkspaceFile?.(workspace.id, path, file.content);
+      const result = raw ? JSON.parse(raw) : null;
+      if (result && result.ok === false) {
+        console.warn('Android workspace file sync failed:', path, result.error);
+      }
+    } catch (error) {
+      console.warn('Android workspace file sync failed:', path, error);
+    }
+  }
+
+  for (const path of Object.keys(previous)) {
+    if (current[path]) continue;
+    try {
+      const raw = bridge.deleteWorkspaceFile?.(workspace.id, path);
+      const result = raw ? JSON.parse(raw) : null;
+      if (result && result.ok === false) {
+        console.warn('Android workspace file delete failed:', path, result.error);
+      }
+    } catch (error) {
+      console.warn('Android workspace file delete failed:', path, error);
+    }
+  }
+}
+
+export async function saveWorkspace(workspace: Workspace): Promise<void> {
+  await saveWorkspaceDb(workspace);
+  syncWorkspaceToAndroid(workspace);
+}
+
+export async function deleteWorkspace(id: string): Promise<void> {
+  await deleteWorkspaceDb(id);
+  const bridge = getAndroidWorkspaceBridge();
+  if (!bridge?.deleteWorkspaceStorage) return;
+  try {
+    const raw = bridge.deleteWorkspaceStorage(id);
+    const result = raw ? JSON.parse(raw) : null;
+    if (result && result.ok === false) {
+      console.warn('Android workspace storage delete failed:', id, result.error);
+    }
+  } catch (error) {
+    console.warn('Android workspace storage delete failed:', id, error);
+  }
+}
 
 // Helper: detect if a file is likely binary
 export function isBinaryFile(path: string, contentSample?: string): boolean {
