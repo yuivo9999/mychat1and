@@ -7,16 +7,13 @@ on:
       - "android/**"
       - "src/**"
       - "package.json"
-      - "package-lock.json"
+      - "bun.lock"
       - "vite.config.ts"
       - ".github/workflows/android-build.yml"
 
 jobs:
   debug-apk:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: android
 
     steps:
       - name: Checkout
@@ -38,10 +35,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: package-lock.json
+
+      - name: Install web dependencies
+        run: npm install --no-audit --no-fund
 
       - name: Build debug APK
+        working-directory: android
         run: ./gradlew :app:assembleDebug --stacktrace
 
       - name: Upload debug APK
