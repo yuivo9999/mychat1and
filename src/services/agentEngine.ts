@@ -5,6 +5,7 @@ import {
   validateSafeRelativePath 
 } from '../types/workspace';
 import { ThinkingStep } from '../types';
+import { assertAgentTaskNotStopped } from './agentOrchestrator';
 import { 
   searchWorkspaceCode, 
   getWorkspaceDirectoryTree, 
@@ -772,7 +773,8 @@ export function cleanResponseText(text: string): string {
 export async function executeWorkspaceTool(
   toolName: string,
   args: Record<string, any>,
-  workspace: Workspace
+  workspace: Workspace,
+  agentTaskId?: string | null
 ): Promise<{
   result: any;
   updatedWorkspace: Workspace;
@@ -781,6 +783,10 @@ export async function executeWorkspaceTool(
   stepIcon: ThinkingStep['icon'];
   stepTitle: string;
 }> {
+  // Stop requests are checked before every Agent tool execution so a stopped task
+  // cannot start another workspace mutation or runtime command.
+  assertAgentTaskNotStopped(agentTaskId);
+
   let ws = { ...workspace, files: { ...workspace.files } };
 
   switch (toolName) {
