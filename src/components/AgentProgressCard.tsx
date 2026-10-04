@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Check, Circle, Loader2, AlertTriangle, PauseCircle, Bot } from 'lucide-react';
-import { AgentTaskState, Message } from '../types';
+import { Message } from '../types';
 import { getConversations } from '../services/db';
 
 type ProgressItem = {
