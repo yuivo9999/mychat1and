@@ -100,7 +100,7 @@ import { ArchiveProjectModal } from './components/ArchiveProjectModal';
 import { WorkspacePreviewModal } from './components/WorkspacePreviewModal';
 import { AiFileAuditModal } from './components/AiFileAuditModal';
 import { recordAiFileModifications, backfillAuditRecordsFromConversations } from './services/aiFileAuditService';
-import { createAgentLoopState, advanceAgentLoopState, classifyAgentProgress, getAgentPhaseLabel, getAgentPhaseInstruction, getAgentPauseDelayMs, shouldProtectAgainstNoProgress, buildAgentLoopFeedback, createAgentTaskPlan, updateAgentTaskChecklist, getAgentTaskStepText, type AgentLoopState, type AgentProgressKind } from './services/agentOrchestrator';
+import { createAgentLoopState, advanceAgentLoopState, classifyAgentProgress, getAgentPhaseLabel, getAgentPhaseInstruction, getAgentPauseDelayMs, shouldProtectAgainstNoProgress, buildAgentLoopFeedback, createAgentTaskPlan, updateAgentTaskChecklist, getAgentTaskStepText, type AgentLoopState } from './services/agentOrchestrator';
 
 const DEFAULT_PARAMETERS: ModelParameters = {
   enableReasoning: false,
@@ -628,6 +628,7 @@ export default function App() {
     agentPauseRequestedRef.current = true;
     const existing = currentConversation.agentTask;
     const pausedTask: AgentTaskState = {
+      ...existing,
       taskId: agentTaskIdRef.current,
       status: 'paused',
       phase: existing?.phase || 'planning',
@@ -1791,6 +1792,8 @@ export default function App() {
             phase: agentLoopState.phase,
             round: agentLoopState.round,
             maxRounds: maxAgentTurns,
+            ...agentTaskPlan,
+            ...getAgentTaskStepText(agentLoopState),
             progressSummary: 'Agent 任务已停止',
             pauseReason: '请求被用户停止',
             updatedAt: Date.now(),
@@ -1822,6 +1825,8 @@ export default function App() {
             phase: agentLoopState.phase,
             round: agentLoopState.round,
             maxRounds: maxAgentTurns,
+            ...agentTaskPlan,
+            ...getAgentTaskStepText(agentLoopState),
             progressSummary: 'Agent 任务异常结束',
             pauseReason: errMsg,
             updatedAt: Date.now(),
@@ -2707,7 +2712,9 @@ export default function App() {
             <div className="flex items-center gap-2 rounded-xl border border-neutral-200/70 dark:border-neutral-700/70 bg-white/80 dark:bg-neutral-900/80 backdrop-blur px-3 py-2 text-xs shadow-sm">
               <span className="font-medium">Agent · {currentConversation.agentTask.phase}</span>
               <span className="text-neutral-500">第 {currentConversation.agentTask.round}/{currentConversation.agentTask.maxRounds} 轮</span>
-              <span className="flex-1 truncate text-neutral-500">{currentConversation.agentTask.pauseReason || currentConversation.agentTask.progressSummary || '自动执行中'}</span>
+              <span className="flex-1 min-w-0 truncate text-neutral-500" title={currentConversation.agentTask.goal}>
+                {currentConversation.agentTask.currentStep || currentConversation.agentTask.pauseReason || currentConversation.agentTask.progressSummary || '自动执行中'}
+              </span>
               {currentConversation.agentTask.status === 'paused' || currentConversation.agentTask.status === 'waiting_user' ? (
                 <button type="button" onClick={handleResumeAgent} className="rounded-lg border px-3 py-1.5 font-medium hover:bg-neutral-100 dark:hover:bg-neutral-800">继续 Agent</button>
               ) : (
