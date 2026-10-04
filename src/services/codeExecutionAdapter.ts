@@ -178,11 +178,11 @@ if (transpiled.diagnostics && transpiled.diagnostics.length) {
               || (expression.startsWith("'") && expression.endsWith("'"))) {
             pythonCode = expression.slice(1, -1)
               .replace(/\\([\\"'])/g, '$1')
-              .replace(/\n/g, '\n');
+              .replace(/\\n/g, '\n');
           } else {
             pythonCode = expression;
           }
-        } else if (/^(?:-u\s+)?[^\s]+\\.py(?:\s|$)/i.test(pythonCommand)) {
+        } else if (/^(?:-u\s+)?[^\s]+\.py(?:\s|$)/i.test(pythonCommand)) {
           const scriptPath = pythonCommand.replace(/^-u\s+/i, '').split(/\s+/)[0];
           const file = await readWorkspaceFile(request.workspaceId ?? '', scriptPath);
           if (file?.exists && typeof file.content === 'string') {
