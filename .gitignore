@@ -36,3 +36,4 @@ Thumbs.db
 android/_runtime_src/
 android/app/src/main/jniLibs/
 android/app/src/main/assets/www/
+android/app/src/main/assets/node-runtime/
