@@ -50,13 +50,16 @@ function buildGitHubGrounding(github: UnifiedKnowledgeResearchResult['github']):
     ).join('\n\n'));
   }
   if (github.pageContents.length) {
-    sections.push('--- GitHub README / 页面正文 ---');
+    sections.push('--- GitHub README / 源码 / Issue / PR / Commit / Release 正文 ---');
     github.pageContents.forEach((page, index) => {
       sections.push(`[GitHub 页面 ${index + 1}] ${page.title}\n网址: ${page.url}\n${page.content.slice(0, 5000)}`);
     });
   }
   sections.push(
-    `GitHub 专项统计：${github.repositories.length} 个仓库，${github.issues} 个 Issue，${github.pullRequests} 个 Pull Request。`
+    `GitHub 专项统计：${github.repositories.length} 个仓库，${github.issues} 个 Issue，${github.pullRequests} 个 Pull Request，${github.commits} 个 Commit 记录，${github.releases} 个 Release。`
+  );
+  sections.push(
+    'GitHub 历史分析提示：优先结合 Commit → Issue/PR → Release 的时间顺序判断问题何时出现、为何修改以及哪个版本开始生效；若当前源码与历史讨论不一致，以当前源码和最新版本为准。'
   );
   return sections.join('\n');
 }
