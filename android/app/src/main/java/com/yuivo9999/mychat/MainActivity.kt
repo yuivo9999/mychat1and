@@ -180,6 +180,82 @@ class AndroidBridge(
     }
 
     @JavascriptInterface
+    fun executeCommand(command: String, timeoutMs: Int, workspaceId: String = ""): String {
+        val workspacePath = if (workspaceId.isBlank()) {
+            activity.filesDir.absolutePath
+        } else {
+            workspaceRoot(workspaceId).absolutePath
+        }
+
+        val future = executor.submit(Callable {
+            val process = ProcessBuilder("sh", "-c", command)
+                .directory(File(workspacePath))
+                .redirectErrorStream(false)
+                .start()
+
+            val stdoutFuture = executor.submit(Callable {
+                process.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+            })
+            val stderrFuture = executor.submit(Callable {
+                process.errorStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+            })
+
+            val completed = process.waitFor(
+                timeoutMs.coerceIn(1000, 120000).toLong(),
+                TimeUnit.MILLISECONDS
+            )
+
+            if (!completed) {
+                process.destroyForcibly()
+                return@Callable mapOf(
+                    "success" to false,
+                    "stdout" to stdoutFuture.get(1000, TimeUnit.MILLISECONDS),
+                    "stderr" to (stderrFuture.get(1000, TimeUnit.MILLISECONDS) + "\nCommand execution timed out"),
+                    "exitCode" to -1,
+                    "error" to "Command execution timed out"
+                )
+            }
+
+            mapOf(
+                "success" to (process.exitValue() == 0),
+                "stdout" to stdoutFuture.get(1000, TimeUnit.MILLISECONDS),
+                "stderr" to stderrFuture.get(1000, TimeUnit.MILLISECONDS),
+                "exitCode" to process.exitValue(),
+                "error" to null
+            )
+        })
+
+        return try {
+            val result = future.get(timeoutMs.coerceIn(1000, 120000).toLong() + 2000, TimeUnit.MILLISECONDS)
+            val map = result as Map<*, *>
+            JSONObject().apply {
+                put("success", map["success"] == true)
+                put("stdout", map["stdout"]?.toString() ?: "")
+                put("stderr", map["stderr"]?.toString() ?: "")
+                put("exitCode", (map["exitCode"] as? Number)?.toInt() ?: 1)
+                put("error", map["error"]?.toString())
+            }.toString()
+        } catch (e: java.util.concurrent.TimeoutException) {
+            future.cancel(true)
+            JSONObject()
+                .put("success", false)
+                .put("stdout", "")
+                .put("stderr", "命令执行超时")
+                .put("exitCode", -1)
+                .put("error", "Command execution timed out")
+                .toString()
+        } catch (e: Throwable) {
+            JSONObject()
+                .put("success", false)
+                .put("stdout", "")
+                .put("stderr", e.stackTraceToString())
+                .put("exitCode", -1)
+                .put("error", e.message ?: e.javaClass.simpleName)
+                .toString()
+        }
+    }
+
+    @JavascriptInterface
     fun executePython(code: String, timeoutMs: Int, workspaceId: String = ""): String {
         val workspacePath = if (workspaceId.isBlank()) {
             null
