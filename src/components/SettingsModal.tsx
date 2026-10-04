@@ -21,7 +21,8 @@ import {
   AlertTriangle,
   CheckCircle2,
   HardDrive,
-  Type
+  Type,
+  Brain
 } from 'lucide-react';
 import { 
   ProviderDefinition, 
@@ -331,6 +332,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     { id: 'appearance', label: '外观风格', icon: Palette },
     { id: 'data', label: '数据管理', icon: Database },
     { id: 'advanced', label: '高级设置', icon: ShieldAlert },
+    { id: 'memory', label: '记忆', icon: Brain },
   ];
 
   return (
@@ -613,6 +615,47 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       恢复出厂初始预设
                     </button>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* 9. 记忆 */}
+            {activeTab === 'memory' && (
+              <div className="space-y-5">
+                <div>
+                  <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
+                    <Brain className="w-4 h-4 text-indigo-500" />
+                    <span>AI 记忆</span>
+                  </h3>
+                  <p className="text-xs text-neutral-500 mt-1">统一管理当前对话、项目、历史聊天与时间信息如何提供给 AI。关闭不会删除已有数据。</p>
+                </div>
+                <div className="space-y-2.5">
+                  {[
+                    ['enableChatContextMemory', '单聊上下文记忆', '保留当前聊天的任务、要求和关键决策。', true],
+                    ['enableProjectMemory', '项目共享记忆', '共享同一项目的摘要、关键决策和相关会话信息。', true],
+                    ['enableHistorySearch', '历史对话搜索', '允许 AI 按需主动搜索过去的聊天记录。', false],
+                    ['enableTimeGapHints', '时间间隔提醒', '对间隔较大的消息加入时间提示，帮助 AI 理解时间跨度。', true],
+                    ['enableHistoryCompaction', '历史上下文自动压缩', '压缩较早上下文，减少 Token，同时保留任务轨迹和关键决策。', true],
+                  ].map(([key, title, desc, defaultValue]) => {
+                    const enabled = settings[key as keyof UserSettings] ?? defaultValue;
+                    return (
+                      <button key={key} type="button" onClick={() => onSaveSettings({ ...settings, [key]: !enabled })}
+                        className={"w-full p-3.5 rounded-2xl border text-left transition flex items-center gap-3 " + (enabled ? "border-indigo-300 dark:border-indigo-800 bg-indigo-50/60 dark:bg-indigo-950/20" : "border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-800/30")}>
+                        <div className={"w-10 h-5.5 rounded-full shrink-0 p-0.5 transition " + (enabled ? "bg-indigo-600" : "bg-neutral-300 dark:bg-neutral-700")}>
+                          <div className={"w-4.5 h-4.5 rounded-full bg-white shadow-sm transition-transform " + (enabled ? "translate-x-5" : "translate-x-0")} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100">{title}</div>
+                          <div className="text-[11px] text-neutral-500 leading-relaxed mt-0.5">{desc}</div>
+                        </div>
+                        <span className={"text-[10px] font-semibold shrink-0 " + (enabled ? "text-indigo-600 dark:text-indigo-400" : "text-neutral-400")}>{enabled ? '已开启' : '已关闭'}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="p-3.5 rounded-2xl border border-amber-200 dark:border-amber-900/50 bg-amber-50/50 dark:bg-amber-950/20">
+                  <div className="text-xs font-bold text-amber-800 dark:text-amber-300">推荐配置</div>
+                  <p className="text-[11px] text-amber-700/80 dark:text-amber-400/80 mt-1 leading-relaxed">建议开启单聊上下文、项目共享记忆、时间提醒和历史压缩；历史对话搜索按需开启。历史搜索不会默认把全部历史记录发送给模型。</p>
                 </div>
               </div>
             )}
