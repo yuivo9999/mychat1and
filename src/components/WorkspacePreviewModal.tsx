@@ -36,7 +36,7 @@ interface WorkspacePreviewModalProps {
   onClose: () => void;
   workspaces: Workspace[];
   initialWorkspaceId?: string;
-  onSaveWorkspace?: (workspace: Workspace) => Promise<void>; onRequestAgentAudit?: (workspaceId:string)=>void;
+  onSaveWorkspace?: (workspace: Workspace) => Promise<void>; onRequestAgentAudit?: (workspaceId:string)=>void; onRequestAgentMobileSelfTest?: (workspaceId:string)=>void;
 }
 
 interface ConsoleLogItem {
@@ -51,7 +51,7 @@ export const WorkspacePreviewModal: React.FC<WorkspacePreviewModalProps> = ({
   onClose,
   workspaces,
   initialWorkspaceId,
-  onSaveWorkspace, onRequestAgentAudit,
+  onSaveWorkspace, onRequestAgentAudit, onRequestAgentMobileSelfTest,
 }) => {
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>(
     initialWorkspaceId || workspaces[0]?.id || ''
@@ -313,7 +313,7 @@ export const WorkspacePreviewModal: React.FC<WorkspacePreviewModalProps> = ({
             )}
           </div>
 
-          <div className="flex items-center gap-1 bg-neutral-200/60 dark:bg-neutral-800 p-0.5 rounded-xl text-xs"><Smartphone className="w-3.5 h-3.5"/><span>手机 390×780</span><select value={zoom} onChange={e=>setZoom(+e.target.value)} className="bg-transparent ml-2">{[50,67,80,90,100,110,125,150].map(v=><option key={v} value={v}>{v}%</option>)}</select><button onClick={()=>setZoom(100)}>适配</button><button onClick={()=>setShell(!shell)}>{shell?'外壳':'无外壳'}</button><button onClick={()=>{setTab('ai');setInspect(true)}}>✨ AI检查</button><button onClick={interaction}>交互</button><button onClick={a11y}>无障碍</button><button onClick={shot}>截图</button><button onClick={fix}>修复错误</button></div>
+          <div className="flex items-center gap-1 bg-neutral-200/60 dark:bg-neutral-800 p-0.5 rounded-xl text-xs"><Smartphone className="w-3.5 h-3.5"/><span>手机 390×780</span><select value={zoom} onChange={e=>setZoom(+e.target.value)} className="bg-transparent ml-2">{[50,67,80,90,100,110,125,150].map(v=><option key={v} value={v}>{v}%</option>)}</select><button onClick={()=>setZoom(100)}>适配</button><button onClick={()=>setShell(!shell)}>{shell?'外壳':'无外壳'}</button><button onClick={()=>{setTab('ai');setInspect(true)}}>✨ AI检查</button><button onClick={()=>onRequestAgentMobileSelfTest?.(activeWorkspace?.id||'')} disabled={!activeWorkspace} title="让 Agent 自动规划并执行手机 390×780 关键路径测试">🧪 自动测试</button><button onClick={interaction}>交互</button><button onClick={a11y}>无障碍</button><button onClick={shot}>截图</button><button onClick={fix}>修复错误</button></div>
           {/* Right: Actions */}
           <div className="flex items-center gap-1.5">
             {!runnableInfo.hasRunnableEntry && (
