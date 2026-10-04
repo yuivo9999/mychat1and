@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowDown } from 'lucide-react';
 import { AgentTaskState, Message, ModelItem, UserSettings } from '../types';
-import { subscribeConversationChanges } from '../services/db';
+import { subscribeConversationChanges, stopAgentTaskByMessageId } from '../services/db';
 import { ChatMessage } from './ChatMessage';
 import { AgentProgressCard } from './AgentProgressCard';
 
@@ -107,7 +107,7 @@ export const MessageList: React.FC<MessageListProps> = ({
           {messages.map((msg, index) => (
             <React.Fragment key={msg.id}>
               {!msg.role || (msg.role === 'assistant' && index === messages.length - 1) ? (
-                <AgentProgressCard message={msg} compact taskState={liveAgentTaskState} onContinue={onContinue} />
+                <AgentProgressCard message={msg} compact taskState={liveAgentTaskState} onContinue={onContinue} onStop={(messageId) => { void stopAgentTaskByMessageId(messageId); }} />
               ) : null}
             <ChatMessage
               key={msg.id}
