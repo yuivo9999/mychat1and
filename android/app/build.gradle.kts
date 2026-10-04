@@ -50,8 +50,8 @@ android {
         applicationId = "com.yuivo9999.mychat"
         minSdk = 24
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.1.1"
+        versionCode = 3
+        versionName = "0.1.2"
 
         ndk {
             abiFilters += listOf("arm64-v8a", "x86_64")
@@ -63,6 +63,10 @@ android {
             isMinifyEnabled = false
         }
     }
+}
+
+dependencies {
+    implementation("androidx.webkit:webkit:1.14.0")
 }
 
 chaquopy {
