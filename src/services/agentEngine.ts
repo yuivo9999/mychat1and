@@ -14,7 +14,7 @@ import { formatChatContextPrompt, detectWorkspaceIntent, WorkspaceIntent } from 
 import { ChatContext } from '../types/workspace';
 import { looksLikePythonSource, getWorkspaceNodeRuntimeState, markWorkspaceDependenciesInstalled, readWorkspaceFile } from './codeExecutionAdapter';
 import { executeAgentRuntime, getAgentRuntimeCapabilities, installAgentDependencies } from './agentRuntime';
-import { buildProjectRuntimeReport, inspectProjectRuntime, getProjectRuntimeDiagnostics, startProjectRuntime, stopProjectRuntime } from './projectRuntimeService';
+import { buildProjectRuntimeReport, inspectProjectRuntime, getProjectRuntimeDiagnostics, startProjectRuntime, stopProjectRuntime, captureProjectRuntimeScreenshot } from './projectRuntimeService';
 
 export { detectWorkspaceIntent, type WorkspaceIntent };
 
@@ -207,6 +207,11 @@ export const WORKSPACE_TOOLS_SPEC = [
   {
     name: 'stop_project_runtime',
     description: '停止当前工作区正在运行的真实项目进程。',
+    parameters: { type: 'object', properties: {} },
+  },
+  {
+    name: 'capture_project_runtime_screenshot',
+    description: '截取当前真实项目预览区的页面画面，并把截图作为下一轮多模态模型的视觉证据。仅在项目已启动且需要判断布局、空白页、溢出、遮挡等视觉问题时使用。',
     parameters: { type: 'object', properties: {} },
   },
   {
@@ -601,6 +606,14 @@ ${result.stderr || '(空)'}
 \`\`\`
 - 错误: ${result.error || outcome.errorMessage || '无'}
 > 若检查失败，优先定位 stdout/stderr 中的文件路径与行号，读取相关代码后修复，再重新执行检查；不要重复执行完全相同的失败命令而不改变代码。`;
+    }
+
+    case 'capture_project_runtime_screenshot': {
+      const result = outcome.result || {};
+      return '### 项目视觉检查截图已生成: capture_project_runtime_screenshot\n' +
+        '- 工作区: ' + (result.workspaceId || '当前工作区') + '\n' +
+        '- 图片尺寸: ' + (result.width || '?') + ' × ' + (result.height || '?') + '\n' +
+        '- 视觉证据: 已作为图片附件注入下一轮模型上下文；不要仅根据文字猜测页面布局。';
     }
 
     case 'run_python':
@@ -1382,6 +1395,14 @@ export async function executeWorkspaceTool(
     case 'stop_project_runtime': {
       stopProjectRuntime(ws.id);
       return { result: { stopped: true, workspaceId: ws.id }, updatedWorkspace: ws, stepIcon: 'code', stepTitle: '已停止项目运行进程' };
+    }
+
+    case 'capture_project_runtime_screenshot': {
+      const screenshot = captureProjectRuntimeScreenshot(ws.id, 72);
+      if (!screenshot.success || !screenshot.dataUrl) {
+        return { result: { success: false, error: screenshot.error || '项目预览截图失败' }, updatedWorkspace: ws, errorMessage: screenshot.error || '项目预览截图失败', stepIcon: 'lightning', stepTitle: '项目视觉检查失败' };
+      }
+      return { result: { success: true, workspaceId: ws.id, width: screenshot.width, height: screenshot.height, dataUrl: screenshot.dataUrl }, updatedWorkspace: ws, stepIcon: 'code', stepTitle: '已截取真实项目预览画面，准备交给视觉模型检查' };
     }
 
     case 'run_python': {
