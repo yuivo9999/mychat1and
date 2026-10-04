@@ -926,11 +926,14 @@ export async function executeWorkspaceTool(
       // Android App: execute Python inside the native Chaquopy runtime.
       // The browser never receives shell access and no local Node server is required.
       if (isAndroidRuntime()) {
-        if (!/^(python3?|py)(\\s|$)/i.test(command)) {
+        // Validate only the executable token here. Do not reject valid Python commands
+        // because of leading whitespace, tabs, or arguments after the interpreter.
+        const pythonExecutable = command.trim().split(/\\s+/)[0]?.toLowerCase() || '';
+        if (!['python', 'python3', 'py'].includes(pythonExecutable)) {
           return {
             result: null,
             updatedWorkspace: ws,
-            errorMessage: 'Android 原生运行时目前只执行 Python。请使用 python / python3 脚本或 python -c。',
+            errorMessage: 'Android 原生运行时目前只执行 Python。请使用 python / python3 / py 脚本或 python -c。',
             stepIcon: 'lightning',
             stepTitle: `Android 原生运行时拒绝非 Python 命令: ${command}`,
           };
