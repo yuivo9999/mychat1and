@@ -55,11 +55,22 @@ export interface AgentTaskChecklistItem {
 }
 
 const MAX_DYNAMIC_CHECKLIST_ITEMS = 8;
-const agentStopRequests = new Set<string>();
+const agentStopRequests = new Map<string, number>();
+const AGENT_STOP_REQUEST_TTL_MS = 10 * 60 * 1000;
+
+function pruneExpiredAgentStopRequests(now = Date.now()): void {
+  agentStopRequests.forEach((requestedAt, taskId) => {
+    if (now - requestedAt > AGENT_STOP_REQUEST_TTL_MS) {
+      agentStopRequests.delete(taskId);
+    }
+  });
+}
 
 /** Mark an Agent task as stopped before asynchronous work can write a stale state back. */
 export function requestAgentStop(taskId: string): void {
-  if (taskId) agentStopRequests.add(taskId);
+  if (!taskId) return;
+  pruneExpiredAgentStopRequests();
+  agentStopRequests.set(taskId, Date.now());
 }
 
 export function clearAgentStopRequest(taskId: string): void {
@@ -67,7 +78,14 @@ export function clearAgentStopRequest(taskId: string): void {
 }
 
 export function isAgentStopRequested(taskId?: string | null): boolean {
-  return Boolean(taskId && agentStopRequests.has(taskId));
+  if (!taskId) return false;
+  pruneExpiredAgentStopRequests();
+  return agentStopRequests.has(taskId);
+}
+
+/** Explicitly release the in-memory stop marker once an Agent loop has fully exited. */
+export function cleanupAgentStopRequest(taskId?: string | null): void {
+  if (taskId) agentStopRequests.delete(taskId);
 }
 
 
