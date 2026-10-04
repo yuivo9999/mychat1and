@@ -1248,6 +1248,27 @@ export const WorkspaceDrawer: React.FC<WorkspaceDrawerProps> = ({
             </div>
           </div>
 
+          {/* Runtime result */}
+          {runtimeResult && (
+            <div className="mx-4 mt-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/80 dark:bg-neutral-950/60 overflow-hidden shrink-0">
+              <div className="px-3 py-2 flex items-center gap-2 border-b border-neutral-200 dark:border-neutral-800">
+                <span className={"w-2 h-2 rounded-full " + (runtimeResult.success ? 'bg-emerald-500' : 'bg-red-500')} />
+                <span className="text-xs font-semibold">{runtimeResult.success ? '项目检查通过' : '项目检查失败'}</span>
+                <span className="text-[10px] text-neutral-400 font-mono">exit {runtimeResult.exitCode}</span>
+                <button type="button" onClick={handleSendRuntimeResultToAi} disabled={!onSendAiMessage}
+                  className="ml-auto inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-[10px] font-semibold transition">
+                  <Send className="w-3 h-3" /> 交给 AI
+                </button>
+              </div>
+              <div className="max-h-32 overflow-y-auto px-3 py-2 space-y-1.5 text-[10px] font-mono">
+                {runtimeResult.command && <div className="text-neutral-500">命令: {runtimeResult.command}</div>}
+                {runtimeResult.stdout && <pre className="whitespace-pre-wrap text-neutral-700 dark:text-neutral-300">{runtimeResult.stdout}</pre>}
+                {runtimeResult.stderr && <pre className="whitespace-pre-wrap text-red-600 dark:text-red-400">{runtimeResult.stderr}</pre>}
+                {runtimeResult.error && <div className="text-red-600 dark:text-red-400">{runtimeResult.error}</div>}
+              </div>
+            </div>
+          )}
+
           {/* Category Header "名称" */}
           <div className="px-6 pt-3 pb-1.5 flex items-center justify-between text-xs font-semibold text-neutral-400 dark:text-neutral-500 select-none">
             <span>名称</span>
