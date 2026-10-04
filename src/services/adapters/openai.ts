@@ -1,4 +1,4 @@
-import { BaseAdapter, AdapterOptions, StreamCallbacks, parseHttpError, executeFetch, safeExtractText } from './base';
+import { BaseAdapter, AdapterOptions, StreamCallbacks, parseHttpError, executeFetch, safeExtractText, isConciseReplyModeEnabled } from './base';
 import { ApiKeyConfig } from '../../types';
 import { extractAttachmentText, formatFilesPromptForAi } from '../fileParser';
 import { sendOpenAIResponses } from './openaiResponses';
@@ -68,7 +68,7 @@ export class OpenAIAdapter implements BaseAdapter {
       const reasoningInstruction = '【深度推理模式开启】请在最终回答前，进行严密、深刻且步骤详尽的逻辑推导与思考分析。';
       sys = sys ? `${sys}\n\n${reasoningInstruction}` : reasoningInstruction;
     }
-    if (parameters?.conciseReplyMode) {
+    if (isConciseReplyModeEnabled(parameters)) {
       const conciseReplyInstruction = "【AI 回复精简模式开启】\n最终给用户看的回复只保留真正有用的信息，不输出冗长的背景铺垫、重复解释、过程性自言自语、无关免责声明或总结套话。\n请把答案组织成连续的「关键内容 + 操作步骤」单元：\n1. 先用 1-3 句话说清这一段最核心的结论/判断。\n2. 紧接着给出这一段对应的实际操作步骤，优先使用 1、2、3… 的短步骤；没有操作步骤时给出最关键的下一步。\n3. 一个问题有多个独立重点时，继续输出下一组「关键内容 + 操作步骤」，组与组之间保持清晰留白。\n4. 代码、命令、表格、链接等只有在确实有助于完成任务时才保留。\n5. 不要展示你的内部思考过程；不要为了凑格式而重复内容。\n6. 对纯问答、解释、创意类问题，如果没有实际操作步骤，则改为「核心结论 + 必要补充」，保持简洁。\n目标是让用户打开聊天界面后，第一眼就能看到核心结论，并马上知道下一步怎么做。";
       sys = sys ? `${sys}\n\n${conciseReplyInstruction}` : conciseReplyInstruction;
     }
