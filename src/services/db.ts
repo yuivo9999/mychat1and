@@ -273,8 +273,8 @@ export const DEFAULT_MODELS: ModelItem[] = [
   {
     id: 'stealth/space-bunny-alpha',
     name: 'Space Bunny Alpha (Free)', providerId: 'openrouter',
-    description: 'OpenRouter $0 免费模型：原生多模态，支持文本、图片、视频输入。',
-    supportsVision: true, supportsFiles: false, supportsStreaming: true,
+    description: 'OpenRouter $0 免费模型：原生多模态，支持文本、图片、视频及文件输入。',
+    supportsVision: true, supportsFiles: true, supportsStreaming: true,
     contextWindow: 1000000, temperature: 0.7,
   },
   {
@@ -892,6 +892,31 @@ export async function getModels(): Promise<ModelItem[]> {
           results = results.filter(r => r.id !== staleId);
         }
       }
+
+      // Repair capability metadata for built-in multimodal models in existing IndexedDB records.
+      // This is intentionally scoped to known defaults so custom user model settings are untouched.
+      const correctedDefaults = new Map(
+        DEFAULT_MODELS.map(model => [getRawModelId(model), model])
+      );
+      results = results.map(model => {
+        const raw = getRawModelId(model);
+        const builtin = correctedDefaults.get(raw);
+        if (!builtin || model.providerId !== builtin.providerId) return model;
+        const corrected = {
+          ...model,
+          supportsVision: builtin.supportsVision,
+          supportsFiles: builtin.supportsFiles,
+          supportsStreaming: builtin.supportsStreaming,
+        };
+        if (
+          corrected.supportsVision !== model.supportsVision ||
+          corrected.supportsFiles !== model.supportsFiles ||
+          corrected.supportsStreaming !== model.supportsStreaming
+        ) {
+          store.put(corrected);
+        }
+        return corrected;
+      });
 
       // Normalize rawModelId
       const normalizedResults = results.map(r => {
