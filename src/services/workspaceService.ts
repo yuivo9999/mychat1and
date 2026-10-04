@@ -12,6 +12,7 @@ import { saveWorkspace as saveWorkspaceDb, getWorkspaces, getWorkspace, deleteWo
 interface AndroidWorkspaceBridge {
   writeWorkspaceFile?: (workspaceId: string, relativePath: string, content: string) => string;
   deleteWorkspaceFile?: (workspaceId: string, relativePath: string) => string;
+  syncWorkspaceManifest?: (workspaceId: string, manifestJson: string) => string;
   deleteWorkspaceStorage?: (workspaceId: string) => string;
 }
 
@@ -51,6 +52,21 @@ function syncWorkspaceToAndroid(workspace: Workspace): void {
       }
     } catch (error) {
       console.warn('Android workspace file delete failed:', path, error);
+    }
+  }
+
+  if (bridge.syncWorkspaceManifest) {
+    try {
+      const raw = bridge.syncWorkspaceManifest(
+        workspace.id,
+        JSON.stringify({ files: Object.keys(current) })
+      );
+      const result = raw ? JSON.parse(raw) : null;
+      if (result && result.ok === false) {
+        console.warn('Android workspace manifest sync failed:', result.error);
+      }
+    } catch (error) {
+      console.warn('Android workspace manifest sync failed:', error);
     }
   }
 }
