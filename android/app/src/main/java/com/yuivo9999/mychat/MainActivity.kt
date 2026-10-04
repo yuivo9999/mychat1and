@@ -95,6 +95,25 @@ class AndroidBridge(
     }
 
     @JavascriptInterface
+    fun readWorkspaceFile(workspaceId: String, relativePath: String): String {
+        return try {
+            val file = workspaceFile(workspaceId, relativePath)
+            if (!file.isFile) {
+                JSONObject().put("ok", false).put("exists", false).toString()
+            } else {
+                JSONObject()
+                    .put("ok", true)
+                    .put("exists", true)
+                    .put("path", relativePath)
+                    .put("content", file.readText(Charsets.UTF_8))
+                    .toString()
+            }
+        } catch (e: Throwable) {
+            JSONObject().put("ok", false).put("exists", false).put("error", e.message ?: e.javaClass.simpleName).toString()
+        }
+    }
+
+    @JavascriptInterface
     fun writeWorkspaceFile(workspaceId: String, relativePath: String, content: String): String {
         return try {
             val file = workspaceFile(workspaceId, relativePath)
