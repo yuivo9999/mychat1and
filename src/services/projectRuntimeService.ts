@@ -173,6 +173,7 @@ interface AndroidProjectRuntimeBridge {
   httpRequest?: (url: string, method: string, headersJson: string, body: string, timeoutMs: number) => string;
   captureProjectRuntimeScreenshot?: (workspaceId: string, quality?: number, viewport?: string) => string;
   interactProjectPreview?: (workspaceId: string, action: string, target?: string, value?: string, x?: number, y?: number) => string;
+  discoverProjectPreviewElements?: (workspaceId: string) => string;
   startWorkspaceProject?: (workspaceId: string, command: string, timeoutMs?: number) => string;
   getWorkspaceProjectRuntimeState?: (workspaceId: string) => string;
   stopWorkspaceProject?: (workspaceId: string) => string;
@@ -210,6 +211,58 @@ export function captureProjectRuntimeScreenshot(workspaceId: string, quality = 7
     };
   } catch (error: any) {
     return { success: false, error: error?.message || String(error) };
+  }
+}
+
+export interface ProjectPreviewElement {
+  index: number;
+  tag: string;
+  role?: string;
+  type?: string;
+  text?: string;
+  aria?: string;
+  title?: string;
+  disabled?: boolean;
+  visible?: boolean;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  selector?: string;
+}
+
+export interface ProjectPreviewElementDiscoveryResult {
+  success: boolean;
+  workspaceId: string;
+  viewport: 'mobile-390x780';
+  crossOrigin?: boolean;
+  count?: number;
+  elements?: ProjectPreviewElement[];
+  error?: string;
+  durationMs?: number;
+}
+
+/** Discover interactive controls from the live mobile preview when iframe DOM access is available. */
+export function discoverProjectPreviewElements(workspaceId: string): ProjectPreviewElementDiscoveryResult {
+  const bridge = runtimeBridge();
+  if (!bridge?.discoverProjectPreviewElements) {
+    return { success: false, workspaceId, viewport: 'mobile-390x780', error: '当前环境不支持手机预览元素发现接口' };
+  }
+  try {
+    const raw = bridge.discoverProjectPreviewElements(workspaceId);
+    const payload = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    return {
+      success: payload?.success === true,
+      workspaceId,
+      viewport: 'mobile-390x780',
+      crossOrigin: payload?.crossOrigin === true,
+      count: typeof payload?.count === 'number' ? payload.count : undefined,
+      elements: Array.isArray(payload?.elements) ? payload.elements : undefined,
+      error: typeof payload?.error === 'string' ? payload.error : undefined,
+      durationMs: typeof payload?.durationMs === 'number' ? payload.durationMs : undefined,
+    };
+  } catch (error: any) {
+    return { success: false, workspaceId, viewport: 'mobile-390x780', error: error?.message || String(error) };
   }
 }
 
