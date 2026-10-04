@@ -62,7 +62,8 @@ function extractDeb(deb, work) {
   let dataName = null;
   while (offset + 60 <= archive.length) {
     const header = archive.subarray(offset, offset + 60);
-    const name = header.toString('utf8', 0, 16).trim().replace(/\\/$/, '');
+    const rawName = header.toString('utf8', 0, 16).trim();
+    const name = rawName.endsWith('/') ? rawName.slice(0, -1) : rawName;
     const sizeText = header.toString('ascii', 48, 58).trim();
     const size = Number(sizeText);
     if (!Number.isSafeInteger(size) || size < 0) fail(`${deb}: ar 成员大小无效`);
