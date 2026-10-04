@@ -1173,6 +1173,7 @@ export default function App() {
 
       while (turn < maxAgentTurns) {
         let turnAccumulatedText = '';
+        const validationFailuresBeforeTurn = validationFailureCount;
         const currentTurnIsMemoryAudit = memoryAuditTurn;
         memoryAuditTurn = false;
 
