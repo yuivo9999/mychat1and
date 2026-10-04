@@ -146,6 +146,14 @@ export interface ProjectRuntimeHealth {
   error?: string;
 }
 
+export interface ProjectRuntimeScreenshot {
+  success: boolean;
+  dataUrl?: string;
+  width?: number;
+  height?: number;
+  error?: string;
+}
+
 export interface ProjectRuntimeState {
   supported: boolean;
   running: boolean;
@@ -160,6 +168,7 @@ export interface ProjectRuntimeState {
 
 interface AndroidProjectRuntimeBridge {
   httpRequest?: (url: string, method: string, headersJson: string, body: string, timeoutMs: number) => string;
+  captureProjectRuntimeScreenshot?: (workspaceId: string, quality?: number) => string;
   startWorkspaceProject?: (workspaceId: string, command: string, timeoutMs?: number) => string;
   getWorkspaceProjectRuntimeState?: (workspaceId: string) => string;
   stopWorkspaceProject?: (workspaceId: string) => string;
@@ -177,6 +186,26 @@ export function buildProjectStartCommand(workspace: Workspace): string | null {
   if (info.scripts.includes('start')) return 'npm run start -- --host 127.0.0.1';
   if (info.scripts.includes('preview')) return 'npm run preview -- --host 127.0.0.1';
   return null;
+}
+
+export function captureProjectRuntimeScreenshot(workspaceId: string, quality = 72): ProjectRuntimeScreenshot {
+  const bridge = runtimeBridge();
+  if (!bridge?.captureProjectRuntimeScreenshot) {
+    return { success: false, error: '当前环境不支持项目预览截图接口' };
+  }
+  try {
+    const raw = bridge.captureProjectRuntimeScreenshot(workspaceId, quality);
+    const payload = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    return {
+      success: payload?.success === true,
+      dataUrl: typeof payload?.dataUrl === 'string' ? payload.dataUrl : undefined,
+      width: typeof payload?.width === 'number' ? payload.width : undefined,
+      height: typeof payload?.height === 'number' ? payload.height : undefined,
+      error: typeof payload?.error === 'string' ? payload.error : undefined,
+    };
+  } catch (error: any) {
+    return { success: false, error: error?.message || String(error) };
+  }
 }
 
 export function getProjectRuntimeState(workspaceId: string): ProjectRuntimeState {
