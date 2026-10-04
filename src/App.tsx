@@ -1132,6 +1132,12 @@ export default function App() {
         }
       }
 
+      if (workspaceAgentEnabled) {
+        effectiveSystemPrompt = effectiveSystemPrompt
+          ? effectiveSystemPrompt + '\n\n' + buildAgentTaskPlanPrompt(text)
+          : buildAgentTaskPlanPrompt(text);
+      }
+
       setStatusMessage(
         isDiagnosisMode 
           ? 'Agent 正在执行 10 步静态代码诊断与调用链分析...' 
