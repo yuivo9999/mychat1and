@@ -410,6 +410,7 @@ const VERIFY_TOOLS = new Set([
   'run_project_check',
   'run_command',
   'run_python',
+  'capture_project_runtime_screenshot',
 ]);
 
 export function createAgentLoopState(maxRounds = 12): AgentLoopState {
