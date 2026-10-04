@@ -213,10 +213,21 @@ export function parseAgentTaskReplan(text: string, currentPlan: AgentTaskPlan): 
       };
     });
 
+    if (currentPlan.research?.required && !currentPlan.research.completed) {
+      const researchItem = mergedChecklist.find(item => item.id === 'research' || /研究|research/i.test(item.title));
+      if (!researchItem) return null;
+      mergedChecklist.forEach(item => {
+        if (item.id !== researchItem.id && !/研究|research/i.test(item.title)) {
+          item.dependsOn = Array.from(new Set([...(item.dependsOn || []), researchItem.id]));
+        }
+      });
+    }
+
     return {
       goal: normalizePlanString(raw.goal, currentPlan.goal),
       definitionOfDone: normalizePlanStringList(raw.definitionOfDone, currentPlan.definitionOfDone),
       checklist: mergedChecklist,
+      research: currentPlan.research,
     };
   } catch {
     return null;
