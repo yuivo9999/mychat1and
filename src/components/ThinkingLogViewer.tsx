@@ -11,11 +11,17 @@ export function parseThinkingContent(rawText: string): { thinkingText: string; m
 
   const thinkMatch = rawText.match(/<think>([\s\S]*?)(?:<\/think>|$)/i);
   if (!thinkMatch) {
-    return { thinkingText: '', mainContent: rawText };
+    return {
+      thinkingText: '',
+      mainContent: rawText.replace(/<agent_progress>\s*[\s\S]*?\s*<\/agent_progress>/gi, '').trim(),
+    };
   }
 
   const thinkingText = thinkMatch[1].trim();
-  const mainContent = rawText.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, '').trim();
+  const mainContent = rawText
+    .replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, '')
+    .replace(/<agent_progress>\s*[\s\S]*?\s*<\/agent_progress>/gi, '')
+    .trim();
 
   return { thinkingText, mainContent };
 }
