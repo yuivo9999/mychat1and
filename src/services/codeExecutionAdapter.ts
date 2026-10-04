@@ -105,10 +105,36 @@ export async function executeCode(request: CodeExecutionRequest): Promise<CodeEx
     }
   }
 
+  if (request.language === 'shell') {
+    try {
+      const res = await fetch('/api/execute-script', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command: request.code }),
+      });
+      const payload = await res.json().catch(() => null);
+      return {
+        success: !!payload?.success && res.ok,
+        stdout: String(payload?.stdout ?? ''),
+        stderr: String(payload?.stderr ?? ''),
+        exitCode: Number(payload?.exitCode ?? (res.ok ? 0 : -1)),
+        error: payload?.error ?? (!res.ok ? `执行后端返回 HTTP ${res.status}` : null),
+        runtime: 'server',
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        stdout: '',
+        stderr: '',
+        exitCode: -1,
+        error: error?.message || String(error),
+        runtime: 'server',
+      };
+    }
+  }
+
   if (request.language !== 'python') {
-    throw new Error(
-      `当前统一执行适配层暂只允许 Python / Shell 走统一执行层；${request.language} 请继续使用 run_command。`
-    );
+    throw new Error(`不支持的执行语言: ${request.language}`);
   }
 
   // Server fallback: write Python source into a shell-safe python -c invocation.
