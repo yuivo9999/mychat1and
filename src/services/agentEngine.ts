@@ -1021,10 +1021,18 @@ export async function executeWorkspaceTool(
         };
         report.dependencies = runtimeState
           ? {
-              status: runtimeState.nodeModulesExists ? 'present' : 'missing',
+              status: runtimeState.dependenciesInSync
+                ? 'in-sync'
+                : runtimeState.nodeModulesExists
+                  ? 'stale'
+                  : 'missing',
               nodeModulesCount: runtimeState.nodeModulesCount,
               persistent: runtimeState.runtimePersistent,
               packageLockExists: runtimeState.packageLockExists,
+              lockfile: runtimeState.lockfile,
+              dependencyFingerprint: runtimeState.dependencyFingerprint,
+              installedDependencyFingerprint: runtimeState.installedDependencyFingerprint,
+              dependenciesInSync: runtimeState.dependenciesInSync,
             }
           : { status: 'unknown' };
       }
