@@ -201,6 +201,10 @@ export interface UserSettings {
   compactMode?: boolean; // 🔍 紧凑排版模式
   boldHeadings?: boolean; // #️⃣ 加粗标题：加粗纯文本里的结构化标题（#，## 等）
   enableChatContextMemory?: boolean; // 🧠 启用单聊专属上下文记忆
+  enableProjectMemory?: boolean; // 🗂️ 启用项目共享记忆
+  enableHistorySearch?: boolean; // 🔎 允许 AI 主动搜索历史对话
+  enableTimeGapHints?: boolean; // 🕒 对较大时间间隔自动插入时间提醒
+  enableHistoryCompaction?: boolean; // 🧩 启用历史上下文自动摘要/压缩
   onlyParseMarkdownTables?: boolean; // 仅解析 Markdown 数据表格
   useCodeBox?: boolean; // 使用/启用代码框容器
   useTextBox?: boolean; // 使用/启用文本框容器
