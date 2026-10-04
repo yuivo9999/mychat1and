@@ -52,9 +52,11 @@ class AndroidBridge(
 
     @JavascriptInterface
     fun getRuntimeInfo(): String {
+        val nodeBinary = File(activity.filesDir, "node-runtime/bin/node")
         return JSONObject()
             .put("platform", "android")
             .put("python", Python.getInstance().getModule("sys").get("version").toString())
+            .put("node", if (nodeBinary.exists()) "bundled" else "unavailable")
             .toString()
     }
 
