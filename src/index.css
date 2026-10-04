@@ -1349,3 +1349,46 @@ html.theme-classic2 .param-toggle-dot,
     overflow-x: auto;
   }
 }
+
+
+/* AI response content units */
+.ai-content-unit {
+  scroll-margin-top: 7rem;
+}
+.ai-code-unit,
+.ai-table-unit,
+.ai-quote-unit {
+  position: relative;
+}
+.ai-code-unit::before,
+.ai-table-unit::before,
+.ai-quote-unit::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.65rem;
+  bottom: 0.65rem;
+  width: 2px;
+  border-radius: 999px;
+  opacity: 0;
+  transition: opacity 160ms ease;
+  pointer-events: none;
+}
+.ai-code-unit:hover::before,
+.ai-table-unit:hover::before,
+.ai-quote-unit:hover::before {
+  opacity: 1;
+}
+.ai-table-unit table {
+  margin: 0;
+}
+.ai-quote-unit {
+  border-radius: 0.5rem;
+  padding-top: 0.55rem;
+  padding-bottom: 0.55rem;
+}
+@media (max-width: 640px) {
+  .ai-content-unit {
+    scroll-margin-top: 5.5rem;
+  }
+}
