@@ -200,6 +200,22 @@ export const WORKSPACE_TOOLS_SPEC = [
     },
   },
   {
+    name: 'search_local_memory',
+    description: '仅在用户开启“AI 主动搜索历史对话”后可用。搜索本地已保存的历史聊天，返回少量相关片段；不会把全部历史记录发送给模型。',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: '要检索的历史主题、关键词或用户曾经提到的内容' },
+        projectId: { type: 'string', description: '可选，优先限定到当前项目' },
+        conversationId: { type: 'string', description: '可选，仅搜索指定会话' },
+        dateFrom: { type: 'number', description: '可选，Unix 毫秒时间戳下限' },
+        dateTo: { type: 'number', description: '可选，Unix 毫秒时间戳上限' },
+        limit: { type: 'number', description: '可选，最多返回 20 条，默认 8 条' },
+      },
+      required: ['query'],
+    },
+  },
+  {
     name: 'run_command',
     description: '在工作区服务器端安全终端执行 Shell 命令行与脚本（如编译打包 npm run build、安装运行测试、执行 Python 或 Node 数据分析处理等）。此工具在“运行脚本与命令”权限开启时可用。',
     parameters: {
@@ -218,7 +234,8 @@ export function buildAgentSystemPrompt(
   chatContext?: ChatContext,
   baseSystemPrompt?: string,
   isDiagnosisMode?: boolean,
-  executeScriptEnabled?: boolean
+  executeScriptEnabled?: boolean,
+  historySearchEnabled?: boolean
 ): string {
   const customPrompt = baseSystemPrompt || '你是一个专业严谨的高级编程助手。';
 
@@ -311,6 +328,14 @@ ${workspaceSummary}
 ${chatPrivateMemory}
 ${isDiagnosisMode ? diagnosisProtocol : ''}
 ${corePrinciples}
+
+${historySearchEnabled ? `
+## 🔎 本地历史对话搜索
+- 你可以调用 \`search_local_memory\` 主动检索本地历史聊天，但只在当前问题确实需要历史信息时使用。
+- 默认优先使用当前项目范围；不要为了“了解背景”而无目的扫描全部历史。
+- 工具只返回相关片段，不会把完整历史数据库暴露给模型。
+- 搜索结果只能作为辅助证据；如果结果不足以确认，不要编造历史结论。
+` : ''}
 
 ## 🤖 多轮自主探索、跨文件规划与多文件协同修改规范 (必须连贯执行):
 当 Agent 模式开启时，系统支持你在一个交互任务中【多次连续被调用（支持最高 12 轮自主交互）】。你应充分利用多轮自主迭代的能力，按部就班地完成从“查阅探查”到“多文件协同修改”的全闭环：
