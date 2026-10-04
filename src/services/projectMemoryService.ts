@@ -252,3 +252,39 @@ export function updateProjectCollectiveMemory(
     },
   };
 }
+
+
+export function getProjectMemoryRecords(
+  project: Project,
+  includeHistory = false,
+  limit = 20
+): ProjectMemoryRecord[] {
+  const records = migrateLegacyRecords(project);
+  const safeLimit = Math.max(1, Math.min(30, Math.floor(limit || 20)));
+  return records
+    .filter(r => includeHistory || r.status === 'active')
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+    .slice(0, safeLimit);
+}
+
+export function updateProjectMemoryRecord(
+  project: Project,
+  recordId: string,
+  patch: { content?: string; status?: ProjectMemoryRecord['status'] }
+): Project {
+  const records = migrateLegacyRecords(project).map(r => ({ ...r }));
+  const target = records.find(r => r.id === recordId);
+  if (!target) return project;
+  if (typeof patch.content === 'string' && patch.content.trim()) {
+    target.content = normalizeDecision(patch.content);
+  }
+  if (patch.status) target.status = patch.status;
+  target.updatedAt = Date.now();
+  if (target.status === 'active') target.supersededById = undefined;
+  const activeKeyPoints = records.filter(r => r.status === 'active').sort((a,b) => b.updatedAt-a.updatedAt).slice(0, MAX_ACTIVE_MEMORY_RECORDS).map(r => r.content);
+  return { ...project, updatedAt: Date.now(), sharedMemory: { ...project.sharedMemory, keyPoints: activeKeyPoints, records } };
+}
+
+export function archiveProjectMemoryRecord(project: Project, recordId: string): Project {
+  return updateProjectMemoryRecord(project, recordId, { status: 'archived' });
+}
