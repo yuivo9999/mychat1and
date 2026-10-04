@@ -52,7 +52,9 @@ export function inspectProjectRuntime(workspace: Workspace): ProjectRuntimeInfo 
       checkCommands.push('node -e "console.log(\\'Node.js project detected; no build/test script configured.\\')"');
     }
 
-    const dependencyInstallCommand = packageManager === 'npm' ? 'npm install' : undefined;
+    const dependencyInstallCommand = packageManager === 'npm'
+      ? (has(workspace, 'package-lock.json') ? 'npm ci --no-audit --no-fund' : 'npm install --no-audit --no-fund')
+      : undefined;
 
     return {
       kind: 'node',
@@ -66,7 +68,9 @@ export function inspectProjectRuntime(workspace: Workspace): ProjectRuntimeInfo 
       signals: [
         '检测到 package.json',
         packageManager === 'npm'
-          ? '使用 npm runtime'
+          ? (has(workspace, 'package-lock.json')
+              ? '检测到 package-lock.json：使用 npm ci 固定依赖树，避免安装过程中悄悄漂移 lockfile'
+              : '未检测到 package-lock.json：使用 npm install，并允许首次安装生成 lockfile')
           : `检测到 ${packageManager} 锁文件；当前 Android runtime 仅保证 npm，不会错误地用 npm install 替代 ${packageManager}`,
       ],
     };
