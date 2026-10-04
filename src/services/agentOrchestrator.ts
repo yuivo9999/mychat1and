@@ -55,6 +55,21 @@ export interface AgentTaskChecklistItem {
 }
 
 const MAX_DYNAMIC_CHECKLIST_ITEMS = 8;
+const agentStopRequests = new Set<string>();
+
+/** Mark an Agent task as stopped before asynchronous work can write a stale state back. */
+export function requestAgentStop(taskId: string): void {
+  if (taskId) agentStopRequests.add(taskId);
+}
+
+export function clearAgentStopRequest(taskId: string): void {
+  if (taskId) agentStopRequests.delete(taskId);
+}
+
+export function isAgentStopRequested(taskId?: string | null): boolean {
+  return Boolean(taskId && agentStopRequests.has(taskId));
+}
+
 
 export function shouldAgentResearchTask(goal: string): boolean {
   return goal.length > 180 || /(最新|版本|依赖|报错|重构|架构|构建|迁移|第三方|api|sdk|android|react|typescript|node|npm|python)/i.test(goal);
