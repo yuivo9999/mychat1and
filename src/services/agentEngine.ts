@@ -12,7 +12,7 @@ import {
 } from './workspaceService';
 import { formatChatContextPrompt, detectWorkspaceIntent, WorkspaceIntent } from './chatContextService';
 import { ChatContext } from '../types/workspace';
-import { executeCode, looksLikePythonSource, getWorkspaceNodeRuntimeState } from './codeExecutionAdapter';
+import { executeCode, looksLikePythonSource, getWorkspaceNodeRuntimeState, markWorkspaceDependenciesInstalled } from './codeExecutionAdapter';
 import { buildProjectRuntimeReport, inspectProjectRuntime } from './projectRuntimeService';
 
 export { detectWorkspaceIntent, type WorkspaceIntent };
@@ -1102,8 +1102,31 @@ export async function executeWorkspaceTool(
         };
       }
       const beforeState = await getWorkspaceNodeRuntimeState(ws.id);
+      if (
+        beforeState?.dependenciesInSync === true &&
+        beforeState.nodeModulesExists &&
+        beforeState.dependencyFingerprint
+      ) {
+        return {
+          result: {
+            command: info.dependencyInstallCommand,
+            skipped: true,
+            reason: '当前 package.json/lockfile 与上次成功安装的依赖指纹一致，复用现有 node_modules。',
+            dependencyState: beforeState,
+          },
+          updatedWorkspace: ws,
+          stepIcon: 'code',
+          stepTitle: '依赖未变化，复用现有 node_modules',
+        };
+      }
+
       const runData = await executeCode({ language: 'shell', code: info.dependencyInstallCommand, timeoutMs: 120_000, workspaceId: ws.id });
-      const afterState = await getWorkspaceNodeRuntimeState(ws.id);
+      let afterState = await getWorkspaceNodeRuntimeState(ws.id);
+      let installRecord: { ok: boolean; fingerprint?: string; error?: string } | null = null;
+      if (runData.success && afterState?.nodeModulesExists) {
+        installRecord = await markWorkspaceDependenciesInstalled(ws.id);
+        afterState = await getWorkspaceNodeRuntimeState(ws.id);
+      }
       if (runData.success) {
         return {
           result: {
@@ -1116,12 +1139,16 @@ export async function executeWorkspaceTool(
               before: beforeState,
               after: afterState,
               persisted: !!afterState?.nodeModulesExists,
+              fingerprintRecorded: installRecord?.ok === true,
+              fingerprint: installRecord?.fingerprint || afterState?.installedDependencyFingerprint || null,
             },
           },
           updatedWorkspace: ws, stepIcon: 'lightning',
-          stepTitle: afterState?.nodeModulesExists
-            ? '依赖安装成功，并已持久化到当前工作区'
-            : '依赖安装成功，但未确认 node_modules 持久化',
+          stepTitle: afterState?.dependenciesInSync
+            ? '依赖安装成功，依赖指纹已记录；后续无变化时将复用 node_modules'
+            : afterState?.nodeModulesExists
+              ? '依赖安装成功，但未确认依赖指纹持久化'
+              : '依赖安装成功，但未确认 node_modules 持久化',
         };
       }
       return {
