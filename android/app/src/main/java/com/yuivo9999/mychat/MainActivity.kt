@@ -777,6 +777,50 @@ class AndroidBridge(
     }
 
     @JavascriptInterface
+    fun discoverProjectPreviewElements(workspaceId: String): String {
+        val started = SystemClock.uptimeMillis()
+        val result = AtomicReference<JSONObject?>(null)
+        val latch = CountDownLatch(1)
+        activity.runOnUiThread {
+            try {
+                val script = """
+                    (() => {
+                      try {
+                        const iframe = document.querySelector('iframe[title="Workspace Preview"]');
+                        if (!iframe) return JSON.stringify({success:false,error:"当前没有可发现的手机项目 iframe"});
+                        const doc = iframe.contentDocument;
+                        if (!doc) return JSON.stringify({success:false,crossOrigin:true,error:"iframe DOM 不可访问（跨域）"});
+                        const selectors = 'button,a,input,textarea,select,[role="button"],[role="link"],[role="textbox"],[tabindex]:not([tabindex="-1"])';
+                        const nodes = Array.from(doc.querySelectorAll(selectors)).slice(0,60);
+                        const elements = nodes.map((el, index) => {
+                          const r = el.getBoundingClientRect();
+                          const text = String(el.innerText || el.value || el.getAttribute('aria-label') || el.getAttribute('title') || '').trim().replace(/\\s+/g,' ').slice(0,120);
+                          const id = el.id ? '#' + CSS.escape(el.id) : '';
+                          const testId = el.getAttribute('data-testid');
+                          const selector = id || (testId ? '[data-testid="' + CSS.escape(testId) + '"]' : '');
+                          return {index,tag:el.tagName.toLowerCase(),role:el.getAttribute('role')||'',type:el.getAttribute('type')||'',text,aria:el.getAttribute('aria-label')||'',title:el.getAttribute('title')||'',disabled:!!el.disabled,visible:r.width>0&&r.height>0,x:Math.round(r.left),y:Math.round(r.top),width:Math.round(r.width),height:Math.round(r.height),selector};
+                        }).filter(e => e.visible);
+                        return JSON.stringify({success:true,crossOrigin:false,workspaceId,viewport:"mobile-390x780",count:elements.length,elements,durationMs:Date.now()});
+                      } catch (e) { return JSON.stringify({success:false,crossOrigin:true,error:"无法读取 iframe DOM：" + (e?.message || e)}); }
+                    })()
+                """.trimIndent()
+                webView.evaluateJavascript(script) { raw ->
+                    try {
+                        val text = (org.json.JSONTokener(raw ?: "").nextValue() as? String) ?: ""
+                        result.set(if (text.isNotBlank()) JSONObject(text) else JSONObject().put("success", false).put("error", "预览元素发现无返回"))
+                    } catch (e: Throwable) { result.set(JSONObject().put("success", false).put("error", e.message ?: "预览元素发现失败")) }
+                    latch.countDown()
+                }
+            } catch (e: Throwable) {
+                result.set(JSONObject().put("success", false).put("error", e.message ?: e.javaClass.simpleName))
+                latch.countDown()
+            }
+        }
+        if (!latch.await(3, TimeUnit.SECONDS)) return JSONObject().put("success", false).put("error", "预览元素发现超时").toString()
+        return (result.get() ?: JSONObject().put("success", false).put("error", "预览元素发现失败")).put("durationMs", SystemClock.uptimeMillis() - started).toString()
+    }
+
+    @JavascriptInterface
     fun interactProjectPreview(
         workspaceId: String,
         action: String,
