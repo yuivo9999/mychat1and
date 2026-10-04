@@ -6,9 +6,9 @@ import android.os.Bundle
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import org.json.JSONArray
 import org.json.JSONObject
 import com.chaquo.python.Python
+import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.Callable
@@ -59,8 +59,67 @@ class AndroidBridge(
     }
 
     /**
+     * Persist a single text workspace file in the APK's private app storage.
+     * This deliberately does not request storage permissions: the workspace is
+     * app-private and can later be exported through the Android Storage Access Framework.
+     */
+    @JavascriptInterface
+    fun writeWorkspaceFile(workspaceId: String, relativePath: String, content: String): String {
+        return try {
+            val file = workspaceFile(workspaceId, relativePath)
+            file.parentFile?.mkdirs()
+            file.writeText(content, Charsets.UTF_8)
+            JSONObject().put("ok", true).put("path", file.absolutePath).toString()
+        } catch (e: Throwable) {
+            JSONObject().put("ok", false).put("error", e.message ?: e.javaClass.simpleName).toString()
+        }
+    }
+
+    @JavascriptInterface
+    fun deleteWorkspaceFile(workspaceId: String, relativePath: String): String {
+        return try {
+            val file = workspaceFile(workspaceId, relativePath)
+            val deleted = !file.exists() || file.delete()
+            JSONObject().put("ok", deleted).toString()
+        } catch (e: Throwable) {
+            JSONObject().put("ok", false).put("error", e.message ?: e.javaClass.simpleName).toString()
+        }
+    }
+
+    @JavascriptInterface
+    fun deleteWorkspaceStorage(workspaceId: String): String {
+        return try {
+            val root = workspaceRoot(workspaceId)
+            val deleted = !root.exists() || root.deleteRecursively()
+            JSONObject().put("ok", deleted).toString()
+        } catch (e: Throwable) {
+            JSONObject().put("ok", false).put("error", e.message ?: e.javaClass.simpleName).toString()
+        }
+    }
+
+    private fun workspaceRoot(workspaceId: String): File {
+        require(workspaceId.matches(Regex("[A-Za-z0-9_-]{1,100}"))) { "非法工作区 ID" }
+        val root = File(activity.filesDir, "workspaces/$workspaceId").canonicalFile
+        val base = File(activity.filesDir, "workspaces").canonicalFile
+        require(root.path.startsWith(base.path + File.separator)) { "非法工作区路径" }
+        root.mkdirs()
+        return root
+    }
+
+    private fun workspaceFile(workspaceId: String, relativePath: String): File {
+        val normalized = relativePath.replace('\\', '/').trimStart('/')
+        require(normalized.isNotEmpty()) { "工作区文件路径不能为空" }
+        require(!normalized.split('/').any { it.isEmpty() || it == "." || it == ".." || it.contains(':') }) {
+            "非法工作区文件路径"
+        }
+        val root = workspaceRoot(workspaceId)
+        val file = File(root, normalized).canonicalFile
+        require(file.path.startsWith(root.path + File.separator)) { "非法工作区文件路径" }
+        return file
+    }
+
+    /**
      * Native HTTP transport for the file:// WebView runtime.
-     * The frontend uses this instead of /api/* when running inside the APK.
      */
     @JavascriptInterface
     fun httpRequest(
