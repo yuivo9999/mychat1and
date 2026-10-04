@@ -172,6 +172,7 @@ export interface ProjectRuntimeState {
 interface AndroidProjectRuntimeBridge {
   httpRequest?: (url: string, method: string, headersJson: string, body: string, timeoutMs: number) => string;
   captureProjectRuntimeScreenshot?: (workspaceId: string, quality?: number, viewport?: string) => string;
+  interactProjectPreview?: (workspaceId: string, action: string, target?: string, value?: string, x?: number, y?: number) => string;
   startWorkspaceProject?: (workspaceId: string, command: string, timeoutMs?: number) => string;
   getWorkspaceProjectRuntimeState?: (workspaceId: string) => string;
   stopWorkspaceProject?: (workspaceId: string) => string;
@@ -209,6 +210,48 @@ export function captureProjectRuntimeScreenshot(workspaceId: string, quality = 7
     };
   } catch (error: any) {
     return { success: false, error: error?.message || String(error) };
+  }
+}
+
+export type ProjectPreviewInteractionAction = 'tap' | 'type' | 'scroll' | 'back' | 'wait';
+
+export interface ProjectPreviewInteractionResult {
+  success: boolean;
+  action: ProjectPreviewInteractionAction;
+  message?: string;
+  error?: string;
+  durationMs?: number;
+}
+
+/** Execute one real mobile-preview interaction through the Android WebView bridge. */
+export function interactProjectPreview(
+  workspaceId: string,
+  action: ProjectPreviewInteractionAction,
+  options: { target?: string; value?: string; x?: number; y?: number } = {},
+): ProjectPreviewInteractionResult {
+  const bridge = runtimeBridge();
+  if (!bridge?.interactProjectPreview) {
+    return { success: false, action, error: '当前环境不支持手机项目交互桥接' };
+  }
+  try {
+    const raw = bridge.interactProjectPreview(
+      workspaceId,
+      action,
+      options.target || '',
+      options.value || '',
+      typeof options.x === 'number' ? options.x : -1,
+      typeof options.y === 'number' ? options.y : -1,
+    );
+    const payload = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    return {
+      success: payload?.success === true,
+      action,
+      message: typeof payload?.message === 'string' ? payload.message : undefined,
+      error: typeof payload?.error === 'string' ? payload.error : undefined,
+      durationMs: typeof payload?.durationMs === 'number' ? payload.durationMs : undefined,
+    };
+  } catch (error: any) {
+    return { success: false, action, error: error?.message || String(error) };
   }
 }
 
