@@ -1538,6 +1538,32 @@ export default function App() {
                 });
               }
 
+              // Mobile self-test produces multiple screenshots inside its structured evidence.
+              // Attach baseline + final evidence to the next model turn so the Agent can actually
+              // compare the UI before/after instead of treating "tap succeeded" as visual proof.
+              if (tc.tool === 'auto_test_mobile_preview' && outcome.result?.success === true) {
+                const evidence = Array.isArray(outcome.result?.flow?.evidence)
+                  ? outcome.result.flow.evidence
+                  : [];
+                const baselineShot = outcome.result?.baseline;
+                const finalShot = [...evidence]
+                  .reverse()
+                  .find((item: any) => item?.screenshot?.dataUrl)?.screenshot;
+                const shots = [
+                  { label: 'mobile-baseline', shot: baselineShot },
+                  { label: 'mobile-final', shot: finalShot },
+                ].filter((item: any) => item.shot?.dataUrl);
+                shots.forEach((item: any, shotIndex: number) => {
+                  visualAttachments.push({
+                    id: `agent_mobile_selftest_${turn}_${i}_${shotIndex}_${Date.now()}`,
+                    name: `${item.label}-${turn + 1}.jpg`,
+                    size: Math.round(item.shot.dataUrl.length * 0.75),
+                    type: 'image/jpeg',
+                    dataUrl: item.shot.dataUrl,
+                  });
+                });
+              }
+
               // Format clean markdown code block / structured outcome for AI ingestion
               toolResultsForPrompt.push(
                 tc.tool === 'search_local_memory'
