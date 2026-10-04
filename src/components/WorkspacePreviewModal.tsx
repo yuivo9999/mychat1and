@@ -127,9 +127,9 @@ export const WorkspacePreviewModal: React.FC<WorkspacePreviewModalProps> = ({
     return () => window.clearInterval(timer);
   }, [activeWorkspace?.id, refreshKey]);
 
-  useEffect(() => () => {
-    if (activeWorkspace?.id) stopProjectRuntime(activeWorkspace.id);
-  }, [activeWorkspace?.id]);
+  useEffect(() => {
+    if (!isOpen && activeWorkspace?.id) stopProjectRuntime(activeWorkspace.id);
+  }, [isOpen, activeWorkspace?.id]);
 
   const handleStartRuntime = () => {
     if (!activeWorkspace || runtimeBusy) return;
@@ -334,7 +334,7 @@ export const WorkspacePreviewModal: React.FC<WorkspacePreviewModalProps> = ({
               </button>
             )}
 
-            {runtimeState.supported && buildProjectStartCommand(activeWorkspace || ({} as Workspace)) && (
+            {runtimeState.supported && !!activeWorkspace && !!buildProjectStartCommand(activeWorkspace) && (
               runtimeState.running ? (
                 <button type="button" onClick={handleStopRuntime} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300 border border-red-200 dark:border-red-800 text-xs font-medium" title="停止真实项目进程">
                   <span className="w-2 h-2 rounded-full bg-red-500" />停止运行
