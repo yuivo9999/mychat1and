@@ -15,6 +15,9 @@ export interface WorkspaceFile {
   isBinary?: boolean;
   size: number; // Size in bytes
   updatedAt: number;
+  // Optional provenance for code blocks inserted from the chat response.
+  sourceMessageId?: string;
+  sourceLanguage?: string;
 }
 
 // Diff representation for a single file between versions
