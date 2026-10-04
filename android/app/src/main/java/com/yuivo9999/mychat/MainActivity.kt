@@ -187,7 +187,7 @@ class AndroidBridge(
         binDir.mkdirs()
         val launcher = File(binDir, "node")
         val nodeBinary = File(activity.applicationInfo.nativeLibraryDir, "libnode.so")
-        val script = "#!/system/bin/sh\nexec \"${nodeBinary.absolutePath}\" \"${'        if (!launcher.isFile || launcher.readText() != script) {
+        val script = "#!/system/bin/sh\nexec \"${nodeBinary.absolutePath}\" \"${'$'}@\"\n"
             launcher.writeText(script, Charsets.UTF_8)
             check(launcher.setExecutable(true, false)) { "无法创建 Node launcher 可执行权限" }
         }
