@@ -713,7 +713,11 @@ class AndroidBridge(
                 """.trimIndent()
                 webView.evaluateJavascript(script) { rawBounds ->
                     try {
-                        val jsonText = rawBounds?.removePrefix("\\\"")?.removeSuffix("\\\"")?.replace("\\\\\\\"", "\\\"") ?: ""
+                        val jsonText = try {
+                            (org.json.JSONTokener(rawBounds ?: "").nextValue() as? String) ?: ""
+                        } catch (_: Throwable) {
+                            ""
+                        }
                         if (jsonText.isBlank()) {
                             result.set(JSONObject().put("success", false).put("error", "当前预览区没有可截图的项目 iframe"))
                             latch.countDown()
