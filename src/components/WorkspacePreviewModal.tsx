@@ -464,6 +464,23 @@ export const WorkspacePreviewModal: React.FC<WorkspacePreviewModalProps> = ({
               </div>
             </div>
 
+            {runtimeMode === 'live' && (
+              <div className="h-6 px-3 flex items-center gap-3 bg-neutral-50 dark:bg-neutral-950 border-b border-neutral-200 dark:border-neutral-800 text-[10px] shrink-0">
+                <span className={`inline-flex items-center gap-1 font-medium ${runtimeState.status === 'error' ? 'text-red-500' : runtimeState.running ? 'text-emerald-500' : 'text-amber-500'}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${runtimeState.status === 'error' ? 'bg-red-500' : runtimeState.running ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                  {runtimeState.status === 'error' ? '运行异常' : runtimeState.running ? '运行中' : '启动中'}
+                </span>
+                {runtimeState.port && <span className="text-neutral-500">端口 {runtimeState.port}</span>}
+                {runtimeState.pid && <span className="text-neutral-500">PID {runtimeState.pid}</span>}
+                {runtimeHealth.checkedAt && (
+                  <span className={runtimeHealth.ok ? 'text-emerald-500' : 'text-red-500'}>
+                    HTTP {runtimeHealth.status ?? '—'} · {runtimeHealth.latencyMs ?? '—'}ms
+                  </span>
+                )}
+                {runtimeHealth.error && <span className="truncate text-red-500" title={runtimeHealth.error}>{runtimeHealth.error}</span>}
+              </div>
+            )}
+
             {/* Sandboxed Iframe Runner */}
             <div className="flex-1 relative bg-white overflow-hidden">
               <iframe
