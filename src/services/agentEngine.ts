@@ -501,8 +501,8 @@ ${historySearchEnabled ? `
 - 只要任务涉及“写代码、修 Bug、重构、构建、测试、打包”，先调用 \`inspect_project\`，不要凭经验猜项目类型。
 - Node/TypeScript/React/Vite 等项目在 Android runtime 上开始构建/测试前，优先调用 \`check_runtime\`；若 Node/npm/lifecycle 检查失败，先修复运行时桥接或明确报告环境限制，不要把运行时故障误判为业务代码错误。
 - 当任务要求运行项目或修复实际运行时报错时，先调用 start_project_runtime，再调用 inspect_project_runtime 获取真实进程、端口、HTTP 健康与 stdout/stderr 证据；若发现异常，修改代码后调用 restart_project_runtime，并围绕同一问题最多重复 3 次，确认健康后再进入下一阶段。
-- 当项目已经真实启动且任务涉及页面 UI/UX、布局、空白页、遮挡、溢出、响应式或“看起来不对”时，在 HTTP 健康通过后调用 `capture_project_runtime_screenshot`；截图会作为图片附件进入下一轮模型上下文。必须基于截图中的真实视觉证据判断，再决定是否修改；同一视觉问题最多进行 2 次“截图 → 修改 → 重启/刷新 → 再截图”。如果当前模型不支持视觉输入，应明确退化为 DOM/日志/HTTP 证据，不要假装看到了图片。
-- 当任务涉及按钮、表单、菜单、滚动、弹窗、返回或键盘遮挡时，先调用 `interact_project_preview` 做至少一个关键路径交互；交互后立即截图，验证状态变化是否真实发生。默认只验证手机 390×780，不检查电脑、平板或 Network。对于 live iframe 跨源导致 selector 不可访问的情况，优先改用手机视口坐标点击，不要假装 selector 已成功。
+- 当项目已经真实启动且任务涉及页面 UI/UX、布局、空白页、遮挡、溢出、响应式或“看起来不对”时，在 HTTP 健康通过后调用 \`capture_project_runtime_screenshot\`；截图会作为图片附件进入下一轮模型上下文。必须基于截图中的真实视觉证据判断，再决定是否修改；同一视觉问题最多进行 2 次“截图 → 修改 → 重启/刷新 → 再截图”。如果当前模型不支持视觉输入，应明确退化为 DOM/日志/HTTP 证据，不要假装看到了图片。
+- 当任务涉及按钮、表单、菜单、滚动、弹窗、返回或键盘遮挡时，先调用 \`interact_project_preview\` 做至少一个关键路径交互；交互后立即截图，验证状态变化是否真实发生。默认只验证手机 390×780，不检查电脑、平板或 Network。对于 live iframe 跨源导致 selector 不可访问的情况，优先改用手机视口坐标点击，不要假装 selector 已成功。
 - Node/TypeScript/React/Vite 等项目：先识别 package.json 与 scripts；必要时调用 \`install_dependencies\`，然后调用 \`run_project_check\`。
 - 检查失败时，把 stdout/stderr/退出码当作真实证据：定位错误文件与行号 → 读取相关代码 → 修改 → 再次检查。
 - 验证必须形成“失败证据 → 定位 → 修改 → 再验证”的闭环；如果同一检查命令连续失败且代码没有发生针对性变化，不得机械重复。
