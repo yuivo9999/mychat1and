@@ -1106,7 +1106,7 @@ export default function App() {
       // The model may replace this safe fallback with a structured plan during the first Agent round.
       let agentTaskPlan = createAgentTaskPlan(text);
       agentTaskPlan.research = {
-        required: agentResearchNeeded,
+        required: agentResearchNeeded && (webAccessEnabled || isContext7Enabled),
         completed: !!webContext,
         reason: agentResearchNeeded ? '任务复杂度/技术事实判断要求优先研究。' : '任务不明显依赖外部最新事实，可直接执行。',
         evidence: agentResearchEvidence || undefined,
