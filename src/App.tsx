@@ -614,9 +614,12 @@ export default function App() {
   }, [handleNewChat]);
 
   const persistAgentTaskState = async (conversationId: string, task: AgentTaskState | undefined) => {
-    setConversations(prev => prev.map(c => c.id === conversationId ? { ...c, agentTask: task, updatedAt: Date.now() } : c));
-    const conv = conversations.find(c => c.id === conversationId);
-    if (conv) await saveConversation({ ...conv, agentTask: task, updatedAt: Date.now() });
+    const updatedAt = Date.now();
+    setConversations(prev => prev.map(c => c.id === conversationId ? { ...c, agentTask: task, updatedAt } : c));
+    // Read the latest IndexedDB conversation before checkpointing so a task checkpoint
+    // never overwrites newer streamed/tool messages with a stale React closure snapshot.
+    const latest = (await getConversations()).find(c => c.id === conversationId);
+    if (latest) await saveConversation({ ...latest, agentTask: task, updatedAt });
   };
 
   const handlePauseAgent = async () => {
@@ -1542,6 +1545,18 @@ export default function App() {
             });
 
             if (validationFailureCount >= 3 || shouldProtectAgainstNoProgress(agentLoopState)) {
+              if (agentTaskId) {
+                await persistAgentTaskState(targetConv.id, {
+                  taskId: agentTaskId,
+                  status: 'waiting_user',
+                  phase: agentLoopState.phase,
+                  round: agentLoopState.round,
+                  maxRounds: maxAgentTurns,
+                  progressSummary: validationFailureCount >= 3 ? '验证失败保护已触发' : '连续无有效进展，等待新的用户指示',
+                  pauseReason: validationFailureCount >= 3 ? '项目检查连续失败达到保护阈值' : '连续多个阶段没有产生新的可验证进展',
+                  updatedAt: Date.now(),
+                });
+              }
               setStatusMessage(
                 validationFailureCount >= 3
                   ? '项目自动验证已达到 3 次失败保护阈值，停止继续重试。'
@@ -1695,6 +1710,15 @@ export default function App() {
           messages: finalMessages,
           workspaceId: wsToOperate?.id || c.workspaceId,
           chatContext: updatedChatContext,
+          agentTask: agentTaskId ? {
+            taskId: agentTaskId,
+            status: 'completed' as const,
+            phase: 'completed',
+            round: agentLoopState.round,
+            maxRounds: maxAgentTurns,
+            progressSummary: 'Agent 任务完成',
+            updatedAt: Date.now(),
+          } : c.agentTask,
           updatedAt: Date.now() 
         };
         saveConversation(finalConv);
