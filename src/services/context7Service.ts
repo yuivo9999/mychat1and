@@ -45,6 +45,7 @@ export async function searchContext7(
   library?: string,
   language?: string,
   version?: string,
+  apiKey?: string,
 ): Promise<{ success: true; data: Context7SearchResult } | { success: false; error: string; status?: number }> {
   const cleanQuery = query.trim();
   if (!cleanQuery) return { success: false, error: 'Context7 查询为空。' };
@@ -61,14 +62,12 @@ export async function searchContext7(
     const nativeHttp = getAndroidHttp();
 
     if (nativeHttp) {
-      // Android APK has no Node/Express backend. Context7 supports anonymous
-      // requests for testing, so the APK can work immediately without a server.
-      // A future secure key-store bridge can add Authorization without changing
-      // this service contract.
+      const headers: Record<string, string> = { Accept: 'application/json' };
+      if (apiKey?.trim()) headers.Authorization = `Bearer ${apiKey.trim()}`;
       const response = parseNativeResponse(nativeHttp(
         `https://context7.com/api/v3/search?${params.toString()}`,
         'GET',
-        JSON.stringify({ Accept: 'application/json' }),
+        JSON.stringify(headers),
         '',
         10000,
       ));
@@ -98,6 +97,7 @@ export async function searchContext7(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         query: cleanQuery.slice(0, 2000),
+        apiKey: apiKey?.trim() || undefined,
         library: library?.trim() || undefined,
         language: language?.trim() || undefined,
         version: version?.trim() || undefined,
