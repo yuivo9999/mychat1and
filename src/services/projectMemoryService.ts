@@ -279,6 +279,15 @@ export function formatProjectMemoryPrompt(
     );
   }
 
+  if (activeRecords.length > 0) {
+    sections.push(
+      '### [L2 记忆冲突处理协议]\n' +
+      '1. 硬规则/约束 > 架构与技术选型 > 项目决定 > UI/UX 规范 > 工作流 > 其他。\n' +
+      '2. 同类冲突时，较新的明确决定优先；superseded/archived 记录不得重新启用。\n' +
+      '3. 无法自动判定的冲突不得静默猜测，应先读取项目记忆或历史证据，必要时询问用户。'
+    );
+  }
+
   const peerConversations = projectConversations.filter(c => c.id !== currentConvId);
   const peerSummaries: string[] = [];
   for (const peer of peerConversations) {
