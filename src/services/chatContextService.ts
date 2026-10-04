@@ -24,15 +24,9 @@ export function extractKeyDecisionsFromTurn(
 ): string[] {
   const decisions: string[] = [];
 
-  // 1. From modified files: record tangible implementation outcomes
-  if (modifiedFiles.length > 0) {
-    const fileSummary = modifiedFiles.length <= 3 
-      ? `已落实修改并保存工作区文件: \`${modifiedFiles.join('`, `')}\``
-      : `已落实修改并保存工作区文件: \`${modifiedFiles.slice(0, 3).join('`, `')}\` 等共 ${modifiedFiles.length} 个文件`;
-    decisions.push(fileSummary);
-  }
+  // 文件修改本身不是长期决策：避免把“改过哪些文件”永久污染项目记忆。只有明确的架构、技术选型、约束、行为变化等结论才进入长期记忆。
 
-  // 2. From AI response: scan for explicit conclusions, design conventions, and architectural choices
+  // 1. From AI response: scan for explicit conclusions, design conventions, and architectural choices
   const candidateSentences = aiResponseText.split(/[。\n；;]/).map(s => s.trim()).filter(Boolean);
 
   const decisionKeywords = [
@@ -54,9 +48,9 @@ export function extractKeyDecisionsFromTurn(
     }
   }
 
-  // 3. From user text: if user explicitly specified a constraint or rule
+  // 2. From user text: if user explicitly specified a constraint or rule
   const userRules = [
-    '必须使用', '不要使用', '统一用', '规范是', '记得用', '设计成', '命名为'
+    '必须使用', '不要使用', '统一用', '规范是', '记得用', '设计成', '命名为', '最终决定', '改为', '改成', '采用', '以后都', '默认使用', '固定为'
   ];
   for (const r of userRules) {
     if (userText.includes(r)) {
