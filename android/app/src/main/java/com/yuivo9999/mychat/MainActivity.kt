@@ -9,6 +9,7 @@ import android.webkit.WebViewClient
 import org.json.JSONObject
 import com.chaquo.python.Python
 import java.io.File
+import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.Callable
@@ -181,6 +182,25 @@ class AndroidBridge(
         }
     }
 
+    private fun ensureNpmRuntime(): File {
+        val root = File(activity.filesDir, "node-runtime")
+        val npmCli = File(root, "node_modules/npm/bin/npm-cli.js")
+        if (npmCli.isFile) return npmCli
+
+        val archive = File(activity.cacheDir, "npm.tar.gz")
+        activity.assets.open("node-runtime/npm.tar.gz").use { input ->
+            FileOutputStream(archive).use { output -> input.copyTo(output) }
+        }
+        root.mkdirs()
+        val process = ProcessBuilder("tar", "-xzf", archive.absolutePath, "-C", root.absolutePath)
+            .redirectErrorStream(true).start()
+        val output = process.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+        if (!process.waitFor(60, TimeUnit.SECONDS) || process.exitValue() != 0 || !npmCli.isFile) {
+            throw IllegalStateException("npm runtime extraction failed: $output")
+        }
+        archive.delete()
+        return npmCli
+    }
     @JavascriptInterface
     fun executeNode(command: String, timeoutMs: Int, workspaceId: String = ""): String {
         val nodeBinary = File(activity.applicationInfo.nativeLibraryDir, "libnode.so")
@@ -202,7 +222,12 @@ class AndroidBridge(
 
         val future = executor.submit(Callable {
             val trimmed = command.trim()
-            val processBuilder = if (trimmed.startsWith("node -e ")) {
+            val npmCli = if (trimmed == "npm" || trimmed.startsWith("npm ")) ensureNpmRuntime() else null
+            val processBuilder = if (npmCli != null) {
+                val args = trimmed.removePrefix("npm").trim()
+                if (args.isBlank()) ProcessBuilder(nodeBinary.absolutePath, npmCli.absolutePath)
+                else ProcessBuilder(listOf(nodeBinary.absolutePath, npmCli.absolutePath) + args.split(Regex("\\s+")))
+            } else if (trimmed.startsWith("node -e ")) {
                 val encoded = trimmed.removePrefix("node -e ").trim()
                 val code = org.json.JSONTokener(encoded).nextValue() as? String
                     ?: throw IllegalArgumentException("node -e 参数不是有效 JSON 字符串")
@@ -221,6 +246,8 @@ class AndroidBridge(
                 .apply {
                     environment()["LD_LIBRARY_PATH"] = activity.applicationInfo.nativeLibraryDir
                     environment()["HOME"] = activity.filesDir.absolutePath
+                    environment()["npm_config_cache"] = File(activity.filesDir, "npm-cache").absolutePath
+                    environment()["npm_config_prefix"] = File(activity.filesDir, "npm-global").absolutePath
                     environment()["TMPDIR"] = activity.cacheDir.absolutePath
                     environment()["PATH"] = activity.applicationInfo.nativeLibraryDir +
                         File.pathSeparator + (environment()["PATH"] ?: "")
