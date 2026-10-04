@@ -148,7 +148,68 @@ if (transpiled.diagnostics && transpiled.diagnostics.length) {
   if (request.language === 'shell' && typeof window !== 'undefined'
       && window.MyChatAndroid?.executeCommand) {
     try {
-      const isNodeRuntimeCommand = /^(?:npm|npx|node)(?:\\s|$)/.test(request.code.trim());
+      const trimmed = request.code.trim();
+
+      // Android does not expose a system "python3" executable. The Python
+      // interpreter is embedded by Chaquopy, so translate the common shell
+      // forms emitted by models back into source execution before invoking sh.
+      if (/^(?:python3?|py)(?:\\s|$)/i.test(trimmed)
+          && window.MyChatAndroid.executePython) {
+        const pythonCommand = trimmed.replace(/^(?:python3?|py)\\s*/i, '');
+
+        if (!pythonCommand) {
+          return {
+            success: false,
+            stdout: '',
+            stderr: 'Android 原生 Python 已内置，但交互式 python3 Shell 不可用；请直接提供 Python 源代码或使用 python3 -c \'...\'。',
+            exitCode: -1,
+            error: 'Use Python source or python3 -c instead of an interactive Python shell.',
+            runtime: 'android',
+          };
+        }
+
+        let pythonCode: string | null = null;
+        if (/^-c(?:\\s|$)/i.test(pythonCommand)) {
+          const expression = pythonCommand.replace(/^-c\\s*/i, '').trim();
+          // Models normally emit a single shell-quoted argument. Decode the
+          // surrounding quotes without invoking a shell, keeping Python code
+          // such as print("hello") intact.
+          if ((expression.startsWith('"') && expression.endsWith('"'))
+              || (expression.startsWith("'") && expression.endsWith("'"))) {
+            pythonCode = expression.slice(1, -1)
+              .replace(/\\\\([\\"'])/g, '$1')
+              .replace(/\\\\n/g, '\\n');
+          } else {
+            pythonCode = expression;
+          }
+        } else if (/^(?:-u\\s+)?[^\\s]+\\.py(?:\\s|$)/i.test(pythonCommand)) {
+          const scriptPath = pythonCommand.replace(/^-u\\s+/i, '').split(/\\s+/)[0];
+          const file = await readWorkspaceFile(request.workspaceId ?? '', scriptPath);
+          if (file?.exists && typeof file.content === 'string') {
+            pythonCode = file.content;
+          } else {
+            return {
+              success: false,
+              stdout: '',
+              stderr: file?.error || `Python 脚本不存在: ${scriptPath}`,
+              exitCode: -1,
+              error: file?.error || `Python script not found: ${scriptPath}`,
+              runtime: 'android',
+            };
+          }
+        }
+
+        if (pythonCode !== null) {
+          const raw = await window.MyChatAndroid.executePython(
+            pythonCode,
+            request.timeoutMs ?? 20_000,
+            request.workspaceId
+          );
+          return normalizeAndroidResult(raw);
+        }
+      }
+
+      const isNodeRuntimeCommand = /^(?:npm|npx|node)(?:\\s|$)/.test(trimmed);
       const raw = isNodeRuntimeCommand && window.MyChatAndroid.executeNode
         ? await window.MyChatAndroid.executeNode(
             request.code,
