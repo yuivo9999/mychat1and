@@ -210,6 +210,11 @@ export const WORKSPACE_TOOLS_SPEC = [
     parameters: { type: 'object', properties: { recordId: { type: 'string' }, content: { type: 'string' }, status: { type: 'string' }, reason: { type: 'string' } }, required: ['recordId'] },
   },
   {
+    name: 'archive_project_memory',
+    description: '归档当前项目已有长期共享记忆记录，不物理删除。',
+    parameters: { type: 'object', properties: { recordId: { type: 'string' }, reason: { type: 'string' } }, required: ['recordId'] },
+  },
+  {
     name: 'search_local_memory',
     description: '仅在用户开启“AI 主动搜索历史对话”后可用。用于在当前上下文不足以确认用户曾经做过的决定、需求、代码改动或历史结论时主动检索本地聊天。不要为了普通背景了解而调用；优先当前项目，搜索结果不足时才换更具体的关键词再次检索。不会把全部历史记录发送给模型。',
     parameters: {
