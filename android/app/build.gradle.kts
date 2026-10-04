@@ -22,6 +22,7 @@ val syncWebAssets = tasks.register<Exec>("syncWebAssets") {
 }
 
 tasks.named("preBuild").configure {
+    dependsOn(prepareNodeRuntime)
     dependsOn(syncWebAssets)
 }
 
