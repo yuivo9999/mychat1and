@@ -1023,7 +1023,7 @@ class AndroidBridge(
         if (!runtime.process.isAlive && runtime.status == "starting") runtime.status = "error"
         return JSONObject().put("ok", true).put("running", runtime.process.isAlive)
             .put("status", runtime.status).put("port", runtime.port ?: JSONObject.NULL)
-            .put("command", runtime.command).put("pid", runtime.process.pid())
+            .put("command", runtime.command).put("pid", JSONObject.NULL)
             .put("stdout", runtime.stdout.takeLast(12000)).put("stderr", runtime.stderr.takeLast(12000))
             .put("startedAt", runtime.startedAt).toString()
     }
