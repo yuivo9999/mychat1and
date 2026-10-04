@@ -1413,9 +1413,31 @@ export default function App() {
               timestamp: Date.now(),
             });
 
+            const progressKind = classifyAgentProgress(
+              detectedToolCalls.map(tc => tc.tool),
+              validationFailureCount > 0,
+            );
+            const hasMeaningfulProgress =
+              detectedToolCalls.length > 0 &&
+              (
+                detectedToolCalls.some(tc => tc.tool !== 'search_files' && tc.tool !== 'search_code' && tc.tool !== 'read_file') ||
+                modifiedPaths.size > 0
+              );
+            agentLoopState = advanceAgentLoopState(agentLoopState, progressKind, hasMeaningfulProgress);
+
+            if (shouldProtectAgainstNoProgress(agentLoopState)) {
+              toolResultsForPrompt.push(
+                '### Agent 防空转保护已触发\\n连续多个阶段没有产生新的可验证进展。请停止重复搜索/重复工具调用，整理当前证据并总结阻塞点；只有出现新的证据或用户输入后才能继续。'
+              );
+            }
+
+            const phaseFeedback = buildAgentLoopFeedback(
+              agentLoopState,
+              toolResultsForPrompt.join('\\n\\n'),
+            );
             const feedbackInstruction = isDiagnosisMode
-              ? `[代码诊断工具执行结果反馈]\n${toolResultsForPrompt.join('\n\n')}\n\n请审查上述代码与检索结果。若还需要追踪调用方/被调用方、检查关联依赖或对比 diff，请继续输出只读工具调用；若已完成 10 步调查，请严格按照【代码诊断报告】格式输出结构化报告（明确区分：发现明确问题 / 暂未发现明确错误 / 无法确认三种结论），并严格保持只读、不修改任何代码。`
-              : `[工作区工具执行结果反馈 (第 ${turn + 1} 轮)]\n${toolResultsForPrompt.join('\n\n')}\n\n请审查以上工具执行结果：\n1. 【继续查阅】：若还需查看其他相关文件，请继续输出 read_file 或 search_code；\n2. 【制定方案并批量修改】：若查阅已完备，请说明全局协同修改方案，并对目标文件连续发起 patch_file 或 write_file 调用（支持同轮或分轮连续调用）；\n3. 【自愈纠错】：若遇到 patch_file 失败，请根据最新反馈校准 target_content 或使用 write_file 完整覆盖；\n4. 【任务总结】：若所有目标文件已全部修改完成，请停止输出任何 tool_call 代码块，给出结构化的中文任务总结，并提醒用户在本地运行测试。`;
+              ? `[代码诊断工具执行结果反馈 · ${getAgentPhaseLabel(agentLoopState.phase)}]\n${toolResultsForPrompt.join('\n\n')}\n\n${getAgentPhaseInstruction(agentLoopState)}\n\n请继续严格遵循只读诊断协议；若已完成 10 步调查，请输出结构化诊断报告并停止工具调用。`
+              : phaseFeedback;
 
             currentHistoryMessages.push({
               id: `msg_tool_feedback_${turn}_${Date.now()}`,
@@ -1424,17 +1446,26 @@ export default function App() {
               timestamp: Date.now(),
             });
 
-            if (validationFailureCount >= 3) {
-              setStatusMessage('项目自动验证已达到 3 次失败保护阈值，停止继续重试。');
+            if (validationFailureCount >= 3 || shouldProtectAgainstNoProgress(agentLoopState)) {
+              setStatusMessage(
+                validationFailureCount >= 3
+                  ? '项目自动验证已达到 3 次失败保护阈值，停止继续重试。'
+                  : 'Agent 连续无有效进展，已暂停自动循环，等待新的用户指示。'
+              );
               break;
             }
 
             turn++;
             setStatusMessage(
-              isDiagnosisMode 
-                ? `Agent 正在进行第 ${turn + 1} 轮诊断分析与调用链追踪...` 
-                : `Agent 正在进行第 ${turn + 1} 轮协同推进与推理修改...`
+              isDiagnosisMode
+                ? `Agent · ${getAgentPhaseLabel(agentLoopState.phase)} · 第 ${turn + 1}/${maxAgentTurns} 轮：继续诊断分析与调用链追踪...`
+                : `Agent · ${getAgentPhaseLabel(agentLoopState.phase)} · 第 ${turn + 1}/${maxAgentTurns} 轮：正在整理下一阶段工作...`
             );
+
+            // Give the UI/runtime a short breathing interval between stages. This is
+            // intentionally not a human wait: unless user input is genuinely required,
+            // the next turn starts automatically.
+            await new Promise<void>(resolve => setTimeout(resolve, getAgentPauseDelayMs(agentLoopState)));
             continue; // Continue loop
           }
         }
