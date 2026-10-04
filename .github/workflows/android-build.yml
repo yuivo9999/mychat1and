@@ -65,3 +65,38 @@ jobs:
           name: mychat-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+
+  emulator-smoke:
+    needs: debug-apk
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download debug APK
+        uses: actions/download-artifact@v4
+        with:
+          name: mychat-debug-apk
+          path: artifacts
+
+      - name: Run Android emulator smoke test
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: Pixel_6
+          emulator-options: -no-window -no-audio -no-boot-anim
+          disable-animations: true
+          script: |
+            set -euo pipefail
+            APK="artifacts/app-debug.apk"
+            test -s "$APK"
+            adb install -r "$APK"
+            adb shell am force-stop com.yuivo9999.mychat
+            adb shell am start -n com.yuivo9999.mychat/.MainActivity
+            sleep 12
+            adb shell dumpsys activity activities | grep -q "com.yuivo9999.mychat/.MainActivity"
+            if adb logcat -d -v brief | grep -E "FATAL EXCEPTION|Process: com.yuivo9999.mychat" | grep -q "FATAL EXCEPTION"; then
+              adb logcat -d -v brief
+              exit 1
+            fi
+            adb shell dumpsys package com.yuivo9999.mychat | grep -q "versionName=0.1.0"
