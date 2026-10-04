@@ -126,6 +126,47 @@ export function searchLocalMemory(
   };
 }
 
+export interface LocalMemoryDigestConversation {
+  conversationId: string;
+  title: string;
+  projectId?: string;
+  timestamp: number;
+  relevance: number;
+  snippets: string[];
+}
+
+export function buildLocalMemoryDigest(result: {
+  query: string;
+  scope: string;
+  totalMatches: number;
+  results: LocalMemorySearchResult[];
+}): LocalMemoryDigestConversation[] {
+  const grouped = new Map<string, LocalMemoryDigestConversation>();
+
+  for (const match of result.results) {
+    const existing = grouped.get(match.conversationId);
+    if (existing) {
+      existing.timestamp = Math.max(existing.timestamp, match.timestamp);
+      existing.relevance = Math.max(existing.relevance, match.score);
+      if (existing.snippets.length < 2) existing.snippets.push(match.snippet);
+      continue;
+    }
+
+    grouped.set(match.conversationId, {
+      conversationId: match.conversationId,
+      title: match.title,
+      projectId: match.projectId,
+      timestamp: match.timestamp,
+      relevance: match.score,
+      snippets: [match.snippet],
+    });
+  }
+
+  return Array.from(grouped.values())
+    .sort((a, b) => b.relevance - a.relevance || b.timestamp - a.timestamp)
+    .slice(0, 6);
+}
+
 export function formatLocalMemorySearchResult(result: {
   query: string;
   scope: string;
@@ -133,24 +174,44 @@ export function formatLocalMemorySearchResult(result: {
   results: LocalMemorySearchResult[];
 }): string {
   if (!result.results.length) {
-    return '### 本地记忆检索结果\n查询: `' + result.query + '`\n没有找到相关历史内容。';
+    return '### 本地记忆检索结果\\n查询: \`' + result.query + '\`\\n没有找到相关历史内容。';
   }
 
+  const digest = buildLocalMemoryDigest(result);
+  const dateText = (timestamp: number) =>
+    new Date(timestamp).toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
   return (
-    '### 本地记忆检索结果\n' +
-    '查询: `' + result.query + '`\n' +
-    '范围: ' + result.scope + '\n' +
-    '返回 ' + result.results.length + ' 条相关片段（共 ' + result.totalMatches + ' 条匹配）\n\n' +
-    result.results
+    '### 本地记忆检索结果\\n' +
+    '查询: \`' + result.query + '\`\\n' +
+    '范围: ' + result.scope + '\\n' +
+    '返回 ' + result.results.length + ' 条证据片段（共 ' + result.totalMatches + ' 条匹配）\\n\\n' +
+    '#### 历史记忆摘要\\n' +
+    digest
       .map(
         (x, i) =>
           (i + 1) +
-          '. **' + x.title + '** [' + x.role + ']\n' +
-          '   - projectId: `' + (x.projectId || '无') + '`\n' +
-          '   - conversationId: `' + x.conversationId + '`\n' +
-          '   - messageId: `' + x.messageId + '`\n' +
+          '. **' + x.title + '**（' + dateText(x.timestamp) + '）\\n' +
+          '   - conversationId: \`' + x.conversationId + '\`\\n' +
+          '   - 相关度: ' + x.relevance.toFixed(1) + '\\n' +
+          x.snippets.map((snippet) => '   - ' + snippet).join('\\n')
+      )
+      .join('\\n') +
+    '\\n\\n#### 原始证据\\n' +
+    result.results
+      .slice(0, 8)
+      .map(
+        (x, i) =>
+          (i + 1) +
+          '. [' + x.role + '] **' + x.title + '** · ' + dateText(x.timestamp) + '\\n' +
           '   - ' + x.snippet
       )
-      .join('\n')
+      .join('\\n')
   );
 }
