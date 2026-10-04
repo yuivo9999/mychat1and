@@ -41,6 +41,7 @@ export interface AgentTaskChecklistItem {
   required?: boolean;
   acceptanceCriteria?: string[];
   evidence?: string;
+  dependsOn?: string[];
 }
 
 const MAX_DYNAMIC_CHECKLIST_ITEMS = 8;
@@ -73,6 +74,7 @@ export function buildAgentTaskPlanPrompt(goal: string): string {
     '要求：\\n' +
     '1. checklist 最多 ' + MAX_DYNAMIC_CHECKLIST_ITEMS + ' 项，按真实依赖顺序排列；\\n' +
     '2. 每项必须是具体可执行/可验证的工作；\\n' +
+    '2.1 dependsOn 只填写确实必须先完成的 checklist ID；没有前置依赖时使用空数组；\\n' +
     '3. acceptanceCriteria 必须能通过代码、工具输出、运行结果或明确用户输入验证；\\n' +
     '4. 不确定的事实不要编造，先写成需要探索验证的条件；\\n' +
     '5. 规划完成后继续正常 Agent 工作，不要因为输出规划块就结束任务。';
@@ -94,7 +96,28 @@ export function parseAgentTaskPlan(text: string, fallbackGoal: string): AgentTas
         status: index === 0 ? 'in_progress' as const : 'pending' as const,
         required: item.required !== false,
         acceptanceCriteria: normalizePlanStringList(item.acceptanceCriteria, []),
+        dependsOn: Array.isArray(item.dependsOn)
+          ? item.dependsOn.map(String).filter(Boolean)
+          : [],
       }));
+    const ids = new Set(checklist.map(item => item.id));
+    const seenIds = new Set<string>();
+    checklist.forEach((item, index) => {
+      const uniqueDeps = Array.from(new Set(item.dependsOn || []))
+        .filter(dep => ids.has(dep) && dep !== item.id)
+        .filter(dep => {
+          const depIndex = checklist.findIndex(candidate => candidate.id === dep);
+          return depIndex >= 0 && depIndex < index;
+        });
+      item.dependsOn = uniqueDeps;
+      if (seenIds.has(item.id)) item.id = 'task_' + (index + 1);
+      seenIds.add(item.id);
+    });
+    const normalizedIds = new Set<string>();
+    checklist.forEach((item, index) => {
+      if (normalizedIds.has(item.id)) item.id = 'task_' + (index + 1);
+      normalizedIds.add(item.id);
+    });
     if (checklist.length === 0) return null;
     return {
       goal: normalizePlanString(raw.goal, fallbackGoal),
@@ -112,6 +135,31 @@ export function parseAgentTaskPlan(text: string, fallbackGoal: string): AgentTas
 
 export function stripAgentPlanBlock(text: string): string {
   return text.replace(/<agent_plan>\s*[\s\S]*?\s*<\/agent_plan>/gi, '').trim();
+}
+
+function areTaskDependenciesCompleted(plan: AgentTaskPlan, item: AgentTaskChecklistItem): boolean {
+  return (item.dependsOn || []).every(depId =>
+    plan.checklist.some(candidate => candidate.id === depId && candidate.status === 'completed')
+  );
+}
+
+export function getNextExecutableAgentTask(plan: AgentTaskPlan): AgentTaskChecklistItem | null {
+  const executable = plan.checklist.filter(item =>
+    item.status !== 'completed' && item.status !== 'blocked' && areTaskDependenciesCompleted(plan, item)
+  );
+  return executable.find(item => item.required !== false) || executable[0] || null;
+}
+
+export function getBlockedAgentTasks(plan: AgentTaskPlan): Array<{ item: AgentTaskChecklistItem; blockedBy: string[] }> {
+  return plan.checklist
+    .filter(item => item.status !== 'completed' && item.status !== 'blocked')
+    .map(item => ({
+      item,
+      blockedBy: (item.dependsOn || []).filter(depId =>
+        !plan.checklist.some(candidate => candidate.id === depId && candidate.status === 'completed')
+      ),
+    }))
+    .filter(entry => entry.blockedBy.length > 0);
 }
 
 export function applyAgentTaskProgress(plan: AgentTaskPlan, text: string): AgentTaskPlan {
@@ -138,7 +186,11 @@ export function applyAgentTaskProgress(plan: AgentTaskPlan, text: string): Agent
       checklist: plan.checklist.map(item => {
         const nextEvidence = evidence.get(item.id) || blocked.get(item.id) || item.evidence;
         if (blocked.has(item.id)) return { ...item, status: 'blocked' as const, evidence: nextEvidence };
-        if (completed.has(item.id)) return { ...item, status: 'completed' as const, evidence: nextEvidence };
+        if (completed.has(item.id)) {
+          return areTaskDependenciesCompleted(plan, item)
+            ? { ...item, status: 'completed' as const, evidence: nextEvidence }
+            : { ...item, status: 'in_progress' as const, evidence: nextEvidence || '等待前置任务完成' };
+        }
         if (inProgress.has(item.id)) return { ...item, status: 'in_progress' as const, evidence: nextEvidence };
         return nextEvidence ? { ...item, evidence: nextEvidence } : item;
       }),
@@ -155,7 +207,7 @@ export function stripAgentProgressBlock(text: string): string {
 export function areAgentTaskRequirementsMet(plan: AgentTaskPlan): boolean {
   return plan.checklist
     .filter(item => item.required !== false)
-    .every(item => item.status === 'completed');
+    .every(item => item.status === 'completed' && areTaskDependenciesCompleted(plan, item));
 }
 
 export function createAgentTaskPlan(goal: string): AgentTaskPlan {
@@ -388,7 +440,10 @@ export function buildAgentLoopFeedback(
         const criteria = item.acceptanceCriteria?.length
           ? '; 验收：' + item.acceptanceCriteria.join(' / ')
           : '';
-        return (index + 1) + '. [' + item.status + '] ' + item.title + criteria +
+        const deps = item.dependsOn?.length
+          ? '; 前置：' + item.dependsOn.join(', ')
+          : '';
+        return (index + 1) + '. [' + item.status + '] ' + item.title + deps + criteria +
           (item.evidence ? '; 证据：' + item.evidence.slice(0, 300) : '');
       }).join('\\n')
     : '尚未建立动态子任务清单；请先根据用户目标建立可验证计划。';
@@ -397,15 +452,25 @@ export function buildAgentLoopFeedback(
     ? plan.definitionOfDone.map(item => '- ' + item).join('\\n')
     : '- 完成用户明确提出的主要目标';
 
+  const nextTask = plan ? getNextExecutableAgentTask(plan) : null;
+  const blockedTasks = plan ? getBlockedAgentTasks(plan) : [];
+  const nextTaskText = nextTask
+    ? nextTask.id + '：' + nextTask.title
+    : (blockedTasks.length ? '当前没有可执行子任务，必须先完成前置依赖。' : '没有剩余可执行子任务。');
+  const blockedText = blockedTasks.length
+    ? blockedTasks.map(entry => entry.item.id + ' 等待：' + entry.blockedBy.join(', ')).join('；')
+    : '无';
+
   return '[Agent 阶段推进指令]\\n' +
     '第 ' + (state.round + 1) + '/' + state.maxRounds + ' 轮 · 当前阶段：' + getAgentPhaseLabel(state.phase) + '\\n\\n' +
     getAgentPhaseInstruction(state) + '\\n\\n' +
     '## 当前任务目标\\n' + (plan?.goal || '未明确') + '\\n\\n' +
     '## Definition of Done\\n' + definitionOfDone + '\\n\\n' +
     '## 动态子任务清单\\n' + checklist + '\\n\\n' +
+    '## 依赖调度\\n下一项可执行任务：' + nextTaskText + '\\n被依赖阻塞：' + blockedText + '\\n\\n' +
     '上一轮工具结果：\\n' + toolResults + '\\n\\n' +
     '请根据真实证据决定下一步：\\n' +
-    '1. 优先完成当前最前面的未完成 required 子任务；\\n' +
+    '1. 优先执行“下一项可执行任务”；如果任务有未完成 dependsOn，不得抢跑；\\n' +
     '2. 每完成一个子任务，必须让其 acceptanceCriteria 有真实证据支撑；\\n' +
     '3. 修改后必须优先验证；\\n' +
     '4. 验证失败 → 定位根因、修复、再验证；\\n' +
