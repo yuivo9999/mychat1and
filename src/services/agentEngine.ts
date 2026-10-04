@@ -1684,6 +1684,8 @@ export async function executeWorkspaceTool(
           rule: '动作 API 成功不等于业务成功；若理论上应发生状态变化但 visualDelta.changed=false，应优先检查事件命中、状态更新和 UI 无响应。',
           changedSteps: evidence.filter((item: any) => item.visualDelta?.changed === true).map((item: any) => item.index),
           unchangedSteps: evidence.filter((item: any) => item.visualDelta?.changed === false).map((item: any) => item.index),
+          possibleNoOpSteps: evidence.filter((item: any) => item.diagnosis?.failureClass === 'possible-no-op').map((item: any) => item.index),
+          selectorCrossOriginSteps: evidence.filter((item: any) => item.diagnosis?.failureClass === 'selector-cross-origin').map((item: any) => item.index),
         },
         nextAction: flow?.result?.success === true
           ? '逐步检查 visualDelta：理论上应变化却没有变化的动作优先判为疑似无响应；再结合每步截图判断布局、键盘遮挡、溢出和按钮状态，必要时修复后最多再跑 1 轮。'
