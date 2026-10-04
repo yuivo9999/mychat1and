@@ -1061,6 +1061,10 @@ export default function App() {
         }
       }
 
+        if (historySearchEnabled) {
+          const historySearchPrompt = '## 🔎 本地历史对话搜索\\n仅在当前问题确有必要时调用 search_local_memory；默认优先当前项目。工具只返回少量相关片段，不要无目的扫描全部历史，也不要编造未检索到的历史结论。\\n\\n工具参数：query（必填）、projectId、conversationId、dateFrom、dateTo、limit（可选）。调用时输出 tool_call JSON，tool 必须为 search_local_memory。';
+          effectiveSystemPrompt = effectiveSystemPrompt ? `${effectiveSystemPrompt}\\n\\n${historySearchPrompt}` : historySearchPrompt;
+        }
       // 4. Project Collective Memory (Multiple chats inside same project share project memory)
       if ((settings.enableProjectMemory ?? true) && targetConv.projectId) {
         const currentProj = projects.find(p => p.id === targetConv.projectId);
