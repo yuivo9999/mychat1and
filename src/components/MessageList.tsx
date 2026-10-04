@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowDown } from 'lucide-react';
 import { AgentTaskState, Message, ModelItem, UserSettings } from '../types';
+import { subscribeConversationChanges } from '../services/db';
 import { ChatMessage } from './ChatMessage';
 import { AgentProgressCard } from './AgentProgressCard';
 
@@ -44,6 +45,23 @@ export const MessageList: React.FC<MessageListProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
+  const [liveAgentTaskState, setLiveAgentTaskState] = useState<AgentTaskState | null>(agentTaskState ?? null);
+
+  useEffect(() => {
+    setLiveAgentTaskState(agentTaskState ?? null);
+  }, [agentTaskState]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeConversationChanges((conversation) => {
+      const ownsVisibleMessages = conversation.messages?.some(candidate =>
+        messages.some(message => message.id === candidate.id)
+      );
+      if (ownsVisibleMessages) {
+        setLiveAgentTaskState(conversation.agentTask ?? null);
+      }
+    });
+    return unsubscribe;
+  }, [messages]);
 
   // Check scroll position
   const handleScroll = () => {
@@ -89,7 +107,7 @@ export const MessageList: React.FC<MessageListProps> = ({
           {messages.map((msg, index) => (
             <React.Fragment key={msg.id}>
               {!msg.role || (msg.role === 'assistant' && index === messages.length - 1) ? (
-                <AgentProgressCard message={msg} compact taskState={agentTaskState} />
+                <AgentProgressCard message={msg} compact taskState={liveAgentTaskState} />
               ) : null}
             <ChatMessage
               key={msg.id}
