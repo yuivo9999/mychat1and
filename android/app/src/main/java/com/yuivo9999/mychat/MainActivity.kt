@@ -369,6 +369,69 @@ class AndroidBridge(
             source.inputStream().use { input -> FileOutputStream(destination).use { output -> input.copyTo(output) } }
         }
     }
+
+    /**
+     * Split npm/npx arguments without destroying quoted values.
+     *
+     * This is intentionally a small shell-like tokenizer, not a full shell parser:
+     * npm commands are launched directly through ProcessBuilder, so shell operators
+     * such as pipes and redirects are not interpreted here.
+     */
+    private fun splitCommandArgs(input: String): List<String> {
+        val args = mutableListOf<String>()
+        val current = StringBuilder()
+        var quote: Char? = null
+        var escaping = false
+
+        fun flush() {
+            if (current.isNotEmpty()) {
+                args.add(current.toString())
+                current.setLength(0)
+            }
+        }
+
+        for (ch in input) {
+            when (quote) {
+                '\'' -> {
+                    if (ch == '\'') {
+                        quote = null
+                    } else {
+                        current.append(ch)
+                    }
+                }
+                '"' -> {
+                    if (escaping) {
+                        current.append(ch)
+                        escaping = false
+                    } else if (ch == '\\') {
+                        escaping = true
+                    } else if (ch == '"') {
+                        quote = null
+                    } else {
+                        current.append(ch)
+                    }
+                }
+                else -> {
+                    if (escaping) {
+                        current.append(ch)
+                        escaping = false
+                    } else {
+                        when {
+                            ch == '\\' -> escaping = true
+                            ch == '\'' || ch == '"' -> quote = ch
+                            ch.isWhitespace() -> flush()
+                            else -> current.append(ch)
+                        }
+                    }
+                }
+            }
+        }
+
+        if (escaping) current.append('\\')
+        require(quote == null) { "命令参数引号未闭合" }
+        flush()
+        return args
+    }
     private fun classifyNpmFailure(stderr: String, stdout: String, error: String): String {
         val text = (stderr + "\n" + stdout + "\n" + error).lowercase()
         return when {
@@ -392,7 +455,8 @@ class AndroidBridge(
         val processBuilder = if (npmCli != null) {
             val isNpx = trimmed == "npx" || trimmed.startsWith("npx ")
             val rawArgs = if (isNpx) trimmed.removePrefix("npx").trim() else trimmed.removePrefix("npm").trim()
-            val args = if (isNpx) listOf("exec", "--") + rawArgs.split(Regex("\\s+")).filter { it.isNotBlank() } else rawArgs.split(Regex("\\s+")).filter { it.isNotBlank() }
+            val parsedArgs = splitCommandArgs(rawArgs)
+            val args = if (isNpx) listOf("exec", "--") + parsedArgs else parsedArgs
             ProcessBuilder(listOf(nodeBinary.absolutePath, npmCli.absolutePath) + args)
         } else {
             ProcessBuilder("sh", "-c", trimmed)
@@ -674,7 +738,8 @@ class AndroidBridge(
             val processBuilder = if (npmCli != null) {
                 val isNpx = trimmed == "npx" || trimmed.startsWith("npx ")
                 val rawArgs = if (isNpx) trimmed.removePrefix("npx").trim() else trimmed.removePrefix("npm").trim()
-                val args = if (isNpx) listOf("exec", "--") + rawArgs.split(Regex("\\s+")).filter { it.isNotBlank() } else rawArgs.split(Regex("\\s+")).filter { it.isNotBlank() }
+            val parsedArgs = splitCommandArgs(rawArgs)
+            val args = if (isNpx) listOf("exec", "--") + parsedArgs else parsedArgs
                 if (args.isEmpty()) ProcessBuilder(nodeBinary.absolutePath, npmCli.absolutePath)
                 else ProcessBuilder(listOf(nodeBinary.absolutePath, npmCli.absolutePath) + args)
             } else if (trimmed.startsWith("node -e ")) {
@@ -698,6 +763,8 @@ class AndroidBridge(
                     environment()["HOME"] = activity.filesDir.absolutePath
                     environment()["npm_config_cache"] = File(activity.filesDir, "npm-cache").absolutePath
                     environment()["npm_config_prefix"] = File(activity.filesDir, "npm-global").absolutePath
+                    environment()["npm_config_audit"] = "false"
+                    environment()["npm_config_fund"] = "false"
                     environment()["TMPDIR"] = activity.cacheDir.absolutePath
                     val nodeLauncher = ensureNodeLauncher()
                     environment()["PATH"] = nodeLauncher.parentFile!!.absolutePath +
