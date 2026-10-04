@@ -156,6 +156,19 @@ export interface Project {
   };
 }
 
+export type AgentTaskStatus = 'running' | 'paused' | 'waiting_user' | 'completed' | 'stopped' | 'failed';
+
+export interface AgentTaskState {
+  taskId: string;
+  status: AgentTaskStatus;
+  phase: string;
+  round: number;
+  maxRounds: number;
+  progressSummary?: string;
+  pauseReason?: string;
+  updatedAt: number;
+}
+
 export interface Conversation {
   id: string;
   title: string;
@@ -172,6 +185,7 @@ export interface Conversation {
   parameters?: ModelParameters;
   webAccessEnabled?: boolean;
   agentMode?: boolean; // 启用 Agent 自动化工作区模式
+  agentTask?: AgentTaskState; // Agent 任务检查点：用于暂停/继续与 Android 页面重建后的恢复提示
   workspaceId?: string; // 关联绑定的工作区 ID (Chat A 和 Chat B 可绑定同一工作区，但聊天记忆严格隔离)
   chatContext?: ChatContext; // 当前 Chat 独占的会话上下文记忆（工作笔记、任务状态、需求，不与其它 Chat 共享）
   messages: Message[];
