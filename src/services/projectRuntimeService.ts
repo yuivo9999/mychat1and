@@ -49,7 +49,7 @@ export function inspectProjectRuntime(workspace: Workspace): ProjectRuntimeInfo 
     if (scripts.includes('test')) checkCommands.push('npm test');
     if (scripts.includes('build')) checkCommands.push('npm run build');
     if (checkCommands.length === 0) {
-      checkCommands.push('node -e "console.log(\\'Node.js project detected; no build/test script configured.\\')"');
+      checkCommands.push(`node -e "console.log('Node.js project detected; no build/test script configured.')"`);
     }
 
     const dependencyInstallCommand = packageManager === 'npm'
@@ -61,7 +61,7 @@ export function inspectProjectRuntime(workspace: Workspace): ProjectRuntimeInfo 
       packageManager,
       manifest: 'package.json',
       scripts,
-      entrypoints: ['package.json', ...paths.filter(p => /^(src\\/)?(main|index|App)\\.(tsx?|jsx?)$/.test(p)).slice(0, 10)],
+      entrypoints: ['package.json', ...paths.filter(p => /^(src\/)?(main|index|App)\.(tsx?|jsx?)$/.test(p)).slice(0, 10)],
       dependencyInstallCommand,
       checkCommands,
       checkStrategy: packageManager === 'npm' ? 'shell' : 'unsupported',
