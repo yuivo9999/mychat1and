@@ -1307,20 +1307,41 @@ export default function App() {
                   stepTitle: "运行时工具被拒绝 (脚本权限未开启)"
                 };
               } else if (tc.tool === 'search_local_memory') {
-                const memoryResult = searchLocalMemory(conversations, {
-                  query: String(tc.args.query || ''),
-                  projectId: tc.args.projectId || targetConv.projectId,
-                  conversationId: tc.args.conversationId,
-                  dateFrom: typeof tc.args.dateFrom === 'number' ? tc.args.dateFrom : undefined,
-                  dateTo: typeof tc.args.dateTo === 'number' ? tc.args.dateTo : undefined,
-                  limit: tc.args.limit,
-                });
-                outcome = {
-                  result: memoryResult,
-                  updatedWorkspace: wsToOperate,
-                  stepIcon: 'search' as const,
-                  stepTitle: '历史对话检索完成：' + memoryResult.results.length + ' 条相关片段',
-                };
+                if (!historySearchEnabled) {
+                  outcome = {
+                    result: null,
+                    updatedWorkspace: wsToOperate,
+                    errorMessage: '历史对话搜索未开启。',
+                    stepIcon: 'search' as const,
+                    stepTitle: '历史对话搜索被设置关闭',
+                  };
+                } else {
+                  // Memory search is scoped to the active project and excludes the current turn.
+                  const searchableConversations = conversations.map((conversation) => {
+                    if (conversation.id !== targetConv.id) return conversation;
+                    return {
+                      ...conversation,
+                      messages: conversation.messages.filter(
+                        (message) => message.id !== userMessage.id && message.id !== assistantMsgId
+                      ),
+                    };
+                  });
+
+                  const memoryResult = searchLocalMemory(searchableConversations, {
+                    query: String(tc.args.query || ''),
+                    projectId: targetConv.projectId,
+                    conversationId: tc.args.conversationId === targetConv.id ? targetConv.id : undefined,
+                    dateFrom: typeof tc.args.dateFrom === 'number' ? tc.args.dateFrom : undefined,
+                    dateTo: typeof tc.args.dateTo === 'number' ? tc.args.dateTo : undefined,
+                    limit: tc.args.limit,
+                  });
+                  outcome = {
+                    result: memoryResult,
+                    updatedWorkspace: wsToOperate,
+                    stepIcon: 'search' as const,
+                    stepTitle: '历史对话检索完成：' + memoryResult.results.length + ' 条相关片段',
+                  };
+                }
               } else if (!workspaceAgentEnabled || !wsToOperate) {
                 outcome = {
                   result: null,
@@ -1364,7 +1385,9 @@ export default function App() {
               // Format clean markdown code block / structured outcome for AI ingestion
               toolResultsForPrompt.push(
                 tc.tool === 'search_local_memory'
-                  ? formatLocalMemorySearchResult(outcome.result)
+                  ? (outcome.errorMessage
+                    ? formatToolOutcomeForModel(tc.tool, tc.args, outcome)
+                    : formatLocalMemorySearchResult(outcome.result))
                   : formatToolOutcomeForModel(tc.tool, tc.args, outcome)
               );
             }
