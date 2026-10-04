@@ -10,6 +10,7 @@ export interface ProjectRuntimeInfo {
   entrypoints: string[];
   dependencyInstallCommand?: string;
   checkCommands: string[];
+  checkStrategy: 'shell' | 'python_source' | 'unsupported';
   signals: string[];
 }
 
@@ -30,7 +31,9 @@ export function inspectProjectRuntime(workspace: Workspace): ProjectRuntimeInfo 
         scripts: [],
         entrypoints: [],
         signals: ['检测到 package.json，但 JSON 解析失败'],
-        checkCommands: ['npm install'],
+        checkCommands: [],
+        checkStrategy: 'shell',
+        dependencyInstallCommand: 'npm install',
       };
     }
 
@@ -49,17 +52,22 @@ export function inspectProjectRuntime(workspace: Workspace): ProjectRuntimeInfo 
       checkCommands.push('node -e "console.log(\\'Node.js project detected; no build/test script configured.\\')"');
     }
 
+    const dependencyInstallCommand = packageManager === 'npm' ? 'npm install' : undefined;
+
     return {
       kind: 'node',
       packageManager,
       manifest: 'package.json',
       scripts,
       entrypoints: ['package.json', ...paths.filter(p => /^(src\\/)?(main|index|App)\\.(tsx?|jsx?)$/.test(p)).slice(0, 10)],
-      dependencyInstallCommand: 'npm install',
+      dependencyInstallCommand,
       checkCommands,
+      checkStrategy: 'shell',
       signals: [
         '检测到 package.json',
-        packageManager === 'npm' ? '使用 npm runtime' : '检测到非 npm 锁文件；Android runtime 将兼容性降级为 npm install',
+        packageManager === 'npm'
+          ? '使用 npm runtime'
+          : `检测到 ${packageManager} 锁文件；当前 Android runtime 仅保证 npm，不会错误地用 npm install 替代 ${packageManager}`,
       ],
     };
   }
@@ -70,8 +78,9 @@ export function inspectProjectRuntime(workspace: Workspace): ProjectRuntimeInfo 
       manifest: has(workspace, 'pyproject.toml') ? 'pyproject.toml' : has(workspace, 'requirements.txt') ? 'requirements.txt' : undefined,
       scripts: [],
       entrypoints: paths.filter(p => p.endsWith('.py')).slice(0, 20),
-      checkCommands: ['python -m compileall .'],
-      signals: ['检测到 Python 项目文件'],
+      checkCommands: ['Python compileall'],
+      checkStrategy: 'python_source',
+      signals: ['检测到 Python 项目文件', '项目检查通过 MyChat 原生 Python runtime 执行'],
     };
   }
 
@@ -81,8 +90,9 @@ export function inspectProjectRuntime(workspace: Workspace): ProjectRuntimeInfo 
       manifest: 'Cargo.toml',
       scripts: [],
       entrypoints: [],
-      checkCommands: ['cargo check'],
-      signals: ['检测到 Cargo.toml'],
+      checkCommands: [],
+      checkStrategy: 'unsupported',
+      signals: ['检测到 Cargo.toml', 'Android runtime 当前未内置 Rust/Cargo toolchain，禁止伪装成可执行检查'],
     };
   }
 
@@ -92,8 +102,9 @@ export function inspectProjectRuntime(workspace: Workspace): ProjectRuntimeInfo 
       manifest: 'go.mod',
       scripts: [],
       entrypoints: [],
-      checkCommands: ['go test ./...'],
-      signals: ['检测到 go.mod'],
+      checkCommands: [],
+      checkStrategy: 'unsupported',
+      signals: ['检测到 go.mod', 'Android runtime 当前未内置 Go toolchain，禁止伪装成可执行检查'],
     };
   }
 
@@ -102,6 +113,7 @@ export function inspectProjectRuntime(workspace: Workspace): ProjectRuntimeInfo 
     scripts: [],
     entrypoints: [],
     checkCommands: [],
+    checkStrategy: 'unsupported',
     signals: ['未识别到常见项目清单文件'],
   };
 }
@@ -116,6 +128,7 @@ export function buildProjectRuntimeReport(workspace: Workspace): string {
     entrypoints: info.entrypoints,
     dependencyInstallCommand: info.dependencyInstallCommand,
     checkCommands: info.checkCommands,
+    checkStrategy: info.checkStrategy,
     signals: info.signals,
   }, null, 2);
 }
