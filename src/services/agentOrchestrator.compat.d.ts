@@ -1,4 +1,4 @@
-import type { AgentResearchState } from './agentOrchestrator';
+import type { AgentResearchState, AgentTaskPlan } from './agentOrchestrator';
 
 declare module './agentOrchestrator' {
   export function buildAgentTaskPlanPrompt(goal: string, research?: AgentResearchState): string;
