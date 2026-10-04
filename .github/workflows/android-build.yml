@@ -100,5 +100,5 @@ jobs:
               adb logcat -d -v brief
               exit 1
             fi
-            adb shell dumpsys package com.yuivo9999.mychat | grep -q "versionName=0.1.3"
+            adb shell dumpsys package com.yuivo9999.mychat | grep -q "versionName=0.1.4"
             adb logcat -d -v brief | grep -q "MYCHAT_SMOKE_TEST_PASS"
