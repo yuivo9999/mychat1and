@@ -994,80 +994,33 @@ export async function executeWorkspaceTool(
           workspaceId: ws.id,
         });
 
-        if (runData.runtime === 'android') {
-          if (runData.success) {
-            return {
-              result: {
-                stdout: runData.stdout,
-                stderr: runData.stderr,
-                exitCode: runData.exitCode,
-                runtime: runData.runtime,
-              },
-              updatedWorkspace: ws,
-              stepIcon: 'lightning',
-              stepTitle: `成功执行终端命令: ${command}`,
-            };
-          }
-
+        if (runData.success) {
           return {
             result: {
               stdout: runData.stdout,
               stderr: runData.stderr,
               exitCode: runData.exitCode,
-              error: runData.error,
               runtime: runData.runtime,
             },
             updatedWorkspace: ws,
-            errorMessage: runData.error || runData.stderr || `命令执行失败，退出码: ${runData.exitCode}`,
             stepIcon: 'lightning',
-            stepTitle: `命令执行出错: ${command}`,
+            stepTitle: `成功执行终端命令: ${command}`,
           };
         }
 
-        const res = await fetch('/api/execute-script', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ command }),
-        });
-
-        if (res.ok) {
-          const serverData = await res.json();
-          const runData = serverData;
-          if (runData.success) {
-            return {
-              result: {
-                stdout: runData.stdout,
-                stderr: runData.stderr,
-                exitCode: runData.exitCode,
-              },
-              updatedWorkspace: ws,
-              stepIcon: 'lightning',
-              stepTitle: `成功执行终端命令: ${command}`,
-            };
-          } else {
-            return {
-              result: {
-                stdout: runData.stdout,
-                stderr: runData.stderr,
-                exitCode: runData.exitCode,
-                error: runData.error,
-              },
-              updatedWorkspace: ws,
-              errorMessage: runData.error || runData.stderr || `命令执行失败，退出码: ${runData.exitCode}`,
-              stepIcon: 'lightning',
-              stepTitle: `命令执行出错: ${command}`,
-            };
-          }
-        } else {
-          const errText = await res.text();
-          return {
-            result: null,
-            updatedWorkspace: ws,
-            errorMessage: `无法连接到编译执行后端服务: ${errText}`,
-            stepIcon: 'lightning',
-            stepTitle: `连接终端服务失败: ${command}`,
-          };
-        }
+        return {
+          result: {
+            stdout: runData.stdout,
+            stderr: runData.stderr,
+            exitCode: runData.exitCode,
+            error: runData.error,
+            runtime: runData.runtime,
+          },
+          updatedWorkspace: ws,
+          errorMessage: runData.error || runData.stderr || `命令执行失败，退出码: ${runData.exitCode}`,
+          stepIcon: 'lightning',
+          stepTitle: `命令执行出错: ${command}`,
+        };
       } catch (e: any) {
         return {
           result: null,
