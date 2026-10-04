@@ -31,3 +31,8 @@ pnpm-debug.log*
 # OS metadata
 .DS_Store
 Thumbs.db
+
+# Android build-generated Node runtime binaries
+android/_runtime_src/
+android/app/src/main/jniLibs/
+android/app/src/main/assets/www/
