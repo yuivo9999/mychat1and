@@ -7,7 +7,9 @@ pluginManagement {
 }
 
 dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    // Capacitor Android currently declares its own Google/Maven repositories.
+    // Prefer this centralized list while allowing compatible plugin build scripts.
+    repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
     repositories {
         google()
         mavenCentral()
