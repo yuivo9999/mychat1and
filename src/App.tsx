@@ -16,7 +16,8 @@ import {
   ChatContext,
   ToolCallExecution,
   Project,
-  ProjectMemoryMode
+  ProjectMemoryMode,
+  AgentTaskState
 } from './types';
 import { 
   getWorkspaces,
@@ -172,6 +173,10 @@ export default function App() {
 
   // Abort Controller ref for stopping generation
   const abortControllerRef = useRef<AbortController | null>(null);
+  // Cooperative Agent controls: pause only at safe round boundaries, resume without losing the task loop.
+  const agentPauseRequestedRef = useRef(false);
+  const agentResumeWaiterRef = useRef<(() => void) | null>(null);
+  const agentTaskIdRef = useRef<string | null>(null);
 
   // Check viewport width
   useEffect(() => {
@@ -608,14 +613,77 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleNewChat]);
 
+  const persistAgentTaskState = async (conversationId: string, task: AgentTaskState | undefined) => {
+    setConversations(prev => prev.map(c => c.id === conversationId ? { ...c, agentTask: task, updatedAt: Date.now() } : c));
+    const conv = conversations.find(c => c.id === conversationId);
+    if (conv) await saveConversation({ ...conv, agentTask: task, updatedAt: Date.now() });
+  };
+
+  const handlePauseAgent = async () => {
+    if (!isGenerating || !agentTaskIdRef.current || !currentConversation) return;
+    agentPauseRequestedRef.current = true;
+    const existing = currentConversation.agentTask;
+    const pausedTask: AgentTaskState = {
+      taskId: agentTaskIdRef.current,
+      status: 'paused',
+      phase: existing?.phase || 'planning',
+      round: existing?.round || 0,
+      maxRounds: existing?.maxRounds || 12,
+      progressSummary: statusMessage || '已在安全轮次边界请求暂停',
+      pauseReason: '用户手动暂停 Agent',
+      updatedAt: Date.now(),
+    };
+    await persistAgentTaskState(currentConversation.id, pausedTask);
+    setStatusMessage('Agent 已请求暂停，将在当前模型调用结束后安全暂停。');
+  };
+
+  const handleResumeAgent = async () => {
+    if (!currentConversation?.agentTask) return;
+    agentPauseRequestedRef.current = false;
+    const waiter = agentResumeWaiterRef.current;
+    agentResumeWaiterRef.current = null;
+    if (waiter) waiter();
+
+    if (isGenerating) {
+      const runningTask = { ...currentConversation.agentTask, status: 'running' as const, pauseReason: undefined, updatedAt: Date.now() };
+      await persistAgentTaskState(currentConversation.id, runningTask);
+      setStatusMessage('Agent 已继续，将从下一个安全阶段恢复。');
+      return;
+    }
+
+    // Android 页面/进程重建后，原 Promise 已不存在；用最后一条用户任务创建一个受控续接回合。
+    const lastUserMessage = [...currentConversation.messages].reverse().find(m => m.role === 'user');
+    if (lastUserMessage) {
+      await persistAgentTaskState(currentConversation.id, { ...currentConversation.agentTask, status: 'running', pauseReason: undefined, updatedAt: Date.now() });
+      await handleSendMessage(
+        `[Agent 任务续接]\n请继续完成上一轮 Agent 任务。已有工作区修改与验证结果保持有效；不要重复已经完成的步骤，先读取当前工作区状态与最近工具结果，再从“${currentConversation.agentTask.phase}”阶段继续，直到完成或确实需要用户决策。\n\n原任务：${lastUserMessage.content}`,
+        [],
+        currentConversation,
+      );
+    }
+  };
+
   // Stop Generation
   const handleStopGeneration = () => {
+    agentPauseRequestedRef.current = false;
+    const waiter = agentResumeWaiterRef.current;
+    agentResumeWaiterRef.current = null;
+    if (waiter) waiter();
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
+    if (currentConversation?.agentTask && isGenerating) {
+      void persistAgentTaskState(currentConversation.id, {
+        ...currentConversation.agentTask,
+        status: 'stopped',
+        pauseReason: '用户手动停止 Agent',
+        updatedAt: Date.now(),
+      });
+    }
     setIsGenerating(false);
     setConnectionStatus('configured');
+    agentTaskIdRef.current = null;
   };
 
   // Send Message Core Engine
@@ -1167,6 +1235,20 @@ export default function App() {
           ? 6
           : 1;
       let agentLoopState: AgentLoopState = createAgentLoopState(maxAgentTurns);
+      const agentTaskId = workspaceAgentEnabled ? `agent_${Date.now()}_${Math.random().toString(36).slice(2, 8)}` : null;
+      agentTaskIdRef.current = agentTaskId;
+      if (agentTaskId) {
+        const initialTask: AgentTaskState = {
+          taskId: agentTaskId,
+          status: 'running',
+          phase: agentLoopState.phase,
+          round: 0,
+          maxRounds: maxAgentTurns,
+          progressSummary: 'Agent 任务已启动',
+          updatedAt: Date.now(),
+        };
+        await persistAgentTaskState(targetConv.id, initialTask);
+      }
       let finalFullText = '';
       let cumulativeAssistantNarrative = '';
       let validationFailureCount = 0;
@@ -1426,6 +1508,18 @@ export default function App() {
               );
             agentLoopState = advanceAgentLoopState(agentLoopState, progressKind, hasMeaningfulProgress);
 
+            if (agentTaskId) {
+              await persistAgentTaskState(targetConv.id, {
+                taskId: agentTaskId,
+                status: 'running',
+                phase: agentLoopState.phase,
+                round: agentLoopState.round,
+                maxRounds: maxAgentTurns,
+                progressSummary: getAgentPhaseLabel(agentLoopState.phase),
+                updatedAt: Date.now(),
+              });
+            }
+
             if (shouldProtectAgainstNoProgress(agentLoopState)) {
               toolResultsForPrompt.push(
                 '### Agent 防空转保护已触发\\n连续多个阶段没有产生新的可验证进展。请停止重复搜索/重复工具调用，整理当前证据并总结阻塞点；只有出现新的证据或用户输入后才能继续。'
@@ -1467,6 +1561,33 @@ export default function App() {
             // intentionally not a human wait: unless user input is genuinely required,
             // the next turn starts automatically.
             await new Promise<void>(resolve => setTimeout(resolve, getAgentPauseDelayMs(agentLoopState)));
+            if (agentPauseRequestedRef.current) {
+              if (agentTaskId) {
+                await persistAgentTaskState(targetConv.id, {
+                  taskId: agentTaskId,
+                  status: 'paused',
+                  phase: agentLoopState.phase,
+                  round: agentLoopState.round,
+                  maxRounds: maxAgentTurns,
+                  progressSummary: getAgentPhaseLabel(agentLoopState.phase),
+                  pauseReason: '用户手动暂停 Agent，已停在安全轮次边界',
+                  updatedAt: Date.now(),
+                });
+              }
+              setStatusMessage(`Agent 已暂停 · ${getAgentPhaseLabel(agentLoopState.phase)} · 第 ${agentLoopState.round}/${maxAgentTurns} 轮`);
+              await new Promise<void>(resolve => { agentResumeWaiterRef.current = resolve; });
+              if (agentTaskId) {
+                await persistAgentTaskState(targetConv.id, {
+                  taskId: agentTaskId,
+                  status: 'running',
+                  phase: agentLoopState.phase,
+                  round: agentLoopState.round,
+                  maxRounds: maxAgentTurns,
+                  progressSummary: '用户已继续 Agent 任务',
+                  updatedAt: Date.now(),
+                });
+              }
+            }
             continue; // Continue loop
           }
         }
@@ -1593,6 +1714,17 @@ export default function App() {
         }
       }
 
+      if (agentTaskId) {
+        await persistAgentTaskState(targetConv.id, {
+          taskId: agentTaskId,
+          status: 'completed',
+          phase: 'completed',
+          round: agentLoopState.round,
+          maxRounds: maxAgentTurns,
+          progressSummary: 'Agent 任务完成',
+          updatedAt: Date.now(),
+        });
+      }
       setConnectionStatus('success');
       setStatusMessage('响应完成');
     } catch (err: any) {
@@ -1612,6 +1744,18 @@ export default function App() {
           saveConversation(finalConv);
           return finalConv;
         }));
+        if (agentTaskId) {
+          await persistAgentTaskState(targetConv.id, {
+            taskId: agentTaskId,
+            status: 'stopped',
+            phase: agentLoopState.phase,
+            round: agentLoopState.round,
+            maxRounds: maxAgentTurns,
+            progressSummary: 'Agent 任务已停止',
+            pauseReason: '请求被用户停止',
+            updatedAt: Date.now(),
+          });
+        }
         setConnectionStatus('configured');
       } else {
         // Error occurred
@@ -1631,12 +1775,25 @@ export default function App() {
           saveConversation(finalConv);
           return finalConv;
         }));
+        if (agentTaskId) {
+          await persistAgentTaskState(targetConv.id, {
+            taskId: agentTaskId,
+            status: 'failed',
+            phase: agentLoopState.phase,
+            round: agentLoopState.round,
+            maxRounds: maxAgentTurns,
+            progressSummary: 'Agent 任务异常结束',
+            pauseReason: errMsg,
+            updatedAt: Date.now(),
+          });
+        }
         setConnectionStatus('error');
         setStatusMessage(errMsg);
       }
     } finally {
       setIsGenerating(false);
       abortControllerRef.current = null;
+      if (!isGenerating) agentTaskIdRef.current = null;
     }
   };
 
@@ -2503,6 +2660,23 @@ export default function App() {
             </svg>
           </div>
         </div>
+
+        {/* Persistent Agent task control bar */}
+        {currentConversation?.agentTask && ['running', 'paused', 'waiting_user'].includes(currentConversation.agentTask.status) && (
+          <div className="mx-auto w-full max-w-4xl px-3 md:px-6 pt-2">
+            <div className="flex items-center gap-2 rounded-xl border border-neutral-200/70 dark:border-neutral-700/70 bg-white/80 dark:bg-neutral-900/80 backdrop-blur px-3 py-2 text-xs shadow-sm">
+              <span className="font-medium">Agent · {currentConversation.agentTask.phase}</span>
+              <span className="text-neutral-500">第 {currentConversation.agentTask.round}/{currentConversation.agentTask.maxRounds} 轮</span>
+              <span className="flex-1 truncate text-neutral-500">{currentConversation.agentTask.pauseReason || currentConversation.agentTask.progressSummary || '自动执行中'}</span>
+              {currentConversation.agentTask.status === 'paused' || currentConversation.agentTask.status === 'waiting_user' ? (
+                <button type="button" onClick={handleResumeAgent} className="rounded-lg border px-3 py-1.5 font-medium hover:bg-neutral-100 dark:hover:bg-neutral-800">继续 Agent</button>
+              ) : (
+                <button type="button" onClick={handlePauseAgent} className="rounded-lg border px-3 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800">暂停</button>
+              )}
+              {isGenerating && <button type="button" onClick={handleStopGeneration} className="rounded-lg border px-3 py-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30">停止</button>}
+            </div>
+          </div>
+        )}
 
         {/* Message Stream Central Area */}
         <MessageList
