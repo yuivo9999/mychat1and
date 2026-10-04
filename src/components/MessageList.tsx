@@ -107,7 +107,7 @@ export const MessageList: React.FC<MessageListProps> = ({
           {messages.map((msg, index) => (
             <React.Fragment key={msg.id}>
               {!msg.role || (msg.role === 'assistant' && index === messages.length - 1) ? (
-                <AgentProgressCard message={msg} compact taskState={liveAgentTaskState} />
+                <AgentProgressCard message={msg} compact taskState={liveAgentTaskState} onContinue={onContinue} />
               ) : null}
             <ChatMessage
               key={msg.id}
