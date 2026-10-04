@@ -1,4 +1,4 @@
-import { Project, Conversation, ProjectMemoryRecord } from '../types';
+import { Project, Conversation, ProjectMemoryRecord, ProjectMemoryCategory } from '../types';
 import { extractKeyDecisionsFromTurn } from './chatContextService';
 
 const MAX_ACTIVE_MEMORY_RECORDS = 20;
