@@ -125,28 +125,33 @@ export const AgentProgressCard: React.FC<AgentProgressCardProps> = ({ message, c
   const progressLines = [payload.summary, payload.currentStep, payload.result, payload.nextStep]
     .filter((value): value is string => Boolean(value?.trim()))
     .filter((value, index, values) => values.indexOf(value) === index);
+  const pauseReason = taskState?.pauseReason?.trim();
 
   const phaseLabels: Record<string, string> = {
     planning: '规划', exploring: '探索', implementing: '实施', verifying: '验证',
     fixing: '修复', reverifying: '再验证', memory_audit: '记忆审计', waiting_user: '等待用户', completed: '完成',
   };
   const statusLabel = payload.status === 'waiting_user' || payload.phase === 'waiting_user'
-    ? '等待用户'
-    : payload.status === 'blocked' || blocked
-      ? '已阻塞'
-      : payload.status === 'completed' || payload.phase === 'completed'
-        ? '已完成'
-        : message.status === 'streaming' || hasRunningTools || active
-          ? '执行中'
-          : completed === items.length
-            ? '本轮完成'
-            : '已更新';
+    ? '等待你的指示'
+    : payload.status === 'paused'
+      ? '已暂停'
+      : payload.status === 'stopped'
+        ? '已停止'
+        : payload.status === 'blocked' || blocked
+          ? '已阻塞'
+          : payload.status === 'completed' || payload.phase === 'completed'
+            ? '已完成'
+            : message.status === 'streaming' || hasRunningTools || active
+              ? '执行中'
+              : completed === items.length
+                ? '本轮完成'
+                : '已更新';
 
   const statusIcon = blocked
     ? <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
     : statusLabel === '执行中'
       ? <Loader2 className="w-3.5 h-3.5 text-indigo-500 animate-spin" />
-      : statusLabel === '本轮完成'
+      : statusLabel === '已完成' || statusLabel === '本轮完成'
         ? <Check className="w-3.5 h-3.5 text-emerald-500" />
         : <PauseCircle className="w-3.5 h-3.5 text-neutral-400" />;
 
@@ -200,6 +205,12 @@ export const AgentProgressCard: React.FC<AgentProgressCardProps> = ({ message, c
             </div>
           );
         })}
+        {(payload.status === 'waiting_user' || payload.status === 'paused') && pauseReason && (
+          <div className="mt-2 pt-2 border-t border-neutral-100 dark:border-neutral-800 text-[10px] leading-relaxed text-neutral-500 dark:text-neutral-400">
+            <span className="font-medium text-neutral-600 dark:text-neutral-300">暂停原因：</span>{pauseReason}
+          </div>
+        )}
+
         {latestCompleted && !active && (
           <div className="mt-2 pt-2 border-t border-neutral-100 dark:border-neutral-800 text-[10px] leading-relaxed text-neutral-500 dark:text-neutral-400">
             <span className="font-medium text-neutral-600 dark:text-neutral-300">最新完成：</span>{latestCompleted.evidence}
