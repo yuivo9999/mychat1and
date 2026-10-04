@@ -153,9 +153,9 @@ if (transpiled.diagnostics && transpiled.diagnostics.length) {
       // Android does not expose a system "python3" executable. The Python
       // interpreter is embedded by Chaquopy, so translate the common shell
       // forms emitted by models back into source execution before invoking sh.
-      if (/^(?:python3?|py)(?:\\s|$)/i.test(trimmed)
+      if (/^(?:python3?|py)(?:\s|$)/i.test(trimmed)
           && window.MyChatAndroid.executePython) {
-        const pythonCommand = trimmed.replace(/^(?:python3?|py)\\s*/i, '');
+        const pythonCommand = trimmed.replace(/^(?:python3?|py)\s*/i, '');
 
         if (!pythonCommand) {
           return {
@@ -169,21 +169,21 @@ if (transpiled.diagnostics && transpiled.diagnostics.length) {
         }
 
         let pythonCode: string | null = null;
-        if (/^-c(?:\\s|$)/i.test(pythonCommand)) {
-          const expression = pythonCommand.replace(/^-c\\s*/i, '').trim();
+        if (/^-c(?:\s|$)/i.test(pythonCommand)) {
+          const expression = pythonCommand.replace(/^-c\s*/i, '').trim();
           // Models normally emit a single shell-quoted argument. Decode the
           // surrounding quotes without invoking a shell, keeping Python code
           // such as print("hello") intact.
           if ((expression.startsWith('"') && expression.endsWith('"'))
               || (expression.startsWith("'") && expression.endsWith("'"))) {
             pythonCode = expression.slice(1, -1)
-              .replace(/\\\\([\\"'])/g, '$1')
-              .replace(/\\\\n/g, '\\n');
+              .replace(/\\([\\"'])/g, '$1')
+              .replace(/\n/g, '\n');
           } else {
             pythonCode = expression;
           }
-        } else if (/^(?:-u\\s+)?[^\\s]+\\.py(?:\\s|$)/i.test(pythonCommand)) {
-          const scriptPath = pythonCommand.replace(/^-u\\s+/i, '').split(/\\s+/)[0];
+        } else if (/^(?:-u\s+)?[^\s]+\\.py(?:\s|$)/i.test(pythonCommand)) {
+          const scriptPath = pythonCommand.replace(/^-u\s+/i, '').split(/\s+/)[0];
           const file = await readWorkspaceFile(request.workspaceId ?? '', scriptPath);
           if (file?.exists && typeof file.content === 'string') {
             pythonCode = file.content;
