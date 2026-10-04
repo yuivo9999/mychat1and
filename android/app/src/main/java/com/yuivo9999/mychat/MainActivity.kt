@@ -434,7 +434,8 @@ class AndroidBridge(
             val packageJson = File(root, "package.json")
             require(packageJson.isFile) { "当前工作区没有 package.json" }
             val packageLock = File(root, "package-lock.json")
-            val command = if (packageLock.isFile) "npm ci --no-audit --no-fund" else "npm install --no-audit --no-fund"
+            val hadExistingLockfile = packageLock.isFile
+            val command = if (hadExistingLockfile) "npm ci --no-audit --no-fund" else "npm install --no-audit --no-fund"
             val nodeModules = File(root, "node_modules")
             val backup = File(root, ".mychat-runtime/node_modules.backup")
             backup.parentFile?.mkdirs()
@@ -452,6 +453,9 @@ class AndroidBridge(
             } else {
                 if (nodeModules.exists()) nodeModules.deleteRecursively()
                 if (hadExisting && backup.exists()) check(backup.renameTo(nodeModules)) { "依赖安装失败，且旧 node_modules 恢复失败" }
+                if (!hadExistingLockfile && packageLock.exists()) {
+                    check(packageLock.delete()) { "依赖安装失败，且新生成的 package-lock.json 清理失败" }
+                }
             }
             JSONObject().apply {
                 put("success", success)
@@ -461,6 +465,7 @@ class AndroidBridge(
                 put("exitCode", (result["exitCode"] as? Number)?.toInt() ?: -1)
                 if (result["error"] != null) put("error", result["error"].toString())
                 put("recoveredPreviousDependencies", !success && hadExisting && nodeModules.isDirectory)
+                put("generatedLockfileRolledBack", !success && !hadExistingLockfile)
                 put("failureCategory", if (success) JSONObject.NULL else classifyNpmFailure(result["stderr"]?.toString() ?: "", result["stdout"]?.toString() ?: "", result["error"]?.toString() ?: ""))
             }.toString()
         } catch (e: Throwable) {
