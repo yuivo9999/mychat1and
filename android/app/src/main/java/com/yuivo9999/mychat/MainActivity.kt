@@ -696,7 +696,7 @@ class AndroidBridge(
             val deadline = System.currentTimeMillis() + timeoutMs.coerceIn(1000, 15000)
             while (runtime.port == null && runtime.status == "starting" && System.currentTimeMillis() < deadline) Thread.sleep(100)
             JSONObject().put("success", true).put("workspaceId", workspaceId).put("status", runtime.status)
-                .put("port", runtime.port ?: JSONObject.NULL).put("command", command).put("pid", process.pid()).toString()
+                .put("port", runtime.port ?: JSONObject.NULL).put("command", command).put("pid", JSONObject.NULL).toString()
         } catch (e: Throwable) {
             JSONObject().put("success", false).put("error", e.message ?: e.javaClass.simpleName).toString()
         }
@@ -1011,8 +1011,8 @@ class AndroidBridge(
         val clipboard = activity.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as ClipboardManager
         val previous = clipboard.primaryClip
         clipboard.setPrimaryClip(ClipData.newPlainText("MyChat Agent input", text))
-        webView.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_V, KeyEvent.META_CTRL_ON))
-        webView.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_V, KeyEvent.META_CTRL_ON))
+        webView.dispatchKeyEvent(KeyEvent(SystemClock.uptimeMillis(), SystemClock.uptimeMillis(), KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_V, 0, KeyEvent.META_CTRL_ON))
+        webView.dispatchKeyEvent(KeyEvent(SystemClock.uptimeMillis(), SystemClock.uptimeMillis(), KeyEvent.ACTION_UP, KeyEvent.KEYCODE_V, 0, KeyEvent.META_CTRL_ON))
         if (previous != null) clipboard.setPrimaryClip(previous)
     }
 
