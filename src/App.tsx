@@ -1380,6 +1380,7 @@ export default function App() {
 
           if (detectedToolCalls.length > 0) {
             const toolResultsForPrompt: string[] = [];
+            const visualAttachments: Attachment[] = [];
 
             for (let i = 0; i < detectedToolCalls.length; i++) {
               const tc = detectedToolCalls[i];
@@ -1516,6 +1517,16 @@ export default function App() {
                 status: 'completed',
               });
 
+              if (tc.tool === 'capture_project_runtime_screenshot' && outcome.result?.success === true && typeof outcome.result?.dataUrl === 'string') {
+                visualAttachments.push({
+                  id: `agent_runtime_screenshot_${turn}_${i}_${Date.now()}`,
+                  name: `project-runtime-${turn + 1}.jpg`,
+                  size: Math.round(outcome.result.dataUrl.length * 0.75),
+                  type: 'image/jpeg',
+                  dataUrl: outcome.result.dataUrl,
+                });
+              }
+
               // Format clean markdown code block / structured outcome for AI ingestion
               toolResultsForPrompt.push(
                 tc.tool === 'search_local_memory'
@@ -1629,6 +1640,7 @@ export default function App() {
               role: 'user',
               content: feedbackInstruction,
               timestamp: Date.now(),
+              ...(visualAttachments.length > 0 ? { attachments: visualAttachments } : {}),
             });
 
             if (validationFailureCount >= 3 || shouldProtectAgainstNoProgress(agentLoopState)) {
