@@ -22,10 +22,7 @@ interface GitHubIssue {
 interface GitHubFile {
   path?: string;
   html_url?: string;
-  download_url?: string | null;
   type?: string;
-  content?: string;
-  encoding?: string;
 }
 
 interface GitHubRelease {
@@ -92,20 +89,14 @@ async function requestJson(url: string, timeoutMs = 8000): Promise<NativeHttpRes
 }
 
 function cleanText(text: string, max = 1800): string {
-  return text
-    .replace(/\r/g, '')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, max);
+  return text.replace(/\r/g, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 }
 
 function decodeBase64(value: string): string {
   if (typeof atob !== 'function') return '';
   try {
     const binary = atob(value.replace(/\\n/g, ''));
-    const bytes = Uint8Array.from(binary, char => char.charCodeAt(0));
-    return new TextDecoder().decode(bytes);
+    return new TextDecoder().decode(Uint8Array.from(binary, char => char.charCodeAt(0)));
   } catch {
     return '';
   }
@@ -116,6 +107,28 @@ function looksLikeRepoRef(query: string): string | null {
   if (explicit) return explicit[1];
   const compact = query.match(/\b([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\b/);
   return compact ? compact[1] : null;
+}
+
+function tokenize(query: string): string[] {
+  return Array.from(new Set(
+    query.toLowerCase()
+      .replace(/github\.com|https?:\/\/|[^a-z0-9_\u4e00-\u9fff]+/g, ' ')
+      .split(/\s+/)
+      .filter(token => token.length >= 2),
+  )).slice(0, 18);
+}
+
+function scorePath(path: string, tokens: string[]): number {
+  const lower = path.toLowerCase();
+  let score = 0;
+  for (const token of tokens) {
+    if (lower.includes(token)) score += 12;
+  }
+  if (/package\.json$|build\.gradle|settings\.gradle|pyproject\.toml|cargo\.toml|go\.mod$/i.test(path)) score += 18;
+  if (/readme/i.test(path)) score += 8;
+  if (/(test|spec|__tests__|\.test\.|\.spec\.)/i.test(path)) score += 3;
+  if (/(src|app|lib|server|api|android|packages)\//i.test(path)) score += 5;
+  return score;
 }
 
 function pushResult(results: WebSearchResult[], title: string, url: string, snippet: string, score: number) {
@@ -136,33 +149,37 @@ async function fetchReadme(fullName: string): Promise<WebPageContent | null> {
   try {
     const data = JSON.parse(response.body);
     const content = data.content ? decodeBase64(String(data.content)) : '';
-    if (!content) return null;
-    return {
+    return content ? {
       url: data.html_url || `https://github.com/${fullName}/blob/HEAD/README.md`,
       title: `${fullName} README`,
       content: cleanText(content, 6500),
-    };
+    } : null;
   } catch {
     return null;
   }
 }
 
-async function fetchRepositoryFiles(fullName: string, branch = 'HEAD'): Promise<WebPageContent[]> {
+async function fetchRepositoryFiles(fullName: string, branch: string, query: string): Promise<WebPageContent[]> {
   const response = await requestJson(`https://api.github.com/repos/${fullName}/git/trees/${encodeURIComponent(branch)}?recursive=1`);
   if (!response.ok) return [];
+
   try {
     const data = JSON.parse(response.body);
+    const tokens = tokenize(query);
     const files: GitHubFile[] = (data.tree || [])
       .filter((item: GitHubFile) => item.type === 'blob' && item.path)
       .filter((item: GitHubFile) => /\.(ts|tsx|js|jsx|py|java|kt|kts|go|rs|swift|dart|json|gradle|xml|yml|yaml|md)$/i.test(item.path || ''))
-      .slice(0, 12);
+      .filter((item: GitHubFile) => !/(node_modules|dist|build|\.git|vendor|coverage)/i.test(item.path || ''));
 
-    const selected = files.filter(item =>
-      /(?:src|app|lib|packages|android|server|api|README|package\.json|build\.gradle)/i.test(item.path || '')
-    ).slice(0, 8);
+    const selected = files
+      .map(file => ({ file, score: scorePath(file.path || '', tokens) }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 8)
+      .map(item => item.file);
 
     const pages = await Promise.all(selected.map(async file => {
-      const url = `https://api.github.com/repos/${fullName}/contents/${String(file.path).split('/').map(encodeURIComponent).join('/')}`;
+      const path = String(file.path);
+      const url = `https://api.github.com/repos/${fullName}/contents/${path.split('/').map(encodeURIComponent).join('/')}`;
       const result = await requestJson(url);
       if (!result.ok) return null;
       try {
@@ -170,8 +187,8 @@ async function fetchRepositoryFiles(fullName: string, branch = 'HEAD'): Promise<
         const content = data.content ? decodeBase64(String(data.content)) : '';
         if (!content) return null;
         return {
-          url: data.html_url || `https://github.com/${fullName}/blob/${branch}/${file.path}`,
-          title: `${fullName} / ${file.path}`,
+          url: data.html_url || `https://github.com/${fullName}/blob/${branch}/${path}`,
+          title: `${fullName} / ${path}`,
           content: cleanText(content, 7000),
         };
       } catch {
@@ -196,12 +213,7 @@ async function fetchReleases(fullName: string, results: WebSearchResult[]): Prom
         results,
         `GitHub Release: ${fullName} ${release.tag_name}`,
         release.html_url,
-        [
-          release.name || '',
-          release.prerelease ? '预发布版本' : '正式发布',
-          release.published_at ? `发布时间：${release.published_at}` : '',
-          release.body || '',
-        ].filter(Boolean).join('；'),
+        [release.name || '', release.prerelease ? '预发布版本' : '正式发布', release.published_at ? `发布时间：${release.published_at}` : '', release.body || ''].filter(Boolean).join('；'),
         93,
       );
     }
@@ -209,6 +221,31 @@ async function fetchReleases(fullName: string, results: WebSearchResult[]): Prom
   } catch {
     return 0;
   }
+}
+
+async function fetchIssuesForRepo(fullName: string, query: string, results: WebSearchResult[]): Promise<{ issues: number; pullRequests: number }> {
+  const q = encodeURIComponent(`repo:${fullName} ${query.replace(/github\.com[/:][^\s]+/i, '').trim()}`.trim());
+  const response = await requestJson(`https://api.github.com/search/issues?q=${q}&sort=updated&order=desc&per_page=8`);
+  if (!response.ok) return { issues: 0, pullRequests: 0 };
+
+  let issues = 0;
+  let pullRequests = 0;
+  try {
+    const data = JSON.parse(response.body);
+    for (const item of (data.items || []) as GitHubIssue[]) {
+      if (!item.title || !item.html_url) continue;
+      const isPr = Boolean(item.pull_request);
+      if (isPr) pullRequests++; else issues++;
+      pushResult(
+        results,
+        `GitHub ${isPr ? 'Pull Request' : 'Issue'}: ${item.title}`,
+        item.html_url,
+        item.body || `状态：${item.state || 'unknown'}；更新时间：${item.updated_at || 'unknown'}`,
+        isPr ? 92 : 90,
+      );
+    }
+  } catch {}
+  return { issues, pullRequests };
 }
 
 export async function performGitHubResearch(rawQuery: string): Promise<GitHubResearchResponse> {
@@ -219,73 +256,75 @@ export async function performGitHubResearch(rawQuery: string): Promise<GitHubRes
 
   const repoRef = looksLikeRepoRef(query);
   const searchQuery = encodeURIComponent(repoRef ? query.replace(repoRef, '').trim() || repoRef : query);
-
-  const [repoResponse, issueResponse] = await Promise.all([
-    requestJson(`https://api.github.com/search/repositories?q=${searchQuery}&sort=stars&order=desc&per_page=5`),
-    requestJson(`https://api.github.com/search/issues?q=${searchQuery}&sort=updated&order=desc&per_page=8`),
-  ]);
-
   const results: WebSearchResult[] = [];
   const pageContents: WebPageContent[] = [];
   const repositories: string[] = [];
 
-  if (repoResponse.ok) {
-    try {
-      const data = JSON.parse(repoResponse.body);
-      const items: GitHubSearchRepository[] = data.items || [];
-      for (const repo of items) {
-        if (!repo.full_name || !repo.html_url) continue;
-        repositories.push(repo.full_name);
-        const meta = [
-          repo.description ? cleanText(repo.description, 500) : '',
-          repo.language ? `语言：${repo.language}` : '',
-          typeof repo.stargazers_count === 'number' ? `Stars：${repo.stargazers_count}` : '',
-          repo.updated_at ? `更新时间：${repo.updated_at}` : '',
-        ].filter(Boolean).join('；');
-        pushResult(results, `GitHub Repository: ${repo.full_name}`, repo.html_url, meta || 'GitHub 开源仓库', 97);
-      }
-    } catch {}
+  let repoItems: GitHubSearchRepository[] = [];
+
+  if (repoRef) {
+    const repoResponse = await requestJson(`https://api.github.com/repos/${repoRef}`);
+    if (repoResponse.ok) {
+      try {
+        const repo = JSON.parse(repoResponse.body) as GitHubSearchRepository;
+        if (repo.full_name && repo.html_url) repoItems = [repo];
+      } catch {}
+    }
+  } else {
+    const repoResponse = await requestJson(`https://api.github.com/search/repositories?q=${searchQuery}&sort=stars&order=desc&per_page=5`);
+    if (repoResponse.ok) {
+      try {
+        repoItems = JSON.parse(repoResponse.body).items || [];
+      } catch {}
+    }
+  }
+
+  for (const repo of repoItems) {
+    if (!repo.full_name || !repo.html_url) continue;
+    repositories.push(repo.full_name);
+    pushResult(
+      results,
+      `GitHub Repository: ${repo.full_name}`,
+      repo.html_url,
+      [repo.description ? cleanText(repo.description, 500) : '', repo.language ? `语言：${repo.language}` : '', typeof repo.stargazers_count === 'number' ? `Stars：${repo.stargazers_count}` : '', repo.updated_at ? `更新时间：${repo.updated_at}` : ''].filter(Boolean).join('；') || 'GitHub 开源仓库',
+      97,
+    );
   }
 
   let issues = 0;
   let pullRequests = 0;
-  if (issueResponse.ok) {
-    try {
-      const data = JSON.parse(issueResponse.body);
-      const items: GitHubIssue[] = data.items || [];
-      for (const item of items) {
-        if (!item.title || !item.html_url) continue;
-        const isPr = Boolean(item.pull_request);
-        if (isPr) pullRequests++; else issues++;
-        pushResult(
-          results,
-          `GitHub ${isPr ? 'Pull Request' : 'Issue'}: ${item.title}`,
-          item.html_url,
-          item.body || `状态：${item.state || 'unknown'}；更新时间：${item.updated_at || 'unknown'}`,
-          isPr ? 91 : 89,
-        );
-      }
-    } catch {}
+
+  if (repoRef) {
+    const scoped = await fetchIssuesForRepo(repoRef, query, results);
+    issues += scoped.issues;
+    pullRequests += scoped.pullRequests;
+  } else {
+    const issueResponse = await requestJson(`https://api.github.com/search/issues?q=${searchQuery}&sort=updated&order=desc&per_page=8`);
+    if (issueResponse.ok) {
+      try {
+        for (const item of (JSON.parse(issueResponse.body).items || []) as GitHubIssue[]) {
+          if (!item.title || !item.html_url) continue;
+          const isPr = Boolean(item.pull_request);
+          if (isPr) pullRequests++; else issues++;
+          pushResult(results, `GitHub ${isPr ? 'Pull Request' : 'Issue'}: ${item.title}`, item.html_url, item.body || `状态：${item.state || 'unknown'}`, isPr ? 91 : 89);
+        }
+      } catch {}
+    }
   }
 
-  const targets = Array.from(new Set([
-    ...(repoRef ? [repoRef] : []),
-    ...repositories.slice(0, 3),
-  ])).slice(0, 3);
-
+  const targets = Array.from(new Set([...(repoRef ? [repoRef] : []), ...repositories.slice(0, 3)])).slice(0, 3);
   for (const fullName of targets) {
     const repoMeta = await requestJson(`https://api.github.com/repos/${fullName}`);
     let branch = 'HEAD';
     if (repoMeta.ok) {
       try {
-        const repo = JSON.parse(repoMeta.body);
-        branch = repo.default_branch || 'HEAD';
+        branch = JSON.parse(repoMeta.body).default_branch || 'HEAD';
       } catch {}
     }
 
     const [readme, files, releaseCount] = await Promise.all([
       fetchReadme(fullName),
-      fetchRepositoryFiles(fullName, branch),
+      fetchRepositoryFiles(fullName, branch, query),
       fetchReleases(fullName, results),
     ]);
 
