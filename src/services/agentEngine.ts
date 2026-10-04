@@ -1112,6 +1112,7 @@ export async function executeWorkspaceTool(
     }
 
     case 'check_runtime': {
+      const capabilities = await getAgentRuntimeCapabilities();
       const checks = [
         { name: 'node', command: 'node --version' },
         { name: 'npm', command: 'npm --version' },
@@ -1119,9 +1120,9 @@ export async function executeWorkspaceTool(
       ];
       const results: Array<Record<string, any>> = [];
       for (const check of checks) {
-        const runData = await executeCode({
+        const runData = await executeAgentRuntime({
           language: 'shell',
-          code: check.command,
+          sourceOrCommand: check.command,
           timeoutMs: 30_000,
           workspaceId: ws.id,
         });
@@ -1140,24 +1141,27 @@ export async function executeWorkspaceTool(
 
       const failed = results.find(item => !item.success);
       const result = {
+        runtime: capabilities.runtime,
+        platform: capabilities.platform,
+        capabilities,
         supported: !failed,
         checks: results,
         summary: failed
           ? `运行时检查失败: ${failed.name}`
-          : 'Node.js、npm 与 npm lifecycle 的 node PATH 均可用',
+          : '统一 Agent Runtime 的 Node.js、npm 与 Shell 检查均通过',
       };
       if (!failed) {
         return {
           result,
           updatedWorkspace: ws,
           stepIcon: 'code',
-          stepTitle: 'Android Node/npm 运行时检查通过',
+          stepTitle: '统一 Agent Runtime 检查通过',
         };
       }
       return {
         result,
         updatedWorkspace: ws,
-        errorMessage: `${result.summary}。请根据 stderr/stdout 定位 Android runtime 问题，不要直接修改业务代码。`,
+        errorMessage: `${result.summary}。请根据 stderr/stdout 定位运行时问题，不要直接修改业务代码。`,
         stepIcon: 'lightning',
         stepTitle: result.summary,
       };
@@ -1289,9 +1293,9 @@ export async function executeWorkspaceTool(
       }
 
       if (info.checkStrategy === 'python_source' && !requested) {
-        const runData = await executeCode({
+        const runData = await executeAgentRuntime({
           language: 'python',
-          code: `import compileall\nimport sys\nok = compileall.compile_dir('.', quiet=1, maxlevels=99)\nsys.exit(0 if ok else 1)`,
+          sourceOrCommand: `import compileall\nimport sys\nok = compileall.compile_dir('.', quiet=1, maxlevels=99)\nsys.exit(0 if ok else 1)`,
           timeoutMs: 120_000,
           workspaceId: ws.id,
         });
