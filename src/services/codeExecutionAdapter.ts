@@ -42,13 +42,14 @@ function isAndroidBridgeAvailable(): boolean {
     && typeof window.MyChatAndroid.executePython === 'function';
 }
 
-function normalizeAndroidResult(raw: any): CodeExecutionResult {
+function normalizeAndroidResult(raw: unknown): CodeExecutionResult {
+  const payload = typeof raw === 'string' ? JSON.parse(raw) : raw as any;
   return {
-    success: raw?.success !== false && (raw?.exitCode ?? 0) === 0,
-    stdout: String(raw?.stdout ?? ''),
-    stderr: String(raw?.stderr ?? ''),
-    exitCode: Number(raw?.exitCode ?? 0),
-    error: raw?.error ?? null,
+    success: payload?.success === true && (payload?.exitCode ?? 0) === 0,
+    stdout: String(payload?.stdout ?? ''),
+    stderr: String(payload?.stderr ?? ''),
+    exitCode: Number(payload?.exitCode ?? 0),
+    error: payload?.error ?? null,
     runtime: 'android',
   };
 }
