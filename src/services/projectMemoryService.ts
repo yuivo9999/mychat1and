@@ -262,10 +262,10 @@ export function formatProjectMemoryPrompt(
     .map((record, index) => ({
       record,
       index,
-      score: queryTokens.length === 0 ? 0 : queryTokens.reduce(
+      score: queryTokens.length === 0 ? (record.priority || 0) / 1000 : queryTokens.reduce(
         (score, token) => score + (record.content.toLowerCase().includes(token) ? 1 : 0),
         0
-      ),
+      ) + (record.priority || 0) / 1000,
     }))
     .sort((a, b) => b.score - a.score || (b.record.updatedAt || 0) - (a.record.updatedAt || 0))
     .slice(0, queryTokens.length > 0 ? 10 : 20)
