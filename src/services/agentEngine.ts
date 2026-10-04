@@ -12,6 +12,7 @@ import {
 } from './workspaceService';
 import { formatChatContextPrompt, detectWorkspaceIntent, WorkspaceIntent } from './chatContextService';
 import { ChatContext } from '../types/workspace';
+import { executeCode, looksLikePythonSource } from './codeExecutionAdapter';
 
 export { detectWorkspaceIntent, type WorkspaceIntent };
 
@@ -159,6 +160,17 @@ export const WORKSPACE_TOOLS_SPEC = [
         topic: { type: 'string', description: '可选，具体要查询的 API 名称、组件、Hooks 或用法主题' },
       },
       required: ['library'],
+    },
+  },
+  {
+    name: 'run_python',
+    description: '执行 Python 源代码。直接传入 Python 代码即可，不需要写 python -c；MyChat 会自动选择 Android 原生 Python 运行时或服务器 Python 运行时。此工具在“运行脚本与命令”权限开启时可用。',
+    parameters: {
+      type: 'object',
+      properties: {
+        code: { type: 'string', description: '要执行的完整 Python 源代码，不要额外包装成 Shell 命令。' },
+      },
+      required: ['code'],
     },
   },
   {
