@@ -179,6 +179,28 @@ export function updateAgentTaskChecklist(
   state: AgentLoopState,
   evidence?: string,
 ): AgentTaskPlan {
+  const isDynamicPlan = plan.checklist.some(item => (item.acceptanceCriteria?.length || 0) > 0);
+  if (isDynamicPlan) {
+    if (state.phase === 'completed') {
+      return {
+        ...plan,
+        checklist: plan.checklist.map(item => ({ ...item, status: 'completed' as const, evidence: evidence || item.evidence })),
+      };
+    }
+    if (state.phase === 'waiting_user') {
+      const activeIndex = plan.checklist.findIndex(item => item.status === 'in_progress');
+      if (activeIndex >= 0) {
+        return {
+          ...plan,
+          checklist: plan.checklist.map((item, index) =>
+            index === activeIndex ? { ...item, status: 'blocked' as const, evidence: evidence || item.evidence } : item
+          ),
+        };
+      }
+    }
+    return plan;
+  }
+
   const order: Array<[string, AgentPhase]> = [
     ['understand', 'planning'],
     ['inspect', 'exploring'],
