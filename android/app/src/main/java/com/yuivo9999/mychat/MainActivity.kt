@@ -187,7 +187,303 @@ class AndroidBridge(
         binDir.mkdirs()
         val launcher = File(binDir, "node")
         val nodeBinary = File(activity.applicationInfo.nativeLibraryDir, "libnode.so")
-        val script = "#!/system/bin/sh\\nexec \\\"${nodeBinary.absolutePath}\\\" \\\"$@\\\"\\n"
+        val script = "#!/system/bin/sh\nexec \"${nodeBinary.absolutePath}\" \"${'        if (!launcher.isFile || launcher.readText() != script) {
+            launcher.writeText(script, Charsets.UTF_8)
+            check(launcher.setExecutable(true, false)) { "无法创建 Node launcher 可执行权限" }
+        }
+        return launcher
+    }
+
+    private fun ensureNpmRuntime(): File {
+        val bundledRoot = File(activity.filesDir, "node-runtime")
+        val npmCli = File(bundledRoot, "node_modules/npm/bin/npm-cli.js")
+        if (npmCli.isFile) return npmCli
+
+        val sourceRoot = File(activity.filesDir, "node-runtime-staging")
+        if (sourceRoot.exists()) sourceRoot.deleteRecursively()
+        sourceRoot.mkdirs()
+        copyAssetTree("node-runtime", sourceRoot)
+        val stagedNpm = File(sourceRoot, "node_modules/npm")
+        if (!stagedNpm.isDirectory) throw IllegalStateException("bundled npm runtime is missing")
+        bundledRoot.mkdirs()
+        val targetModules = File(bundledRoot, "node_modules")
+        targetModules.deleteRecursively()
+        copyDirectory(stagedNpm, File(targetModules, "npm"))
+        sourceRoot.deleteRecursively()
+        return npmCli
+    }
+
+    private fun copyAssetTree(assetPath: String, destination: File) {
+        val entries = activity.assets.list(assetPath) ?: emptyArray()
+        if (entries.isEmpty()) {
+            destination.parentFile?.mkdirs()
+            activity.assets.open(assetPath).use { input ->
+                FileOutputStream(destination).use { output -> input.copyTo(output) }
+            }
+            return
+        }
+        destination.mkdirs()
+        for (entry in entries) {
+            copyAssetTree("$assetPath/$entry", File(destination, entry))
+        }
+    }
+
+    private fun copyDirectory(source: File, destination: File) {
+        if (source.isDirectory) {
+            destination.mkdirs()
+            source.listFiles()?.forEach { copyDirectory(it, File(destination, it.name)) }
+        } else {
+            destination.parentFile?.mkdirs()
+            source.inputStream().use { input -> FileOutputStream(destination).use { output -> input.copyTo(output) } }
+        }
+    }
+    @JavascriptInterface
+    fun executeNode(command: String, timeoutMs: Int, workspaceId: String = ""): String {
+        val nodeBinary = File(activity.applicationInfo.nativeLibraryDir, "libnode.so")
+        if (!nodeBinary.isFile) {
+            return JSONObject()
+                .put("success", false)
+                .put("stdout", "")
+                .put("stderr", "Android Node.js runtime is not bundled")
+                .put("exitCode", -1)
+                .put("error", "Node.js runtime unavailable. Build the APK after preparing the bundled runtime.")
+                .toString()
+        }
+
+        val workspacePath = if (workspaceId.isBlank()) {
+            activity.filesDir.absolutePath
+        } else {
+            workspaceRoot(workspaceId).absolutePath
+        }
+
+        val future = executor.submit(Callable {
+            val trimmed = command.trim()
+            val npmCli = if (trimmed == "npm" || trimmed.startsWith("npm ") || trimmed == "npx" || trimmed.startsWith("npx ")) ensureNpmRuntime() else null
+            val processBuilder = if (npmCli != null) {
+                val isNpx = trimmed == "npx" || trimmed.startsWith("npx ")
+                val rawArgs = if (isNpx) trimmed.removePrefix("npx").trim() else trimmed.removePrefix("npm").trim()
+                val args = if (isNpx) listOf("exec", "--") + rawArgs.split(Regex("\\s+")).filter { it.isNotBlank() } else rawArgs.split(Regex("\\s+")).filter { it.isNotBlank() }
+                if (args.isEmpty()) ProcessBuilder(nodeBinary.absolutePath, npmCli.absolutePath)
+                else ProcessBuilder(listOf(nodeBinary.absolutePath, npmCli.absolutePath) + args)
+            } else if (trimmed.startsWith("node -e ")) {
+                val encoded = trimmed.removePrefix("node -e ").trim()
+                val code = org.json.JSONTokener(encoded).nextValue() as? String
+                    ?: throw IllegalArgumentException("node -e 参数不是有效 JSON 字符串")
+                ProcessBuilder(nodeBinary.absolutePath, "-e", code)
+            } else if (trimmed == "node" || trimmed.startsWith("node --")) {
+                val args = trimmed.removePrefix("node").trim()
+                if (args.isBlank()) ProcessBuilder(nodeBinary.absolutePath)
+                else ProcessBuilder(listOf(nodeBinary.absolutePath) + args.split(Regex("\\s+")))
+            } else {
+                ProcessBuilder("sh", "-c", trimmed)
+            }
+
+            val process = processBuilder
+                .directory(File(workspacePath))
+                .redirectErrorStream(false)
+                .apply {
+                    environment()["LD_LIBRARY_PATH"] = activity.applicationInfo.nativeLibraryDir
+                    environment()["HOME"] = activity.filesDir.absolutePath
+                    environment()["npm_config_cache"] = File(activity.filesDir, "npm-cache").absolutePath
+                    environment()["npm_config_prefix"] = File(activity.filesDir, "npm-global").absolutePath
+                    environment()["TMPDIR"] = activity.cacheDir.absolutePath
+                    val nodeLauncher = ensureNodeLauncher()
+                    environment()["PATH"] = nodeLauncher.parentFile!!.absolutePath +
+                        File.pathSeparator + activity.applicationInfo.nativeLibraryDir +
+                        File.pathSeparator + (environment()["PATH"] ?: "")
+                    environment()["npm_node_execpath"] = nodeBinary.absolutePath
+                    environment()["npm_execpath"] = npmCli?.absolutePath ?: (environment()["npm_execpath"] ?: "")
+                }
+                .start()
+
+            val stdoutFuture = executor.submit(Callable {
+                process.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+            })
+            val stderrFuture = executor.submit(Callable {
+                process.errorStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+            })
+
+            val completed = process.waitFor(
+                timeoutMs.coerceIn(1000, 120000).toLong(),
+                TimeUnit.MILLISECONDS
+            )
+
+            if (!completed) {
+                process.destroyForcibly()
+                return@Callable mapOf(
+                    "success" to false,
+                    "stdout" to stdoutFuture.get(1000, TimeUnit.MILLISECONDS),
+                    "stderr" to (stderrFuture.get(1000, TimeUnit.MILLISECONDS) + "\nNode command execution timed out"),
+                    "exitCode" to -1,
+                    "error" to "Node command execution timed out"
+                )
+            }
+
+            mapOf(
+                "success" to (process.exitValue() == 0),
+                "stdout" to stdoutFuture.get(1000, TimeUnit.MILLISECONDS),
+                "stderr" to stderrFuture.get(1000, TimeUnit.MILLISECONDS),
+                "exitCode" to process.exitValue(),
+                "error" to null
+            )
+        })
+
+        return try {
+            val result = future.get(timeoutMs.coerceIn(1000, 120000).toLong() + 2000, TimeUnit.MILLISECONDS)
+            val map = result as Map<*, *>
+            JSONObject().apply {
+                put("success", map["success"] == true)
+                put("stdout", map["stdout"]?.toString() ?: "")
+                put("stderr", map["stderr"]?.toString() ?: "")
+                put("exitCode", (map["exitCode"] as? Number)?.toInt() ?: 1)
+                put("error", map["error"]?.toString())
+            }.toString()
+        } catch (e: java.util.concurrent.TimeoutException) {
+            future.cancel(true)
+            JSONObject()
+                .put("success", false)
+                .put("stdout", "")
+                .put("stderr", "Node 命令执行超时")
+                .put("exitCode", -1)
+                .put("error", "Node command execution timed out")
+                .toString()
+        } catch (e: Throwable) {
+            future.cancel(true)
+            JSONObject()
+                .put("success", false)
+                .put("stdout", "")
+                .put("stderr", e.stackTraceToString())
+                .put("exitCode", -1)
+                .put("error", e.message ?: e.javaClass.simpleName)
+                .toString()
+        }
+    }
+
+    @JavascriptInterface
+    fun executeCommand(command: String, timeoutMs: Int, workspaceId: String = ""): String {
+        val workspacePath = if (workspaceId.isBlank()) {
+            activity.filesDir.absolutePath
+        } else {
+            workspaceRoot(workspaceId).absolutePath
+        }
+
+        val future = executor.submit(Callable {
+            val process = ProcessBuilder("sh", "-c", command)
+                .directory(File(workspacePath))
+                .redirectErrorStream(false)
+                .start()
+
+            val stdoutFuture = executor.submit(Callable {
+                process.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+            })
+            val stderrFuture = executor.submit(Callable {
+                process.errorStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+            })
+
+            val completed = process.waitFor(
+                timeoutMs.coerceIn(1000, 120000).toLong(),
+                TimeUnit.MILLISECONDS
+            )
+
+            if (!completed) {
+                process.destroyForcibly()
+                return@Callable mapOf(
+                    "success" to false,
+                    "stdout" to stdoutFuture.get(1000, TimeUnit.MILLISECONDS),
+                    "stderr" to (stderrFuture.get(1000, TimeUnit.MILLISECONDS) + "\nCommand execution timed out"),
+                    "exitCode" to -1,
+                    "error" to "Command execution timed out"
+                )
+            }
+
+            mapOf(
+                "success" to (process.exitValue() == 0),
+                "stdout" to stdoutFuture.get(1000, TimeUnit.MILLISECONDS),
+                "stderr" to stderrFuture.get(1000, TimeUnit.MILLISECONDS),
+                "exitCode" to process.exitValue(),
+                "error" to null
+            )
+        })
+
+        return try {
+            val result = future.get(timeoutMs.coerceIn(1000, 120000).toLong() + 2000, TimeUnit.MILLISECONDS)
+            val map = result as Map<*, *>
+            JSONObject().apply {
+                put("success", map["success"] == true)
+                put("stdout", map["stdout"]?.toString() ?: "")
+                put("stderr", map["stderr"]?.toString() ?: "")
+                put("exitCode", (map["exitCode"] as? Number)?.toInt() ?: 1)
+                put("error", map["error"]?.toString())
+            }.toString()
+        } catch (e: java.util.concurrent.TimeoutException) {
+            future.cancel(true)
+            JSONObject()
+                .put("success", false)
+                .put("stdout", "")
+                .put("stderr", "命令执行超时")
+                .put("exitCode", -1)
+                .put("error", "Command execution timed out")
+                .toString()
+        } catch (e: Throwable) {
+            JSONObject()
+                .put("success", false)
+                .put("stdout", "")
+                .put("stderr", e.stackTraceToString())
+                .put("exitCode", -1)
+                .put("error", e.message ?: e.javaClass.simpleName)
+                .toString()
+        }
+    }
+
+    @JavascriptInterface
+    fun executePython(code: String, timeoutMs: Int, workspaceId: String = ""): String {
+        val workspacePath = if (workspaceId.isBlank()) {
+            null
+        } else {
+            workspaceRoot(workspaceId).absolutePath
+        }
+
+        val future = executor.submit(Callable {
+            val runner = Python.getInstance().getModule("runner")
+            val result = if (workspacePath == null) {
+                runner.callAttr("execute", code)
+            } else {
+                runner.callAttr("execute", code, workspacePath)
+            }
+            result.toJava(Map::class.java)
+        })
+
+        return try {
+            val result = future.get(timeoutMs.coerceIn(1000, 120000).toLong(), TimeUnit.MILLISECONDS)
+            val map = result as Map<*, *>
+            JSONObject().apply {
+                put("success", map["success"] == true)
+                put("stdout", map["stdout"]?.toString() ?: "")
+                put("stderr", map["stderr"]?.toString() ?: "")
+                put("exitCode", (map["exitCode"] as? Number)?.toInt() ?: 1)
+                put("error", map["error"]?.toString())
+            }.toString()
+        } catch (e: java.util.concurrent.TimeoutException) {
+            future.cancel(true)
+            JSONObject()
+                .put("success", false)
+                .put("stdout", "")
+                .put("stderr", "Python 执行超时")
+                .put("exitCode", -1)
+                .put("error", "Python execution timed out")
+                .toString()
+        } catch (e: Throwable) {
+            JSONObject()
+                .put("success", false)
+                .put("stdout", "")
+                .put("stderr", e.stackTraceToString())
+                .put("exitCode", -1)
+                .put("error", e.message ?: e.javaClass.simpleName)
+                .toString()
+        }
+    }
+}
+ + '@'}\"\n"
         if (!launcher.isFile || launcher.readText() != script) {
             launcher.writeText(script, Charsets.UTF_8)
             check(launcher.setExecutable(true, false)) { "无法创建 Node launcher 可执行权限" }
