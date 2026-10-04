@@ -113,8 +113,8 @@ export async function executeCode(request: CodeExecutionRequest): Promise<CodeEx
   if (request.language === 'shell' && typeof window !== 'undefined'
       && window.MyChatAndroid?.executeCommand) {
     try {
-      const isNpmCommand = /^(npm)(?:\\s|$)/.test(request.code.trim());
-      const raw = isNpmCommand && window.MyChatAndroid.executeNode
+      const isNodeRuntimeCommand = /^(?:npm|npx|node)(?:\\s|$)/.test(request.code.trim());
+      const raw = isNodeRuntimeCommand && window.MyChatAndroid.executeNode
         ? await window.MyChatAndroid.executeNode(
             request.code,
             request.timeoutMs ?? 120_000,
