@@ -78,7 +78,6 @@ import {
 import { formatProjectMemoryPrompt, updateProjectCollectiveMemory, getProjectMemoryRecords, createProjectMemoryRecord, updateProjectMemoryRecord, archiveProjectMemoryRecord } from './services/projectMemoryService';
 import { getAdapterForProvider } from './services/adapters';
 import { safeExtractText } from './services/adapters/base';
-import { buildWebSearchContext } from './services/webSearch';
 import { buildUnifiedKnowledgeGrounding, runKnowledgeResearch } from './services/knowledgeResearchService';
 import { isModelVisionCapable, isModelFileCapable, isModelReasoningSupported } from './services/modelUtils';
 import { optimizePrompt } from './services/promptPerfectService';
