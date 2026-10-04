@@ -4,6 +4,10 @@ export interface WebSearchResult {
   title: string;
   url: string;
   snippet: string;
+  sourceType?: 'search' | 'news' | 'wiki' | 'page';
+  domain?: string;
+  score?: number;
+  freshness?: 'fresh' | 'recent' | 'unknown';
 }
 
 export interface WebPageContent {
@@ -105,9 +109,54 @@ function parseRssItems(xmlText: string): WebSearchResult[] {
     const title = titleMatch ? cleanHtmlText(titleMatch[1]) : '';
     const url = linkMatch ? cleanHtmlText(linkMatch[1]) : '';
     const snippet = descMatch ? cleanHtmlText(descMatch[1]) : '';
-    if (title && (url || snippet)) items.push({ title, url, snippet: snippet || `网页资料：${title}` });
+    if (title && (url || snippet)) items.push({
+      title, url, snippet: snippet || `网页资料：${title}`,
+      sourceType: 'news', domain: getDomain(url), freshness: classifyFreshness(`${title} ${snippet}`)
+    });
   }
   return items;
+}
+
+function normalizeUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    parsed.hash = '';
+    return parsed.toString().replace(/\/$/, '').toLowerCase();
+  } catch {
+    return url.trim().toLowerCase().replace(/\/$/, '');
+  }
+}
+
+function getDomain(url: string): string {
+  try { return new URL(url).hostname.replace(/^www\./i, '').toLowerCase(); } catch { return ''; }
+}
+
+function tokenize(text: string): string[] {
+  return Array.from(new Set(text.toLowerCase()
+    .replace(/https?:\/\/[^\s]+/g, ' ')
+    .replace(/[^\p{L}\p{N}+#._-]+/gu, ' ')
+    .split(/\s+/).map(t => t.trim()).filter(t => t.length >= 2)));
+}
+
+function scoreSearchResult(item: WebSearchResult, query: string): number {
+  const q = tokenize(query);
+  const haystack = tokenize(`${item.title} ${item.snippet} ${item.url}`);
+  const hits = q.filter(token => haystack.some(word => word === token || word.includes(token) || token.includes(word))).length;
+  let score = q.length ? (hits / q.length) * 70 : 0;
+  const domain = getDomain(item.url);
+  if (/\.(gov|edu)(\.|$)/i.test(domain)) score += 14;
+  if (/github\.com$/i.test(domain)) score += 12;
+  if (/^(docs?|developer)\./i.test(domain) || /\.(dev|org)$/i.test(domain)) score += 6;
+  if (/wikipedia\.org$/i.test(domain)) score += 5;
+  if (item.sourceType === 'news') score += 3;
+  return Math.min(100, Math.round(score));
+}
+
+function classifyFreshness(text: string): WebSearchResult['freshness'] {
+  const year = new Date().getFullYear();
+  if (new RegExp(`\\b${year}\\b`).test(text) || new RegExp(`\\b${year - 1}\\b`).test(text)) return 'fresh';
+  if (/刚刚|今天|昨日|小时前|分钟|breaking|updated|latest|new/i.test(text)) return 'recent';
+  return 'unknown';
 }
 
 function parseBingResults(html: string): WebSearchResult[] {
@@ -121,7 +170,10 @@ function parseBingResults(html: string): WebSearchResult[] {
     const title = cleanHtmlText(titleMatch[1]);
     const snippet = snippetMatch ? cleanHtmlText(snippetMatch[1]) : '';
     const url = linkMatch ? linkMatch[1] : '';
-    if (title && (url || snippet)) items.push({ title, url, snippet: snippet || `必应全网检索：${title}` });
+    if (title && (url || snippet)) items.push({
+      title, url, snippet: snippet || `必应全网检索：${title}`,
+      sourceType: 'search', domain: getDomain(url), freshness: classifyFreshness(`${title} ${snippet}`)
+    });
   }
   return items;
 }
@@ -229,7 +281,10 @@ async function performNativeSearch(
         const snippets: string[] = data[2] || [];
         const links: string[] = data[3] || [];
         for (let i = 0; i < titles.length; i++) {
-          if (titles[i] && links[i]) results.push({ title: titles[i], url: links[i], snippet: snippets[i] || `维基百科词条：${titles[i]}` });
+          if (titles[i] && links[i]) results.push({
+            title: titles[i], url: links[i], snippet: snippets[i] || `维基百科词条：${titles[i]}`,
+            sourceType: 'wiki', domain: getDomain(links[i]), freshness: 'unknown'
+          });
         }
       } catch {}
     })());
@@ -248,27 +303,46 @@ async function performNativeSearch(
 
   await Promise.allSettled(tasks);
 
-  const uniqueResults: WebSearchResult[] = [];
-  const seenUrls = new Set<string>();
+  // Research-grade ranking: canonical dedupe + relevance scoring + source diversity.
+  const uniqueMap = new Map<string, WebSearchResult>();
   const seenTitles = new Set<string>();
-  for (const item of results) {
-    const title = item.title.trim();
-    const url = item.url.trim();
-    if (!title || seenTitles.has(title) || (url && seenUrls.has(url))) continue;
-    seenTitles.add(title);
-    if (url) seenUrls.add(url);
-    uniqueResults.push({ ...item, title, url });
-    if (uniqueResults.length >= 10) break;
+  for (const raw of results) {
+    const title = raw.title.trim();
+    const url = raw.url.trim();
+    if (!title || seenTitles.has(title.toLowerCase())) continue;
+    seenTitles.add(title.toLowerCase());
+    const enriched: WebSearchResult = {
+      ...raw,
+      title,
+      url,
+      domain: raw.domain || getDomain(url),
+      score: scoreSearchResult(raw, query),
+      freshness: raw.freshness || classifyFreshness(`${title} ${raw.snippet}`),
+    };
+    const key = normalizeUrl(url) || title.toLowerCase();
+    const previous = uniqueMap.get(key);
+    if (!previous || (enriched.score || 0) > (previous.score || 0)) uniqueMap.set(key, enriched);
   }
 
-  if (pageContents.length < 2) {
-    const candidates = uniqueResults
-      .map(r => r.url)
-      .filter(u => u.startsWith('http') && !/youtube\.com|bilibili\.com|bing\.com|google\.com/i.test(u))
-      .slice(0, 2);
-    const crawled = await Promise.all(candidates.map(url => crawl(url, 5000)));
-    pageContents.push(...crawled.filter(Boolean) as WebPageContent[]);
+  const ranked = Array.from(uniqueMap.values()).sort((a, b) => (b.score || 0) - (a.score || 0));
+  const uniqueResults: WebSearchResult[] = [];
+  const domainCounts = new Map<string, number>();
+  for (const item of ranked) {
+    const domain = item.domain || getDomain(item.url) || 'unknown';
+    const count = domainCounts.get(domain) || 0;
+    if (count >= 3) continue;
+    domainCounts.set(domain, count + 1);
+    uniqueResults.push(item);
+    if (uniqueResults.length >= 12) break;
   }
+
+  // Research pass: read up to four high-value, distinct pages rather than two arbitrary results.
+  const candidates = uniqueResults
+    .filter(r => r.url.startsWith('http') && !/youtube\\.com|bilibili\\.com|bing\\.com|google\\.com/i.test(r.url))
+    .sort((a, b) => (b.score || 0) - (a.score || 0))
+    .slice(0, 4);
+  const crawled = await Promise.all(candidates.map(item => crawl(item.url, 7000)));
+  pageContents.push(...crawled.filter(Boolean) as WebPageContent[]);
 
   return { query, results: uniqueResults, pageContents };
 }
@@ -326,8 +400,8 @@ export function buildWebSearchContext(response: WebSearchResponse): string {
   if (results.length === 0 && pageContents.length === 0) return '';
 
   const sections: string[] = [];
-  sections.push(`【联网实时检索与网页资料 (检索词: "${query}")】`);
-  sections.push('以下是系统刚刚从互联网获取的最新实时网页资料与内容，请仔细阅读并充分利用：\n');
+  sections.push(`【联网研究资料 (检索词: "${query}")】`);
+  sections.push('以下资料经过多来源检索、去重、相关性排序与页面抓取；优先使用高相关度与权威来源。\n');
 
   if (pageContents.length > 0) {
     sections.push('--- 用户指定网页抓取内容 ---');
@@ -338,13 +412,14 @@ export function buildWebSearchContext(response: WebSearchResponse): string {
   if (results.length > 0) {
     sections.push('--- 互联网搜索结果摘要 ---');
     results.forEach((r, i) => {
-      sections.push(`[来源 ${i + 1}] 标题: ${r.title}\n网址: ${r.url}\n摘要: ${r.snippet}`);
+      sections.push(`[来源 ${i + 1}] 相关度: ${r.score ?? 0}/100 | 类型: ${r.sourceType || 'search'} | 域名: ${r.domain || getDomain(r.url)} | 新鲜度: ${r.freshness || 'unknown'}\n标题: ${r.title}\n网址: ${r.url}\n摘要: ${r.snippet}`);
     });
   }
 
   sections.push('\n【AI 回答指引】');
-  sections.push('1. 当前已开启「访问网络」模式，请结合上述最新的互联网信息与网页资料，直接准确回答用户问题。');
-  sections.push('2. 如果引用了上述资料中的数据或事实，请在回答中以 [1]、[2] 等格式标注，并在回答末尾附上参考网页链接。');
-  sections.push('3. 若网络资料中未提及相关信息，请客观说明。');
+  sections.push('1. 当前已开启「访问网络」模式：优先使用高相关度、权威且较新的资料。');
+  sections.push('2. 对关键事实尽量跨来源验证；若来源互相矛盾，明确指出冲突，不要自行编造结论。');
+  sections.push('3. 如果引用上述资料中的数据或事实，请以 [1]、[2] 等格式标注，并在回答末尾附上参考网页链接。');
+  sections.push('4. 若网络资料中未提及相关信息，请客观说明，不要把搜索摘要当作已验证事实。');
   return sections.join('\n');
 }
