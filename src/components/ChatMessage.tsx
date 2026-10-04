@@ -15,7 +15,6 @@ import {
   FileText,
   Eye,
   FileCode,
-  FolderOpen,
   Globe,
   BarChart2,
   X
