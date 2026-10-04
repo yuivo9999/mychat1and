@@ -191,6 +191,8 @@ export default function App() {
     const root = document.documentElement;
     root.classList.remove('dark', 'theme-classic1', 'theme-classic2', 'theme-modern1', 'theme-sangtian-shanhe');
 
+    root.style.colorScheme = ['classic1', 'classic2', 'modern1', 'sangtian-shanhe'].includes(settings.theme) ? 'light' : 'light';
+
     if (settings.theme === 'classic1') {
       root.classList.add('theme-classic1');
     } else if (settings.theme === 'classic2') {
@@ -206,6 +208,7 @@ export default function App() {
 
       if (isDark) {
         root.classList.add('dark');
+        root.style.colorScheme = 'dark';
       }
     }
   }, [settings.theme]);
