@@ -6,6 +6,9 @@ import android.os.Bundle
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.WebChromeClient
+import android.webkit.ConsoleMessage
+import android.util.Log
 import org.json.JSONObject
 import com.chaquo.python.Python
 import java.io.File
@@ -30,8 +33,18 @@ class MainActivity : Activity() {
             settings.allowFileAccess = true
             settings.allowContentAccess = true
             webViewClient = WebViewClient()
+            webChromeClient = object : WebChromeClient() {
+                override fun onConsoleMessage(consoleMessage: ConsoleMessage): Boolean {
+                    Log.i("MyChatSmoke", consoleMessage.message())
+                    return true
+                }
+            }
             addJavascriptInterface(AndroidBridge(this@MainActivity, this), "MyChatAndroid")
-            loadUrl("file:///android_asset/www/index.html")
+            val smokeTest = intent.getBooleanExtra("mychat_smoke_test", false)
+            loadUrl(
+                if (smokeTest) "file:///android_asset/smoke-test.html"
+                else "file:///android_asset/www/index.html"
+            )
         }
 
         setContentView(webView)
