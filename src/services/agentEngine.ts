@@ -923,6 +923,92 @@ export async function executeWorkspaceTool(
         };
       }
 
+      // Android App: execute Python inside the native Chaquopy runtime.
+      // The browser never receives shell access and no local Node server is required.
+      if (isAndroidRuntime()) {
+        if (!/^(python3?|py)(\\s|$)/i.test(command)) {
+          return {
+            result: null,
+            updatedWorkspace: ws,
+            errorMessage: 'Android 原生运行时目前只执行 Python。请使用 python / python3 脚本或 python -c。',
+            stepIcon: 'lightning',
+            stepTitle: `Android 原生运行时拒绝非 Python 命令: ${command}`,
+          };
+        }
+
+        try {
+          const nativeResult = await runPythonInWorkspace(
+            command,
+            Object.values(ws.files)
+              .filter(file => !file.isBinary)
+              .map(file => ({
+                path: file.path,
+                content: file.content,
+                isBinary: false,
+              })),
+            120000,
+          );
+
+          for (const changed of nativeResult.changedFiles || []) {
+            const valid = validateSafeRelativePath(changed.path || '');
+            if (!valid.valid) continue;
+
+            const path = valid.normalizedPath;
+            if (changed.deleted) {
+              delete ws.files[path];
+              continue;
+            }
+
+            if (changed.isBinary) continue;
+
+            const content = String(changed.content ?? '');
+            ws.files[path] = {
+              path,
+              content,
+              isBinary: false,
+              size: content.length,
+              updatedAt: Date.now(),
+            };
+          }
+
+          const result = {
+            stdout: nativeResult.stdout || '',
+            stderr: nativeResult.stderr || '',
+            exitCode: nativeResult.exitCode,
+            error: nativeResult.error,
+            changedFiles: (nativeResult.changedFiles || []).map(file => file.path),
+            binaryFiles: nativeResult.binaryFiles || [],
+            runtime: 'android-chaquopy',
+          };
+
+          if (nativeResult.success) {
+            return {
+              result,
+              updatedWorkspace: ws,
+              stepIcon: 'lightning',
+              stepTitle: `Android 原生 Python 执行成功: ${command}`,
+            };
+          }
+
+          return {
+            result,
+            updatedWorkspace: ws,
+            errorMessage: nativeResult.error || nativeResult.stderr || `Python 执行失败，退出码: ${nativeResult.exitCode}`,
+            stepIcon: 'lightning',
+            stepTitle: `Android 原生 Python 执行出错: ${command}`,
+          };
+        } catch (e: any) {
+          return {
+            result: null,
+            updatedWorkspace: ws,
+            errorMessage: `Android 原生 Python 执行异常: ${e?.message || e}`,
+            stepIcon: 'lightning',
+            stepTitle: `Android Python 运行时异常: ${command}`,
+          };
+        }
+      }
+
+      // Browser/desktop development fallback: keep the existing local Node server path.
       try {
         const res = await fetch('/api/execute-script', {
           method: 'POST',
