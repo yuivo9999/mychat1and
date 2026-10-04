@@ -33,6 +33,7 @@ interface AndroidExecutionBridge {
   executeCommand?: (command: string, timeoutMs?: number, workspaceId?: string) => Promise<unknown> | unknown;
   executeNode?: (command: string, timeoutMs?: number, workspaceId?: string) => Promise<unknown> | unknown;
   getWorkspaceNodeRuntimeState?: (workspaceId: string) => Promise<unknown> | unknown;
+  markWorkspaceDependenciesInstalled?: (workspaceId: string) => Promise<unknown> | unknown;
 }
 
 declare global {
@@ -277,6 +278,27 @@ export interface WorkspaceNodeRuntimeState {
   packageLockExists: boolean;
   packageLockModifiedAt: number;
   runtimePersistent: boolean;
+  dependencyFingerprint?: string;
+  installedDependencyFingerprint?: string;
+  dependenciesInSync?: boolean;
+  lockfile?: string | null;
+}
+
+export async function markWorkspaceDependenciesInstalled(workspaceId: string): Promise<{ ok: boolean; fingerprint?: string; error?: string }> {
+  if (typeof window === 'undefined' || !window.MyChatAndroid?.markWorkspaceDependenciesInstalled) {
+    return { ok: false, error: 'Android workspace dependency state bridge unavailable' };
+  }
+  try {
+    const raw = await window.MyChatAndroid.markWorkspaceDependenciesInstalled(workspaceId);
+    const payload = typeof raw === 'string' ? JSON.parse(raw) : raw as any;
+    return {
+      ok: payload?.ok === true,
+      fingerprint: payload?.fingerprint,
+      error: payload?.error,
+    };
+  } catch (error: any) {
+    return { ok: false, error: error?.message || String(error) };
+  }
 }
 
 export async function getWorkspaceNodeRuntimeState(workspaceId: string): Promise<WorkspaceNodeRuntimeState | null> {
