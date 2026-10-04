@@ -205,6 +205,11 @@ export const WORKSPACE_TOOLS_SPEC = [
     parameters: { type: 'object', properties: { includeHistory: { type: 'boolean' }, limit: { type: 'number' } } },
   },
   {
+  {
+    name: 'create_project_memory',
+    description: '新增项目级长期记忆；仅保存稳定规则、约束、架构、技术选型、UI/UX约定或明确决定，避免记录普通进度和临时报错。',
+    parameters: { type: 'object', properties: { content: { type: 'string' }, reason: { type: 'string' } }, required: ['content'] },
+  },
     name: 'update_project_memory',
     description: '更新当前项目已有长期共享记忆记录，避免重复新增。',
     parameters: { type: 'object', properties: { recordId: { type: 'string' }, content: { type: 'string' }, status: { type: 'string' }, reason: { type: 'string' } }, required: ['recordId'] },
