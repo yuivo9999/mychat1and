@@ -11,6 +11,11 @@ val prepareNodeRuntime = tasks.register<Exec>("prepareNodeRuntime") {
     commandLine("node", "tools/prepare-node-runtime.cjs")
 }
 
+val prepareNpmRuntime = tasks.register<Exec>("prepareNpmRuntime") {
+    workingDir(rootProject.projectDir)
+    commandLine("node", "tools/install-npm-runtime.cjs")
+}
+
 val syncWebAssets = tasks.register<Exec>("syncWebAssets") {
     workingDir(project.projectDir.parentFile)
     commandLine(if (System.getProperty("os.name").lowercase().contains("win")) "cmd" else "npm")
@@ -23,6 +28,7 @@ val syncWebAssets = tasks.register<Exec>("syncWebAssets") {
 
 tasks.named("preBuild").configure {
     dependsOn(prepareNodeRuntime)
+    dependsOn(prepareNpmRuntime)
     dependsOn(syncWebAssets)
 }
 
