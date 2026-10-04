@@ -31,6 +31,7 @@ export interface CodeExecutionResult {
 interface AndroidExecutionBridge {
   executePython?: (code: string, timeoutMs?: number, workspaceId?: string) => Promise<unknown> | unknown;
   executeCommand?: (command: string, timeoutMs?: number, workspaceId?: string) => Promise<unknown> | unknown;
+  executeNode?: (command: string, timeoutMs?: number, workspaceId?: string) => Promise<unknown> | unknown;
 }
 
 declare global {
@@ -68,6 +69,31 @@ export async function executeCode(request: CodeExecutionRequest): Promise<CodeEx
     try {
       const raw = await window.MyChatAndroid!.executePython!(
         request.code,
+        request.timeoutMs ?? 20_000,
+        request.workspaceId
+      );
+      return normalizeAndroidResult(raw);
+    } catch (error: any) {
+      return {
+        success: false,
+        stdout: '',
+        stderr: '',
+        exitCode: -1,
+        error: error?.message || String(error),
+        runtime: 'android',
+      };
+    }
+  }
+
+  if ((request.language === 'javascript' || request.language === 'typescript')
+      && typeof window !== 'undefined'
+      && window.MyChatAndroid?.executeNode) {
+    try {
+      const nodeCode = request.language === 'typescript'
+        ? `require('typescript');\n${request.code}`
+        : request.code;
+      const raw = await window.MyChatAndroid.executeNode(
+        `node -e ${JSON.stringify(nodeCode)}`,
         request.timeoutMs ?? 20_000,
         request.workspaceId
       );
@@ -131,6 +157,17 @@ export async function executeCode(request: CodeExecutionRequest): Promise<CodeEx
         runtime: 'server',
       };
     }
+  }
+
+  if (request.language === 'javascript' || request.language === 'typescript') {
+    return {
+      success: false,
+      stdout: '',
+      stderr: '',
+      exitCode: -1,
+      error: `Android Node.js runtime unavailable for ${request.language}; web runtime must provide /api/execute-script.`,
+      runtime: 'server',
+    };
   }
 
   if (request.language !== 'python') {
