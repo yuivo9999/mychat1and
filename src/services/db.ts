@@ -502,6 +502,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   showStreamingCursor: true,
   compactMode: false,
   boldHeadings: true,
+  conciseReplyMode: false,
   enableChatContextMemory: false,
   enableHistorySearch: true,
   onlyParseMarkdownTables: false,
