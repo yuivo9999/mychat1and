@@ -963,6 +963,7 @@ export default function App() {
     let webContext = '';
     let webSearchNotice = '';
     let agentResearchEvidence = '';
+    let knowledgeResultForAgentResearch: { sources: string[]; sourceCount: number; primarySourceCount: number; conflictHints: number } | null = null;
 
     const agentResearchNeeded = shouldAgentResearchTask(text);
     if ((webAccessEnabled || isContext7Enabled) && (!agentMode || !currentWorkspace || agentResearchNeeded)) {
@@ -981,6 +982,15 @@ export default function App() {
           webResults = knowledgeResult.web.results;
           webContext = buildUnifiedKnowledgeGrounding(knowledgeResult);
           agentResearchEvidence = `研究完成：网页/GitHub ${knowledgeResult.web.rounds.length} 轮；网页结果 ${knowledgeResult.web.results.length} 条；GitHub 结果 ${knowledgeResult.github?.results.length || 0} 条；冲突提示 ${knowledgeResult.web.conflictHints.length} 条。`;
+          knowledgeResultForAgentResearch = {
+            sources: [
+              ...(knowledgeResult.github?.results || []).map((x: any) => x.url || x.title).filter(Boolean),
+              ...knowledgeResult.web.results.map((x: any) => x.url || x.title).filter(Boolean),
+            ].slice(0, 12),
+            sourceCount: (knowledgeResult.web.results.length || 0) + (knowledgeResult.github?.results.length || 0),
+            primarySourceCount: knowledgeResult.github?.results.length || 0,
+            conflictHints: knowledgeResult.web.conflictHints.length,
+          };
         } else if (knowledgeResult.context7Grounding) {
           webContext = buildUnifiedKnowledgeGrounding(knowledgeResult);
           agentResearchEvidence = '研究完成：已获得补充技术文档资料。';
@@ -1100,6 +1110,11 @@ export default function App() {
         completed: !!webContext,
         reason: agentResearchNeeded ? '任务复杂度/技术事实判断要求优先研究。' : '任务不明显依赖外部最新事实，可直接执行。',
         evidence: agentResearchEvidence || undefined,
+        sources: knowledgeResultForAgentResearch?.sources,
+        sourceCount: knowledgeResultForAgentResearch?.sourceCount,
+        primarySourceCount: knowledgeResultForAgentResearch?.primarySourceCount,
+        conflictHints: knowledgeResultForAgentResearch?.conflictHints,
+        verified: !!webContext && (knowledgeResultForAgentResearch?.primarySourceCount || 0) > 0,
       };
 
       // 2. Detect Code Diagnosis intent vs Normal task (only valid when workspace context is enabled)
@@ -1355,7 +1370,7 @@ export default function App() {
         }
 
         if (workspaceAgentEnabled && agentLoopState.round === 0) {
-          const parsedPlan = parseAgentTaskPlan(turnAccumulatedText, text);
+          const parsedPlan = parseAgentTaskPlan(turnAccumulatedText, text, agentTaskPlan.research);
           if (parsedPlan) {
             agentTaskPlan = parsedPlan;
           }
