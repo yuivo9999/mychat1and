@@ -8,17 +8,38 @@ type ProgressItem = {
   evidence?: string;
 };
 
+type AgentProgressPayload = {
+  round?: number;
+  maxRounds?: number;
+  phase?: string;
+  status?: string;
+  summary?: string;
+  currentStep?: string;
+  result?: string;
+  nextStep?: string;
+};
+
 interface AgentProgressCardProps {
   message: Message;
   compact?: boolean;
 }
 
-function parseAgentProgress(content: string): ProgressItem[] | null {
+function parseAgentProgress(content: string): { payload: AgentProgressPayload; items: ProgressItem[] } | null {
   const match = content.match(/<agent_progress>\s*([\s\S]*?)\s*<\/agent_progress>/i);
   if (!match) return null;
 
   try {
     const raw = JSON.parse(match[1]);
+    const payload: AgentProgressPayload = {
+      round: typeof raw?.round === 'number' ? raw.round : undefined,
+      maxRounds: typeof raw?.maxRounds === 'number' ? raw.maxRounds : undefined,
+      phase: typeof raw?.phase === 'string' ? raw.phase : undefined,
+      status: typeof raw?.status === 'string' ? raw.status : undefined,
+      summary: typeof raw?.summary === 'string' ? raw.summary : undefined,
+      currentStep: typeof raw?.currentStep === 'string' ? raw.currentStep : undefined,
+      result: typeof raw?.result === 'string' ? raw.result : undefined,
+      nextStep: typeof raw?.nextStep === 'string' ? raw.nextStep : undefined,
+    };
     const completed = new Set(Array.isArray(raw?.completed) ? raw.completed.map(String) : []);
     const inProgress = new Set(Array.isArray(raw?.inProgress) ? raw.inProgress.map(String) : []);
     const blocked = new Map<string, string>();
@@ -39,7 +60,7 @@ function parseAgentProgress(content: string): ProgressItem[] | null {
     const ids = new Set<string>([...completed, ...inProgress, ...blocked.keys(), ...evidence.keys()]);
     if (!ids.size) return null;
 
-    return Array.from(ids).map((id) => ({
+    return { payload, items: Array.from(ids).map((id) => ({
       id,
       status: blocked.has(id)
         ? 'blocked'
@@ -49,28 +70,38 @@ function parseAgentProgress(content: string): ProgressItem[] | null {
             ? 'in_progress'
             : 'pending',
       evidence: evidence.get(id) || blocked.get(id),
-    }));
+    })) };
+
   } catch {
     return null;
   }
 }
 
 export const AgentProgressCard: React.FC<AgentProgressCardProps> = ({ message, compact = false }) => {
-  const items = useMemo(() => parseAgentProgress(message.content), [message.content]);
-  if (!items?.length) return null;
+  const parsed = useMemo(() => parseAgentProgress(message.content), [message.content]);
+  if (!parsed?.items.length) return null;
+  const { items, payload } = parsed;
 
   const completed = items.filter(item => item.status === 'completed').length;
   const active = items.find(item => item.status === 'in_progress');
   const blocked = items.find(item => item.status === 'blocked');
   const hasRunningTools = message.toolCalls?.some((call: any) => call.status === 'running' || call.status === 'pending');
 
-  const statusLabel = blocked
-    ? '已阻塞'
-    : message.status === 'streaming' || hasRunningTools || active
-      ? '执行中'
-      : completed === items.length
-        ? '本轮完成'
-        : '已更新';
+  const phaseLabels: Record<string, string> = {
+    planning: '规划', exploring: '探索', implementing: '实施', verifying: '验证',
+    fixing: '修复', reverifying: '再验证', memory_audit: '记忆审计', waiting_user: '等待用户', completed: '完成',
+  };
+  const statusLabel = payload.status === 'waiting_user' || payload.phase === 'waiting_user'
+    ? '等待用户'
+    : payload.status === 'blocked' || blocked
+      ? '已阻塞'
+      : payload.status === 'completed' || payload.phase === 'completed'
+        ? '已完成'
+        : message.status === 'streaming' || hasRunningTools || active
+          ? '执行中'
+          : completed === items.length
+            ? '本轮完成'
+            : '已更新';
 
   const statusIcon = blocked
     ? <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
@@ -88,6 +119,8 @@ export const AgentProgressCard: React.FC<AgentProgressCardProps> = ({ message, c
       <div className="px-3 py-2 flex items-center gap-2 border-b border-neutral-100 dark:border-neutral-800">
         <Bot className="w-3.5 h-3.5 text-indigo-500" />
         <span className="text-[11px] font-semibold text-neutral-700 dark:text-neutral-200">Agent 当前进度</span>
+        {payload.round && <span className="text-[10px] font-mono text-neutral-400">第 {payload.round}/{payload.maxRounds || 12} 轮</span>}
+        {payload.phase && <span className="text-[10px] text-neutral-400">· {phaseLabels[payload.phase] || payload.phase}</span>}
         <span className="ml-auto inline-flex items-center gap-1 text-[10px] text-neutral-500 dark:text-neutral-400">
           {statusIcon}
           {statusLabel}
@@ -96,6 +129,7 @@ export const AgentProgressCard: React.FC<AgentProgressCardProps> = ({ message, c
       </div>
 
       <div className={compact ? 'px-3 py-2' : 'px-3 py-2.5'}>
+        {payload.summary && <div className="mb-2 text-[10px] leading-relaxed text-neutral-600 dark:text-neutral-300">{payload.summary}</div>}
         <div className="space-y-1.5">
           {items.slice(0, compact ? 4 : 7).map((item) => (
             <div key={item.id} className="flex items-start gap-2 min-w-0">
@@ -119,6 +153,21 @@ export const AgentProgressCard: React.FC<AgentProgressCardProps> = ({ message, c
           ))}
         </div>
 
+        {payload.currentStep && (
+          <div className="mt-2 pt-2 border-t border-neutral-100 dark:border-neutral-800 text-[10px] leading-relaxed text-neutral-500 dark:text-neutral-400">
+            <span className="font-medium text-neutral-600 dark:text-neutral-300">当前：</span>{payload.currentStep}
+          </div>
+        )}
+        {payload.result && (
+          <div className="mt-2 text-[10px] leading-relaxed text-neutral-500 dark:text-neutral-400">
+            <span className="font-medium text-neutral-600 dark:text-neutral-300">结果：</span>{payload.result}
+          </div>
+        )}
+        {payload.nextStep && (
+          <div className="mt-2 text-[10px] leading-relaxed text-neutral-500 dark:text-neutral-400">
+            <span className="font-medium text-neutral-600 dark:text-neutral-300">下一步：</span>{payload.nextStep}
+          </div>
+        )}
         {active && active.evidence && (
           <div className="mt-2 pt-2 border-t border-neutral-100 dark:border-neutral-800 text-[10px] leading-relaxed text-neutral-500 dark:text-neutral-400">
             <span className="font-medium text-neutral-600 dark:text-neutral-300">当前：</span>
