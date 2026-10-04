@@ -10,6 +10,10 @@ import androidx.webkit.WebViewAssetLoader
 import android.webkit.WebChromeClient
 import android.webkit.ConsoleMessage
 import android.util.Log
+import android.util.Base64
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Rect
 import android.view.WindowInsets
 import android.view.WindowManager
 import androidx.webkit.WebSettingsCompat
@@ -23,7 +27,10 @@ import java.net.URL
 import java.util.concurrent.Callable
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.atomic.AtomicReference
 import java.security.MessageDigest
+import java.io.ByteArrayOutputStream
 
 class MainActivity : Activity() {
     private lateinit var webView: WebView
@@ -688,6 +695,75 @@ class AndroidBridge(
         } catch (e: Throwable) {
             JSONObject().put("success", false).put("error", e.message ?: e.javaClass.simpleName).toString()
         }
+    }
+
+    @JavascriptInterface
+    fun captureProjectRuntimeScreenshot(workspaceId: String, quality: Int = 72): String {
+        val result = AtomicReference<JSONObject?>(null)
+        val latch = CountDownLatch(1)
+        activity.runOnUiThread {
+            try {
+                val script = """
+                    (() => {
+                      const iframe = document.querySelector('iframe[title="Workspace Preview"]');
+                      if (!iframe) return '';
+                      const r = iframe.getBoundingClientRect();
+                      return JSON.stringify({left:r.left, top:r.top, width:r.width, height:r.height, dpr:window.devicePixelRatio || 1});
+                    })()
+                """.trimIndent()
+                webView.evaluateJavascript(script) { rawBounds ->
+                    try {
+                        val jsonText = rawBounds?.removePrefix("\\\"")?.removeSuffix("\\\"")?.replace("\\\\\\\"", "\\\"") ?: ""
+                        if (jsonText.isBlank()) {
+                            result.set(JSONObject().put("success", false).put("error", "当前预览区没有可截图的项目 iframe"))
+                            latch.countDown()
+                            return@evaluateJavascript
+                        }
+                        val bounds = JSONObject(jsonText)
+                        val dpr = bounds.optDouble("dpr", 1.0).coerceIn(1.0, 3.0)
+                        val left = (bounds.optDouble("left") * dpr).toInt().coerceAtLeast(0)
+                        val top = (bounds.optDouble("top") * dpr).toInt().coerceAtLeast(0)
+                        val right = ((bounds.optDouble("left") + bounds.optDouble("width")) * dpr).toInt().coerceAtMost(webView.width)
+                        val bottom = ((bounds.optDouble("top") + bounds.optDouble("height")) * dpr).toInt().coerceAtMost(webView.height)
+                        if (right <= left || bottom <= top) {
+                            result.set(JSONObject().put("success", false).put("error", "预览区截图范围无效"))
+                            latch.countDown()
+                            return@evaluateJavascript
+                        }
+                        val full = Bitmap.createBitmap(webView.width.coerceAtLeast(1), webView.height.coerceAtLeast(1), Bitmap.Config.ARGB_8888)
+                        webView.draw(Canvas(full))
+                        val cropped = Bitmap.createBitmap(full, left, top, right - left, bottom - top)
+                        full.recycle()
+                        val maxWidth = 1280
+                        val finalBitmap = if (cropped.width > maxWidth) {
+                            val scaledHeight = (cropped.height.toFloat() * maxWidth / cropped.width).toInt().coerceAtLeast(1)
+                            Bitmap.createScaledBitmap(cropped, maxWidth, scaledHeight, true).also { cropped.recycle() }
+                        } else cropped
+                        val output = ByteArrayOutputStream()
+                        finalBitmap.compress(Bitmap.CompressFormat.JPEG, quality.coerceIn(45, 90), output)
+                        finalBitmap.recycle()
+                        val dataUrl = "data:image/jpeg;base64," + Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
+                        result.set(JSONObject()
+                            .put("success", true)
+                            .put("workspaceId", workspaceId)
+                            .put("width", right - left)
+                            .put("height", bottom - top)
+                            .put("dataUrl", dataUrl))
+                    } catch (e: Throwable) {
+                        result.set(JSONObject().put("success", false).put("error", e.message ?: e.javaClass.simpleName))
+                    } finally {
+                        latch.countDown()
+                    }
+                }
+            } catch (e: Throwable) {
+                result.set(JSONObject().put("success", false).put("error", e.message ?: e.javaClass.simpleName))
+                latch.countDown()
+            }
+        }
+        if (!latch.await(4, TimeUnit.SECONDS)) {
+            return JSONObject().put("success", false).put("error", "项目预览截图超时").toString()
+        }
+        return (result.get() ?: JSONObject().put("success", false).put("error", "项目预览截图失败")).toString()
     }
 
     @JavascriptInterface
