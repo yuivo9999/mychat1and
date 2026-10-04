@@ -30,6 +30,7 @@ export interface CodeExecutionResult {
 
 interface AndroidExecutionBridge {
   executePython?: (code: string, timeoutMs?: number, workspaceId?: string) => Promise<unknown> | unknown;
+  executeCommand?: (command: string, timeoutMs?: number, workspaceId?: string) => Promise<unknown> | unknown;
 }
 
 declare global {
@@ -83,9 +84,30 @@ export async function executeCode(request: CodeExecutionRequest): Promise<CodeEx
     }
   }
 
+  if (request.language === 'shell' && typeof window !== 'undefined'
+      && window.MyChatAndroid?.executeCommand) {
+    try {
+      const raw = await window.MyChatAndroid.executeCommand(
+        request.code,
+        request.timeoutMs ?? 20_000,
+        request.workspaceId
+      );
+      return normalizeAndroidResult(raw);
+    } catch (error: any) {
+      return {
+        success: false,
+        stdout: '',
+        stderr: '',
+        exitCode: -1,
+        error: error?.message || String(error),
+        runtime: 'android',
+      };
+    }
+  }
+
   if (request.language !== 'python') {
     throw new Error(
-      `当前统一执行适配层暂只允许 Python 走 Android 原生运行时；${request.language} 请继续使用 run_command。`
+      `当前统一执行适配层暂只允许 Python / Shell 走统一执行层；${request.language} 请继续使用 run_command。`
     );
   }
 
