@@ -96,6 +96,8 @@ function buildRecord(content: string, conversation: Conversation, index: number)
     sourceConversationId: conversation.id,
     sourceConversationUpdatedAt: conversation.updatedAt || now,
     confidence: memoryConfidence(content, conversation.updatedAt || now),
+    category: inferMemoryCategory(content),
+    priority: memoryPriority(inferMemoryCategory(content), content, memoryConfidence(content, conversation.updatedAt || now)),
   };
 }
 
@@ -211,6 +213,8 @@ function migrateLegacyRecords(project: Project): ProjectMemoryRecord[] {
       status: 'active' as const,
       createdAt: project.createdAt,
       updatedAt: project.updatedAt,
+      category: inferMemoryCategory(content),
+      priority: memoryPriority(inferMemoryCategory(content), content, 0.45),
     }));
 }
 
