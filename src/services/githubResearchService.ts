@@ -529,19 +529,18 @@ export async function performGitHubResearch(rawQuery: string): Promise<GitHubRes
       } catch {}
     }
 
-    const [readme, files, releaseCount] = await Promise.all([
+    const [readme, files] = await Promise.all([
       fetchReadme(fullName),
       fetchRepositoryFiles(fullName, branch, query),
-      Promise.resolve(null),
     ]);
-
-    const releaseCount = await fetchReleases(fullName, results, pageContents);
-    commits += await fetchCommitHistory(fullName, query, results, pageContents);
 
     if (readme) pageContents.push(readme);
     pageContents.push(...files);
+
+    await fetchReleases(fullName, results, pageContents);
+    commits += await fetchCommitHistory(fullName, query, results, pageContents);
+
     await enrichTopIssuesAndPullRequests(fullName, results, pageContents);
-    void releaseCount;
   }
 
   return {
