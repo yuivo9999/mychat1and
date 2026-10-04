@@ -164,7 +164,7 @@ export const WORKSPACE_TOOLS_SPEC = [
   },
   {
     name: 'run_command',
-    description: '在工作区服务器端安全终端执行 Shell 命令行与脚本（如编译打包 npm run build、安装运行测试、执行 Python 或 Node 数据分析处理等）。此工具在“运行脚本与命令”权限开启时可用。',
+    description: '执行工作区中的 Python 脚本。Android App 中由原生 Chaquopy Python 运行时执行并把脚本产生的文本文件修改同步回工作区；浏览器开发模式继续使用本地 Node 执行后端。此工具在“运行脚本与命令”权限开启时可用。',
     parameters: {
       type: 'object',
       properties: {
