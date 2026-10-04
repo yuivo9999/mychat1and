@@ -2779,6 +2779,7 @@ export default function App() {
           onDownloadWorkspaceZip={handleDownloadWorkspaceZipAction}
           currentWorkspace={currentWorkspace}
           onSaveWorkspace={handleSaveWorkspaceState}
+          onOpenWorkspace={() => setIsWorkspaceOpen(true)}
         />
 
         {/* Large AI Composer Input Area */}
