@@ -56,6 +56,7 @@ jobs:
             unzip -l "$APK" | grep -q "lib/$abi/libpython3.13.so"
           done
           unzip -l "$APK" | grep -q "assets/www/index.html"
+          unzip -l "$APK" | grep -q "assets/smoke-test.html"
           unzip -l "$APK" | grep -q "assets/node-runtime/manifest.json"
           unzip -l "$APK" | grep -q "assets/node-runtime/node_modules/npm/bin/npm-cli.js"
 
@@ -91,11 +92,13 @@ jobs:
             test -s "$APK"
             adb install -r "$APK"
             adb shell am force-stop com.yuivo9999.mychat
-            adb shell am start -n com.yuivo9999.mychat/.MainActivity
-            sleep 12
+            adb logcat -c
+            adb shell am start -n com.yuivo9999.mychat/.MainActivity --ez mychat_smoke_test true
+            sleep 15
             adb shell dumpsys activity activities | grep -q "com.yuivo9999.mychat/.MainActivity"
             if adb logcat -d -v brief | grep -E "FATAL EXCEPTION|Process: com.yuivo9999.mychat" | grep -q "FATAL EXCEPTION"; then
               adb logcat -d -v brief
               exit 1
             fi
             adb shell dumpsys package com.yuivo9999.mychat | grep -q "versionName=0.1.1"
+            adb logcat -d -v brief | grep -q "MYCHAT_SMOKE_TEST_PASS"
