@@ -249,6 +249,34 @@ export function checkProjectRuntimeHealth(port: number, timeoutMs = 2500): Proje
   }
 }
 
+export interface ProjectRuntimeDiagnostics {
+  workspaceId: string;
+  checkedAt: number;
+  runtime: ProjectRuntimeState;
+  health?: ProjectRuntimeHealth;
+  healthy: boolean;
+  recentStdout: string;
+  recentStderr: string;
+  diagnosis: string;
+}
+
+export function getProjectRuntimeDiagnostics(workspaceId: string): ProjectRuntimeDiagnostics {
+  const runtime = getProjectRuntimeState(workspaceId);
+  const recentStdout = String(runtime.stdout || '').slice(-6000);
+  const recentStderr = String(runtime.stderr || '').slice(-6000);
+  const health = runtime.port ? checkProjectRuntimeHealth(runtime.port, 1500) : undefined;
+  const healthy = runtime.running === true && (!!runtime.port ? health?.ok === true : runtime.status === 'running');
+  let diagnosis = '项目运行状态未知。';
+  if (!runtime.supported) diagnosis = '当前环境没有暴露项目持久运行时接口。';
+  else if (!runtime.running) diagnosis = runtime.status === 'error'
+    ? (recentStderr || '项目进程启动失败，未获得更多错误信息。')
+    : '项目当前没有运行中的持久进程。';
+  else if (!runtime.port) diagnosis = '项目进程仍在运行，但尚未检测到 HTTP 端口；优先读取 stdout 判断服务器是否启动或端口参数是否正确。';
+  else if (health?.ok) diagnosis = 'HTTP 服务正常响应（' + (health.status ?? 'unknown') + '，' + (health.latencyMs ?? '?') + 'ms）。';
+  else diagnosis = health?.error || '进程存在，但 HTTP 健康检查失败；优先检查 stderr 与最近 stdout。';
+  return { workspaceId, checkedAt: Date.now(), runtime, health, healthy, recentStdout, recentStderr, diagnosis };
+}
+
 export function getNodeDependencyState(workspaceId: string): { installed: boolean; inSync: boolean } {
   const bridge = runtimeBridge() as any;
   if (!bridge?.getWorkspaceNodeRuntimeState) return { installed: false, inSync: false };
