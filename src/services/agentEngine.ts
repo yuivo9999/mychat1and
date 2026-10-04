@@ -1650,8 +1650,10 @@ export async function executeWorkspaceTool(
         }
       }
 
+      const visualVerificationRequired = failedAt === -1;
       const result = {
         success: failedAt === -1,
+        visualVerificationRequired,
         viewport: 'mobile-390x780',
         stepCount: steps.length,
         completedSteps: failedAt === -1 ? steps.length : failedAt - 1,
