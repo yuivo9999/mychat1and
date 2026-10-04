@@ -791,7 +791,17 @@ export async function stopAgentTaskByMessageId(messageId: string, reason = '用�
 export async function stopAgentTask(conversationId: string, reason = '用户手动停止 Agent 任务'): Promise<boolean> {
   abortActiveRequestControllers();
   const conversation = await getConversation(conversationId);
-  if (conversation?.agentTask?.taskId) requestAgentStop(conversation.agentTask.taskId);
+  if (conversation?.agentTask?.taskId) {
+    const taskId = conversation.agentTask.taskId;
+    requestAgentStop(taskId);
+    // Keep the stop marker briefly so stale promises that finish after abort()
+    // are still rejected, then let the orchestrator TTL cleanup release it.
+    window.setTimeout(() => {
+      void import('./agentOrchestrator').then(({ cleanupAgentStopRequest }) => {
+        cleanupAgentStopRequest(taskId);
+      }).catch(() => {});
+    }, 10 * 60 * 1000);
+  }
   if (!conversation?.agentTask) return false;
   const now = Date.now();
   conversation.agentTask = {
