@@ -232,6 +232,40 @@ export function renderMarkdown(content: string, options: MarkdownOptions = {}): 
           </div>
         `;
       },
+      heading({ text, depth }: { text: string; depth: number }) {
+        const safeDepth = Math.min(Math.max(depth || 1, 1), 6);
+        const headingClass = safeDepth === 1
+          ? 'markdown-heading markdown-heading-1'
+          : safeDepth === 2
+            ? 'markdown-heading markdown-heading-2'
+            : safeDepth === 3
+              ? 'markdown-heading markdown-heading-3'
+              : 'markdown-heading markdown-heading-sub';
+        return `<h${safeDepth} class="${headingClass}" data-heading-depth="${safeDepth}">${text}</h${safeDepth}>`;
+      },
+      paragraph({ text }: { text: string }) {
+        return `<p class="markdown-paragraph">${text}</p>`;
+      },
+      hr() {
+        return '<hr class="markdown-divider" />';
+      },
+      list({ items, ordered, start }: { items: any[]; ordered: boolean; start: number }) {
+        const tag = ordered ? 'ol' : 'ul';
+        const listClass = ordered ? 'markdown-list markdown-list-ordered' : 'markdown-list markdown-list-unordered';
+        const startAttr = ordered && start && start !== 1 ? ` start="${start}"` : '';
+        return `<${tag} class="${listClass}"${startAttr}>${(items || []).map((item: any) => {
+          const itemText = typeof item === 'string' ? item : (item?.text ?? item?.raw ?? '');
+          const taskClass = item?.task ? ' markdown-task-item' : '';
+          return `<li class="${taskClass.trim()}">${itemText}</li>`;
+        }).join('')}</${tag}>`;
+      },
+      codespan({ text }: { text: string }) {
+        return `<code class="markdown-inline-code">${escapeHtml(text)}</code>`;
+      },
+      link({ href, title, text }: { href: string; title?: string | null; text: string }) {
+        const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
+        return `<a class="markdown-link" href="${href || '#'}" target="_blank" rel="noopener noreferrer"${titleAttr}>${text || href || ''}</a>`;
+      },
       table({ header, rows }: { header: string; rows: string }) {
         return `
           <div class="overflow-x-auto my-3.5 rounded-lg border border-neutral-200 dark:border-neutral-800">
