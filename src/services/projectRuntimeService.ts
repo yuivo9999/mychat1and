@@ -136,3 +136,84 @@ export function buildProjectRuntimeReport(workspace: Workspace): string {
     signals: info.signals,
   }, null, 2);
 }
+
+
+export interface ProjectRuntimeState {
+  supported: boolean;
+  running: boolean;
+  status: 'starting' | 'running' | 'stopped' | 'error' | 'unknown';
+  port?: number;
+  command?: string;
+  pid?: number;
+  stdout?: string;
+  stderr?: string;
+  startedAt?: number;
+}
+
+interface AndroidProjectRuntimeBridge {
+  startWorkspaceProject?: (workspaceId: string, command: string, timeoutMs?: number) => string;
+  getWorkspaceProjectRuntimeState?: (workspaceId: string) => string;
+  stopWorkspaceProject?: (workspaceId: string) => string;
+}
+
+function runtimeBridge(): AndroidProjectRuntimeBridge | null {
+  if (typeof window === 'undefined') return null;
+  return (window as any).MyChatAndroid || null;
+}
+
+export function buildProjectStartCommand(workspace: Workspace): string | null {
+  const info = inspectProjectRuntime(workspace);
+  if (info.kind !== 'node') return null;
+  if (info.scripts.includes('dev')) return 'npm run dev -- --host 127.0.0.1';
+  if (info.scripts.includes('start')) return 'npm run start -- --host 127.0.0.1';
+  if (info.scripts.includes('preview')) return 'npm run preview -- --host 127.0.0.1';
+  return null;
+}
+
+export function getProjectRuntimeState(workspaceId: string): ProjectRuntimeState {
+  const bridge = runtimeBridge();
+  if (!bridge?.getWorkspaceProjectRuntimeState) return { supported: false, running: false, status: 'unknown' };
+  try {
+    const raw = bridge.getWorkspaceProjectRuntimeState(workspaceId);
+    const payload = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    return {
+      supported: true,
+      running: payload?.running === true,
+      status: payload?.status || (payload?.running ? 'running' : 'stopped'),
+      port: typeof payload?.port === 'number' ? payload.port : undefined,
+      command: payload?.command,
+      pid: typeof payload?.pid === 'number' ? payload.pid : undefined,
+      stdout: payload?.stdout || '',
+      stderr: payload?.stderr || '',
+      startedAt: payload?.startedAt,
+    };
+  } catch {
+    return { supported: true, running: false, status: 'error' };
+  }
+}
+
+export function startProjectRuntime(workspace: Workspace): ProjectRuntimeState {
+  const bridge = runtimeBridge();
+  const command = buildProjectStartCommand(workspace);
+  if (!bridge?.startWorkspaceProject || !command) {
+    return { supported: false, running: false, status: 'unknown', command: command || undefined };
+  }
+  try {
+    const raw = bridge.startWorkspaceProject(workspace.id, command, 8000);
+    const payload = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    return {
+      supported: true,
+      running: payload?.success === true,
+      status: payload?.status || (payload?.success ? 'starting' : 'error'),
+      port: typeof payload?.port === 'number' ? payload.port : undefined,
+      command,
+      pid: typeof payload?.pid === 'number' ? payload.pid : undefined,
+    };
+  } catch (error: any) {
+    return { supported: true, running: false, status: 'error', command, stderr: error?.message || String(error) };
+  }
+}
+
+export function stopProjectRuntime(workspaceId: string): void {
+  try { runtimeBridge()?.stopWorkspaceProject?.(workspaceId); } catch {}
+}
