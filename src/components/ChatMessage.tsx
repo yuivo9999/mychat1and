@@ -379,23 +379,50 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
       const lang = addWorkspaceBtn.getAttribute('data-lang') || 'txt';
       const ext = getFileExtensionForLang(lang);
       
-      const defaultFilename = `code_${Date.now().toString().slice(-4)}.${ext}`;
+      const languageDefaults: Record<string, string> = {
+        tsx: 'src/App.tsx',
+        jsx: 'src/App.jsx',
+        typescript: 'src/index.ts',
+        javascript: 'src/index.js',
+        python: 'main.py',
+        py: 'main.py',
+        html: 'index.html',
+        css: 'styles.css',
+        json: 'data.json',
+        markdown: 'README.md',
+        md: 'README.md',
+        sql: 'query.sql',
+        shell: 'scripts/run.sh',
+        sh: 'scripts/run.sh',
+        yaml: 'config.yaml',
+        yml: 'config.yaml',
+      };
+      const defaultFilename = languageDefaults[lang.toLowerCase()] || `code_${Date.now().toString().slice(-4)}.${ext}`;
       const path = prompt('请输入要加入当前工作区的文件路径与文件名:', defaultFilename);
       if (path && path.trim()) {
         const trimmedPath = path.trim();
+        const existingFile = currentWorkspace.files?.[trimmedPath];
+        if (existingFile && !window.confirm(`工作区已存在“${trimmedPath}”。\\n\\n确定用当前代码替换它吗？`)) {
+          return;
+        }
+
+        const now = Date.now();
         const updatedFiles = {
           ...currentWorkspace.files,
           [trimmedPath]: {
+            ...(existingFile || {}),
             path: trimmedPath,
             content: rawCode,
             size: new Blob([rawCode]).size,
-            updatedAt: Date.now()
+            updatedAt: now,
+            sourceMessageId: message.id,
+            sourceLanguage: lang,
           }
         };
         const updatedWorkspace = {
           ...currentWorkspace,
           files: updatedFiles,
-          updatedAt: Date.now()
+          updatedAt: now
         };
         onSaveWorkspace(updatedWorkspace);
         
@@ -403,8 +430,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
         const span = addWorkspaceBtn.querySelector('span');
         if (span) {
           const original = span.innerText;
-          span.innerText = '已加入工作区!';
-          setTimeout(() => { span.innerText = original; }, 2000);
+          span.innerText = existingFile ? '已替换工作区文件!' : '已加入工作区!';
+          setTimeout(() => { span.innerText = original; }, 2200);
         }
         if (onOpenWorkspace) {
           window.setTimeout(() => onOpenWorkspace(), 180);
