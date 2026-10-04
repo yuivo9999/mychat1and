@@ -1,4 +1,4 @@
-import { AdapterOptions, StreamCallbacks, executeFetch, parseHttpError, isConciseReplyModeEnabled } from './base';
+import { AdapterOptions, StreamCallbacks, executeFetch, parseHttpError, isConciseReplyModeEnabled, registerActiveRequestController } from './base';
 import { extractAttachmentText } from '../fileParser';
 
 function supportsResponsesFileMime(mimeType: string): boolean {
@@ -65,6 +65,7 @@ export async function sendOpenAIResponses(options: AdapterOptions, callbacks?: S
   const key = apiKeyConfig.apiKey?.trim().replace(/^Bearer\s+/i, '') || '';
   const controller = new AbortController();
   const timeout = (timeoutSeconds || 60) * 1000;
+    const unregisterActiveRequest = registerActiveRequestController(controller);
   const timer = setTimeout(() => controller.abort(), timeout);
   if (abortSignal) abortSignal.addEventListener('abort', () => controller.abort());
 
@@ -78,6 +79,7 @@ export async function sendOpenAIResponses(options: AdapterOptions, callbacks?: S
     });
   } finally {
     clearTimeout(timer);
+    unregisterActiveRequest();
   }
 
   if (!response.ok) {
