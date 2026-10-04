@@ -35,6 +35,10 @@ export interface AgentResearchState {
   reason: string;
   evidence?: string;
   sources?: string[];
+  sourceCount?: number;
+  primarySourceCount?: number;
+  conflictHints?: number;
+  verified?: boolean;
 }
 
 export interface AgentTaskPlan {
@@ -119,78 +123,32 @@ function normalizePlanStringList(value: unknown, fallback: string[]): string[] {
   return items.length > 0 ? items : fallback;
 }
 
-export function buildAgentTaskPlanPrompt(goal: string): string {
-  return '[Agent 动态任务规划协议]\\n' +
-    '用户目标：\\n' + goal + '\\n\\n' +
-    '你现在需要把“用户真正想完成的事情”拆成可验证的执行计划。不要把阶段名称当成子任务，也不要泛化成“做完并测试”。\\n' +
-    '请输出一个机器可读的规划块：\\n\\n' +
-    '<agent_plan>\\n' +
-    '{\\n' +
-    '  "goal": "一句话准确描述最终目标",\\n' +
-    '  "definitionOfDone": ["3-8 条可验证的最终完成条件"],\\n' +
-    '  "checklist": [{"id":"简短稳定ID","title":"具体子任务","required":true,"acceptanceCriteria":["可验证事实"]}]\\n' +
-    '}\\n' +
-    '</agent_plan>\\n\\n' +
-    '要求：\\n' +
-    '1. checklist 最多 ' + MAX_DYNAMIC_CHECKLIST_ITEMS + ' 项，按真实依赖顺序排列；\\n' +
-    '2. 每项必须是具体可执行/可验证的工作；\\n' +
-    '2.1 dependsOn 只填写确实必须先完成的 checklist ID；没有前置依赖时使用空数组；\\n' +
-    '3. acceptanceCriteria 必须能通过代码、工具输出、运行结果或明确用户输入验证；\\n' +
-    '4. 不确定的事实不要编造，先写成需要探索验证的条件；\\n' +
-    '5. 规划完成后继续正常 Agent 工作，不要因为输出规划块就结束任务。';
+export function buildAgentTaskPlanPrompt(goal: string, research?: AgentResearchState): string {
+  const gate = research?.required
+    ? (research.completed
+      ? '研究已完成。证据：' + (research.evidence || '已获得研究结果') + '\\n主要来源：' + ((research.sources || []).slice(0, 8).join(' | ') || '未提供') + '\\n统计：总来源 ' + (research.sourceCount ?? 0) + '，主要来源 ' + (research.primarySourceCount ?? 0) + '，冲突提示 ' + (research.conflictHints ?? 0) + '。实施决策必须引用这些证据，冲突必须先验证。'
+      : '研究门禁已开启：研究完成前禁止实施代码修改，必须先完成研究并记录可追溯来源。原因：' + research.reason)
+    : '当前任务不强制外部研究；执行中遇到版本、依赖、API、Android 或第三方行为不确定性时，必须主动研究而不是猜测。';
+  return '[Agent 动态任务规划协议]\\n用户目标：\\n' + goal + '\\n\\n' + gate + '\\n\\n' +
+    '请输出机器可读的 <agent_plan> JSON。checklist 最多 ' + MAX_DYNAMIC_CHECKLIST_ITEMS + ' 项，按真实依赖顺序排列；每项必须有 acceptanceCriteria。' +
+    (research?.required && !research.completed ? ' 必须包含一个“研究”子任务，并让所有实施任务依赖它。' : '') +
+    '\\n格式：<agent_plan>{"goal":"最终目标","definitionOfDone":["可验证条件"],"checklist":[{"id":"稳定ID","title":"具体子任务","required":true,"dependsOn":[],"acceptanceCriteria":["可验证事实"]}]}</agent_plan>\\n' +
+    '规划后继续执行，不要因输出规划块而结束任务。';
 }
 
-export function parseAgentTaskPlan(text: string, fallbackGoal: string): AgentTaskPlan | null {
-  const match = text.match(/<agent_plan>\s*([\s\S]*?)\s*<\/agent_plan>/i);
+export function parseAgentTaskPlan(text: string, fallbackGoal: string, research?: AgentResearchState): AgentTaskPlan | null {
+  const match = text.match(/<agent_plan>\\s*([\\s\\S]*?)\\s*<\\/agent_plan>/i);
   if (!match) return null;
   try {
-    const raw = JSON.parse(match[1]);
-    if (!raw || typeof raw !== 'object') return null;
-    const checklistRaw = Array.isArray(raw.checklist) ? raw.checklist : [];
-    const checklist = checklistRaw
-      .filter((item: any) => item && typeof item.title === 'string' && item.title.trim())
-      .slice(0, MAX_DYNAMIC_CHECKLIST_ITEMS)
-      .map((item: any, index: number) => ({
-        id: normalizePlanString(item.id, 'task_' + (index + 1)),
-        title: item.title.trim(),
-        status: index === 0 ? 'in_progress' as const : 'pending' as const,
-        required: item.required !== false,
-        acceptanceCriteria: normalizePlanStringList(item.acceptanceCriteria, []),
-        dependsOn: Array.isArray(item.dependsOn)
-          ? item.dependsOn.map(String).filter(Boolean)
-          : [],
-      }));
-    const ids = new Set(checklist.map(item => item.id));
-    const seenIds = new Set<string>();
-    checklist.forEach((item, index) => {
-      const uniqueDeps = Array.from(new Set(item.dependsOn || []))
-        .filter(dep => ids.has(dep) && dep !== item.id)
-        .filter(dep => {
-          const depIndex = checklist.findIndex(candidate => candidate.id === dep);
-          return depIndex >= 0 && depIndex < index;
-        });
-      item.dependsOn = uniqueDeps;
-      if (seenIds.has(item.id)) item.id = 'task_' + (index + 1);
-      seenIds.add(item.id);
-    });
-    const normalizedIds = new Set<string>();
-    checklist.forEach((item, index) => {
-      if (normalizedIds.has(item.id)) item.id = 'task_' + (index + 1);
-      normalizedIds.add(item.id);
-    });
-    if (checklist.length === 0) return null;
-    return {
-      goal: normalizePlanString(raw.goal, fallbackGoal),
-      definitionOfDone: normalizePlanStringList(raw.definitionOfDone, [
-        '完成用户明确提出的主要目标',
-        '修改基于真实工作区代码与运行时证据，而不是猜测',
-        '修改后完成针对性的真实验证',
-      ]),
-      checklist,
-    };
-  } catch {
-    return null;
-  }
+    const raw = JSON.parse(match[1]); if (!raw || typeof raw !== 'object') return null;
+    const items = (Array.isArray(raw.checklist) ? raw.checklist : []).filter((x: any) => x && typeof x.title === 'string' && x.title.trim()).slice(0, MAX_DYNAMIC_CHECKLIST_ITEMS);
+    const checklist: AgentTaskChecklistItem[] = items.map((item: any,index: number) => ({id: normalizePlanString(item.id,'task_'+(index+1)),title:item.title.trim(),status:index===0?'in_progress':'pending',required:item.required!==false,acceptanceCriteria:normalizePlanStringList(item.acceptanceCriteria,[]),dependsOn:Array.isArray(item.dependsOn)?item.dependsOn.map(String).filter(Boolean):[]}));
+    if (!checklist.length) return null;
+    const ids=new Set(checklist.map(x=>x.id)); const seen=new Set<string>();
+    checklist.forEach((item,index)=>{ if(seen.has(item.id)) item.id='task_'+(index+1); seen.add(item.id); item.dependsOn=Array.from(new Set(item.dependsOn||[])).filter(d=>ids.has(d)&&d!==item.id).filter(d=>{const i=checklist.findIndex(x=>x.id===d);return i>=0&&i<index;}); });
+    if(research?.required&&!research.completed){ const ri=checklist.find(x=>x.id==='research'||/研究|research/i.test(x.title)); if(!ri){ checklist.unshift({id:'research',title:'完成外部技术研究并记录可追溯证据',status:'in_progress',required:true,acceptanceCriteria:['获得网页/GitHub主要来源并记录关键事实','处理关键冲突或不确定性'],dependsOn:[]}); } const ritem=checklist.find(x=>x.id==='research'||/研究|research/i.test(x.title)); if(ritem) checklist.forEach(x=>{if(x.id!==ritem.id&&!/研究|research/i.test(x.title))x.dependsOn=Array.from(new Set([...(x.dependsOn||[]),ritem.id]));}); }
+    return {goal:normalizePlanString(raw.goal,fallbackGoal),definitionOfDone:normalizePlanStringList(raw.definitionOfDone,['完成用户明确提出的主要目标','修改基于真实工作区代码与运行时证据，而不是猜测','修改后完成针对性的真实验证']),checklist:checklist.slice(0,MAX_DYNAMIC_CHECKLIST_ITEMS),research:research?{...research,sources:research.sources?.slice(0,8)}:undefined};
+  } catch{return null;}
 }
 
 export function buildAgentReplanPrompt(plan: AgentTaskPlan, trigger = '执行过程中发现新证据'): string {
@@ -621,6 +579,7 @@ export function buildAgentLoopFeedback(
   toolResults: string,
   plan?: AgentTaskPlan,
 ): string {
+  const researchText = plan?.research ? ('研究门禁：'+(plan.research.required?'需要':'不需要')+'；状态：'+(plan.research.completed?'已完成':'未完成')+'；原因：'+plan.research.reason+(plan.research.evidence?'；证据：'+plan.research.evidence.slice(0,500):'')+'\\n') : '';
   const checklist = plan
     ? plan.checklist.map((item, index) => {
         const criteria = item.acceptanceCriteria?.length
@@ -652,11 +611,13 @@ export function buildAgentLoopFeedback(
     getAgentPhaseInstruction(state) + '\\n\\n' +
     '## 当前任务目标\\n' + (plan?.goal || '未明确') + '\\n\\n' +
     '## Definition of Done\\n' + definitionOfDone + '\\n\\n' +
+    '## 研究证据\\n' + researchText + '\\n' +
     '## 动态子任务清单\\n' + checklist + '\\n\\n' +
     '## 依赖调度\\n下一项可执行任务：' + nextTaskText + '\\n被依赖阻塞：' + blockedText + '\\n\\n' +
     '上一轮工具结果：\\n' + toolResults + '\\n\\n' +\n    buildAgentReplanPrompt(plan || createAgentTaskPlan('未明确任务'), '结合上一轮工具结果判断当前计划是否仍然成立') + '\\n\\n' +
     '请根据真实证据决定下一步：\\n' +
     '1. 优先执行“下一项可执行任务”；如果任务有未完成 dependsOn，不得抢跑；\\n' +
+    '1.1 研究门禁开启且研究未完成时，禁止实施代码修改；\\n' +
     '2. 每完成一个子任务，必须让其 acceptanceCriteria 有真实证据支撑；\\n' +
     '3. 修改后必须优先验证；\\n' +
     '4. 验证失败 → 定位根因、修复、再验证；\\n' +
