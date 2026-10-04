@@ -113,11 +113,18 @@ export async function executeCode(request: CodeExecutionRequest): Promise<CodeEx
   if (request.language === 'shell' && typeof window !== 'undefined'
       && window.MyChatAndroid?.executeCommand) {
     try {
-      const raw = await window.MyChatAndroid.executeCommand(
-        request.code,
-        request.timeoutMs ?? 20_000,
-        request.workspaceId
-      );
+      const isNpmCommand = /^(npm)(?:\\s|$)/.test(request.code.trim());
+      const raw = isNpmCommand && window.MyChatAndroid.executeNode
+        ? await window.MyChatAndroid.executeNode(
+            request.code,
+            request.timeoutMs ?? 120_000,
+            request.workspaceId
+          )
+        : await window.MyChatAndroid.executeCommand(
+            request.code,
+            request.timeoutMs ?? 20_000,
+            request.workspaceId
+          );
       return normalizeAndroidResult(raw);
     } catch (error: any) {
       return {
