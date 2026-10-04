@@ -1528,10 +1528,37 @@ export async function executeWorkspaceTool(
       const plan: PlannedStep[] = [];
       if (discovery.success && discovery.elements?.length) {
         const elements = discovery.elements.filter((e: any) => !e.disabled && e.visible !== false);
+        const textOf = (e: any) => String(e.text || '') + ' ' + String(e.aria || '') + ' ' + String(e.title || '');
         const input = elements.find((e: any) => ['input', 'textarea'].includes(e.tag) && e.type !== 'hidden');
-        const primary = elements.find((e: any) => ['button', 'a'].includes(e.tag) || ['button', 'link'].includes(e.role || ''));
-        const submit = elements.find((e: any) => e.type === 'submit' || /提交|保存|发送|登录|注册|确定|下一步|开始|搜索|send|submit|save|login|next/i.test(String(e.text || '') + ' ' + String(e.aria || '')));
-        const action = submit || primary || elements[0];
+        const submitPattern = /提交|保存|发送|登录|注册|确定|下一步|开始|搜索|继续|确认|创建|购买|send|submit|save|login|sign|next|start|search|continue|confirm|create/i;
+        const secondaryPattern = /取消|返回|关闭|菜单|设置|更多|删除|cancel|back|close|menu|settings|more|delete/i;
+        const scoreAction = (e: any) => {
+          const text = textOf(e);
+          let score = 0;
+          if (e.tag === 'button' || e.role === 'button') score += 8;
+          if (e.tag === 'a' || e.role === 'link') score += 3;
+          if (e.type === 'submit') score += 12;
+          if (submitPattern.test(text)) score += 18;
+          if (secondaryPattern.test(text)) score -= 8;
+          if (e.width >= 120) score += 3;
+          if (e.height >= 36) score += 2;
+          const centerY = Number(e.y || 0) + Number(e.height || 0) / 2;
+          if (centerY > 260 && centerY < 720) score += 2;
+          return score;
+        };
+        const actionCandidates = elements
+          .filter((e: any) => ['button', 'a'].includes(e.tag) || ['button', 'link'].includes(e.role || ''))
+          .map((e: any) => ({ e, score: scoreAction(e) }))
+          .sort((a: any, b: any) => b.score - a.score);
+        const action = actionCandidates[0]?.e || elements[0];
+        const inputAction = input && action && (
+          input.selector && action.selector
+            ? input.selector === action.selector
+            : Math.abs((input.x || 0) - (action.x || 0)) < 4 && Math.abs((input.y || 0) - (action.y || 0)) < 4
+        ) ? actionCandidates[1]?.e || elements[0] : action;
+
+        // 规划不是简单“找到第一个按钮”，而是根据真实文案/ARIA/type/尺寸/位置选择最可能的主路径。
+        // 同时避免把输入框本身当成提交动作；没有明确 CTA 时才退回第一个可交互元素。
         if (input?.selector) {
           plan.push({ action: 'tap', target: input.selector });
           plan.push({ action: 'type', target: input.selector, value: 'MyChat mobile test' });
@@ -1539,9 +1566,9 @@ export async function executeWorkspaceTool(
           plan.push({ action: 'tap', x: input.x + input.width / 2, y: input.y + input.height / 2 });
           plan.push({ action: 'type', value: 'MyChat mobile test' });
         }
-        if (action) {
-          if (action.selector) plan.push({ action: 'tap', target: action.selector });
-          else plan.push({ action: 'tap', x: action.x + action.width / 2, y: action.y + action.height / 2 });
+        if (inputAction) {
+          if (inputAction.selector) plan.push({ action: 'tap', target: inputAction.selector });
+          else plan.push({ action: 'tap', x: inputAction.x + inputAction.width / 2, y: inputAction.y + inputAction.height / 2 });
           plan.push({ action: 'wait', value: '500' });
         }
         if (includeScroll) plan.push({ action: 'scroll', value: '480' });
