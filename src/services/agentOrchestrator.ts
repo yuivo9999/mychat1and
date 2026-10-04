@@ -28,15 +28,80 @@ export interface AgentLoopState {
   progressKind: AgentProgressKind;
 }
 
-const PHASE_ORDER: AgentPhase[] = [
-  'planning',
-  'exploring',
-  'implementing',
-  'verifying',
-  'fixing',
-  'reverifying',
-  'memory_audit',
-];
+export interface AgentTaskPlan {
+  goal: string;
+  definitionOfDone: string[];
+  checklist: AgentTaskChecklistItem[];
+}
+
+export interface AgentTaskChecklistItem {
+  id: string;
+  title: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'blocked';
+  evidence?: string;
+}
+
+export function createAgentTaskPlan(goal: string): AgentTaskPlan {
+  return {
+    goal,
+    definitionOfDone: [
+      '完成用户明确提出的主要目标',
+      '修改基于真实工作区代码与运行时证据，而不是猜测',
+      '修改后完成至少一次针对性的验证',
+      '验证失败时定位并修复可控问题，或明确记录真实阻塞原因',
+      '在没有剩余可执行步骤时再结束 Agent 任务',
+    ],
+    checklist: [
+      { id: 'understand', title: '理解任务与完成条件', status: 'in_progress' },
+      { id: 'inspect', title: '检查工作区与相关代码', status: 'pending' },
+      { id: 'implement', title: '完成必要的代码/配置修改', status: 'pending' },
+      { id: 'verify', title: '执行真实验证', status: 'pending' },
+      { id: 'fix', title: '处理验证发现的问题', status: 'pending' },
+      { id: 'reverify', title: '再次验证并确认完成条件', status: 'pending' },
+      { id: 'memory', title: '审计可长期复用的项目记忆', status: 'pending' },
+    ],
+  };
+}
+
+export function updateAgentTaskChecklist(
+  plan: AgentTaskPlan,
+  state: AgentLoopState,
+  evidence?: string,
+): AgentTaskPlan {
+  const order: Array<[string, AgentPhase]> = [
+    ['understand', 'planning'],
+    ['inspect', 'exploring'],
+    ['implement', 'implementing'],
+    ['verify', 'verifying'],
+    ['fix', 'fixing'],
+    ['reverify', 'reverifying'],
+    ['memory', 'memory_audit'],
+  ];
+  const phaseIndex = order.findIndex(([, phase]) => phase === state.phase);
+  const completedThrough = phaseIndex - 1;
+  const checklist = plan.checklist.map((item, index) => {
+    if (state.phase === 'completed') return { ...item, status: 'completed' as const, evidence: evidence || item.evidence };
+    if (state.phase === 'waiting_user' && index === Math.max(0, phaseIndex)) return { ...item, status: 'blocked' as const, evidence: evidence || item.evidence };
+    if (index < completedThrough) return { ...item, status: 'completed' as const };
+    if (index === phaseIndex) return { ...item, status: 'in_progress' as const, evidence: evidence || item.evidence };
+    return item;
+  });
+  return { ...plan, checklist };
+}
+
+export function getAgentTaskStepText(state: AgentLoopState): { currentStep: string; nextStep: string } {
+  switch (state.phase) {
+    case 'planning': return { currentStep: '确认任务目标与完成条件', nextStep: '检查工作区与相关代码' };
+    case 'exploring': return { currentStep: '检查真实代码、依赖与运行时事实', nextStep: '实施必要修改' };
+    case 'implementing': return { currentStep: '实施必要的代码/配置修改', nextStep: '执行真实验证' };
+    case 'verifying': return { currentStep: '执行项目检查并收集结果', nextStep: '必要时修复验证失败' };
+    case 'fixing': return { currentStep: '定位验证失败根因并修复', nextStep: '再次验证修复结果' };
+    case 'reverifying': return { currentStep: '再次验证并确认完成条件', nextStep: '审计长期项目记忆并结束' };
+    case 'memory_audit': return { currentStep: '审计稳定、可复用的项目记忆', nextStep: '确认任务完成并总结' };
+    case 'waiting_user': return { currentStep: '等待不可推断的用户决策或外部输入', nextStep: '收到输入后继续当前任务' };
+    default: return { currentStep: '任务收尾', nextStep: '总结并结束' };
+  }
+}
 
 const SEARCH_TOOLS = new Set([
   'list_files',
