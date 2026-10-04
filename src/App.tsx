@@ -1208,6 +1208,7 @@ export default function App() {
         /必须|不得|禁止|统一|规范|约定|决定|最终|改为|改成|调整为|换成|采用|技术选型|架构|UI|UX|配色|主题|布局|输入框|键盘|依赖|框架|方案/i.test(text)
       );
       let memoryAuditCompleted = !memoryAuditEligible;
+      let memoryAuditTurn = false;
       // Provide ample turns (up to 12 turns) for multi-file inspection, plan formulation, and multi-file modification.
       // A project-memory audit may consume one additional bounded turn.
       const maxAgentTurns = (workspaceAgentEnabled ? 12 : (historySearchEnabled || (projectMemoryEnabled && !!targetConv.projectId)) ? 6 : 1) + (memoryAuditEligible ? 2 : 0);
@@ -1217,6 +1218,8 @@ export default function App() {
 
       while (turn < maxAgentTurns) {
         let turnAccumulatedText = '';
+        const currentTurnIsMemoryAudit = memoryAuditTurn;
+        memoryAuditTurn = false;
 
         // Token Budget Guard: Prune deep tool outputs from earlier turns to prevent quadratic token growth
         const prunedMessagesForTurn = pruneAgentLoopHistory(currentHistoryMessages, turn);
@@ -1282,7 +1285,7 @@ export default function App() {
 
         finalFullText = turnAccumulatedText;
         const cleanedThisTurn = cleanResponseText(turnAccumulatedText);
-        if (cleanedThisTurn) {
+        if (cleanedThisTurn && !currentTurnIsMemoryAudit) {
           cumulativeAssistantNarrative = cumulativeAssistantNarrative
             ? `${cumulativeAssistantNarrative}\n\n${cleanedThisTurn}`
             : cleanedThisTurn;
@@ -1492,6 +1495,7 @@ export default function App() {
             content: `[项目记忆最终审计]\n请只做一次本轮任务的长期记忆审计：判断用户本轮是否明确形成了稳定、可复用的项目级规则、约束、架构/技术选型、UI/UX约定或明确决定。普通进度、一次性报错、临时实现细节、修改文件列表不要保存。若存在候选：先调用 get_project_memory 读取相关当前记录，再根据结果选择 create_project_memory、update_project_memory 或 archive_project_memory；如果是明确替代旧决定，确保旧记录进入 superseded。若没有值得长期保存的内容，直接说明“无需更新项目记忆”，不要调用记忆写入工具。不要搜索历史对话，也不要为了审计修改工作区代码。`,
             timestamp: Date.now(),
           });
+          memoryAuditTurn = true;
           turn++;
           setStatusMessage(`Agent 正在进行项目记忆最终审计...`);
           continue;
