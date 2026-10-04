@@ -14,7 +14,7 @@ import { formatChatContextPrompt, detectWorkspaceIntent, WorkspaceIntent } from 
 import { ChatContext } from '../types/workspace';
 import { looksLikePythonSource, getWorkspaceNodeRuntimeState, markWorkspaceDependenciesInstalled, readWorkspaceFile } from './codeExecutionAdapter';
 import { executeAgentRuntime, getAgentRuntimeCapabilities, installAgentDependencies } from './agentRuntime';
-import { buildProjectRuntimeReport, inspectProjectRuntime, getProjectRuntimeDiagnostics, startProjectRuntime, stopProjectRuntime, captureProjectRuntimeScreenshot } from './projectRuntimeService';
+import { buildProjectRuntimeReport, inspectProjectRuntime, getProjectRuntimeDiagnostics, startProjectRuntime, stopProjectRuntime, captureProjectRuntimeScreenshot, interactProjectPreview } from './projectRuntimeService';
 
 export { detectWorkspaceIntent, type WorkspaceIntent };
 
@@ -215,6 +215,21 @@ export const WORKSPACE_TOOLS_SPEC = [
     parameters: { type: 'object', properties: { viewport: { type:'string', enum:['mobile'], description:'手机 390×780 视口' } } },
   },
   {
+    name: 'interact_project_preview',
+    description: '在当前手机 390×780 项目预览中执行一次真实交互验证：点击、输入、滚动、返回或等待。优先用 target CSS selector；若无法访问 live iframe，可使用 x/y 手机视口坐标点击后再 type。每次交互后建议截图复核。',
+    parameters: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', enum: ['tap', 'type', 'scroll', 'back', 'wait'], description: '要执行的手机交互动作' },
+        target: { type: 'string', description: '可选 CSS selector，如 button[type="submit"] 或 input[name="email"]' },
+        value: { type: 'string', description: 'type 输入文本；scroll 时可传滚动距离像素；wait 时可传毫秒数' },
+        x: { type: 'number', description: '可选，390×780 手机视口内的点击 X 坐标' },
+        y: { type: 'number', description: '可选，390×780 手机视口内的点击 Y 坐标' },
+      },
+      required: ['action'],
+    },
+  },
+  {
     name: 'run_python',
     description: '执行 Python 源代码。直接传入 Python 代码即可，不需要写 python -c；统一 Agent Runtime 自动选择当前可用的 Python 实现。AI 不需要知道底层平台。此工具在“运行脚本与命令”权限开启时可用。',
     parameters: {
@@ -412,6 +427,7 @@ ${historySearchEnabled ? `
 - Node/TypeScript/React/Vite 等项目在 Android runtime 上开始构建/测试前，优先调用 \`check_runtime\`；若 Node/npm/lifecycle 检查失败，先修复运行时桥接或明确报告环境限制，不要把运行时故障误判为业务代码错误。
 - 当任务要求运行项目或修复实际运行时报错时，先调用 start_project_runtime，再调用 inspect_project_runtime 获取真实进程、端口、HTTP 健康与 stdout/stderr 证据；若发现异常，修改代码后调用 restart_project_runtime，并围绕同一问题最多重复 3 次，确认健康后再进入下一阶段。
 - 当项目已经真实启动且任务涉及页面 UI/UX、布局、空白页、遮挡、溢出、响应式或“看起来不对”时，在 HTTP 健康通过后调用 `capture_project_runtime_screenshot`；截图会作为图片附件进入下一轮模型上下文。必须基于截图中的真实视觉证据判断，再决定是否修改；同一视觉问题最多进行 2 次“截图 → 修改 → 重启/刷新 → 再截图”。如果当前模型不支持视觉输入，应明确退化为 DOM/日志/HTTP 证据，不要假装看到了图片。
+- 当任务涉及按钮、表单、菜单、滚动、弹窗、返回或键盘遮挡时，先调用 `interact_project_preview` 做至少一个关键路径交互；交互后立即截图，验证状态变化是否真实发生。默认只验证手机 390×780，不检查电脑、平板或 Network。对于 live iframe 跨源导致 selector 不可访问的情况，优先改用手机视口坐标点击，不要假装 selector 已成功。
 - Node/TypeScript/React/Vite 等项目：先识别 package.json 与 scripts；必要时调用 \`install_dependencies\`，然后调用 \`run_project_check\`。
 - 检查失败时，把 stdout/stderr/退出码当作真实证据：定位错误文件与行号 → 读取相关代码 → 修改 → 再次检查。
 - 验证必须形成“失败证据 → 定位 → 修改 → 再验证”的闭环；如果同一检查命令连续失败且代码没有发生针对性变化，不得机械重复。
@@ -1404,6 +1420,24 @@ export async function executeWorkspaceTool(
         return { result: { success: false, error: screenshot.error || '项目预览截图失败' }, updatedWorkspace: ws, errorMessage: screenshot.error || '项目预览截图失败', stepIcon: 'lightning', stepTitle: '项目视觉检查失败' };
       }
       return { result: { success: true, workspaceId: ws.id, width: screenshot.width, height: screenshot.height, dataUrl: screenshot.dataUrl }, updatedWorkspace: ws, stepIcon: 'code', stepTitle: '已截取真实项目预览画面，准备交给视觉模型检查' };
+    }
+
+    case 'interact_project_preview': {
+      const action = String(args.action || '').trim() as any;
+      if (!['tap', 'type', 'scroll', 'back', 'wait'].includes(action)) {
+        return { result: null, updatedWorkspace: ws, errorMessage: '不支持的手机交互动作', stepIcon: 'lightning', stepTitle: '手机预览交互参数无效' };
+      }
+      const interaction = interactProjectPreview(ws.id, action, {
+        target: typeof args.target === 'string' ? args.target : undefined,
+        value: typeof args.value === 'string' ? args.value : undefined,
+        x: typeof args.x === 'number' ? args.x : undefined,
+        y: typeof args.y === 'number' ? args.y : undefined,
+      });
+      const result = { ...interaction, workspaceId: ws.id, viewport: 'mobile-390x780' };
+      if (!interaction.success) {
+        return { result, updatedWorkspace: ws, errorMessage: interaction.error || '手机预览交互失败', stepIcon: 'lightning', stepTitle: '手机预览交互失败' };
+      }
+      return { result, updatedWorkspace: ws, stepIcon: 'code', stepTitle: '手机预览交互成功 · ' + action };
     }
 
     case 'run_python': {
