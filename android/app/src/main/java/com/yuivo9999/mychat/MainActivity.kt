@@ -183,10 +183,6 @@ class AndroidBridge(
     }
 
     private fun ensureNpmRuntime(): File {
-        val root = File(activity.filesDir, "node-runtime")
-        val npmCli = File(root, "node_modules/npm/bin/npm-cli.js")
-        if (npmCli.isFile) return npmCli
-
         val bundledRoot = File(activity.filesDir, "node-runtime")
         val npmCli = File(bundledRoot, "node_modules/npm/bin/npm-cli.js")
         if (npmCli.isFile) return npmCli
