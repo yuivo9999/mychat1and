@@ -1712,11 +1712,12 @@ export default function App() {
           chatContext: updatedChatContext,
           agentTask: agentTaskId ? {
             taskId: agentTaskId,
-            status: 'completed' as const,
-            phase: 'completed',
+            status: (validationFailureCount >= 3 || shouldProtectAgainstNoProgress(agentLoopState)) ? 'waiting_user' as const : 'completed' as const,
+            phase: (validationFailureCount >= 3 || shouldProtectAgainstNoProgress(agentLoopState)) ? agentLoopState.phase : 'completed',
             round: agentLoopState.round,
             maxRounds: maxAgentTurns,
-            progressSummary: 'Agent 任务完成',
+            progressSummary: (validationFailureCount >= 3 || shouldProtectAgainstNoProgress(agentLoopState)) ? '等待新的用户指示' : 'Agent 任务完成',
+            pauseReason: (validationFailureCount >= 3 || shouldProtectAgainstNoProgress(agentLoopState)) ? '自动循环已安全停止，需要新的证据、决策或用户指示' : undefined,
             updatedAt: Date.now(),
           } : c.agentTask,
           updatedAt: Date.now() 
@@ -1739,13 +1740,15 @@ export default function App() {
       }
 
       if (agentTaskId) {
+        const needsUser = validationFailureCount >= 3 || shouldProtectAgainstNoProgress(agentLoopState);
         await persistAgentTaskState(targetConv.id, {
           taskId: agentTaskId,
-          status: 'completed',
-          phase: 'completed',
+          status: needsUser ? 'waiting_user' : 'completed',
+          phase: needsUser ? agentLoopState.phase : 'completed',
           round: agentLoopState.round,
           maxRounds: maxAgentTurns,
-          progressSummary: 'Agent 任务完成',
+          progressSummary: needsUser ? '等待新的用户指示' : 'Agent 任务完成',
+          pauseReason: needsUser ? '自动循环已安全停止，需要新的证据、决策或用户指示' : undefined,
           updatedAt: Date.now(),
         });
       }
