@@ -12,7 +12,8 @@ import {
 } from './workspaceService';
 import { formatChatContextPrompt, detectWorkspaceIntent, WorkspaceIntent } from './chatContextService';
 import { ChatContext } from '../types/workspace';
-import { executeCode, looksLikePythonSource, getWorkspaceNodeRuntimeState, markWorkspaceDependenciesInstalled, installWorkspaceDependencies, readWorkspaceFile } from './codeExecutionAdapter';
+import { looksLikePythonSource, getWorkspaceNodeRuntimeState, markWorkspaceDependenciesInstalled, readWorkspaceFile } from './codeExecutionAdapter';
+import { executeAgentRuntime, getAgentRuntimeCapabilities, installAgentDependencies } from './agentRuntime';
 import { buildProjectRuntimeReport, inspectProjectRuntime } from './projectRuntimeService';
 
 export { detectWorkspaceIntent, type WorkspaceIntent };
@@ -170,7 +171,7 @@ export const WORKSPACE_TOOLS_SPEC = [
   },
   {
     name: 'check_runtime',
-    description: '执行 MyChat Android 运行时冒烟检查：验证 Node.js、npm，以及 npm lifecycle 能否通过 PATH 找到 node。Node 项目执行构建/测试前建议先调用。',
+    description: '检查当前 MyChat Agent Runtime 的真实能力（Python、Node.js、npm、Shell、持久工作区）。AI 不需要知道底层是 Android、Windows 还是服务器。',
     parameters: { type: 'object', properties: {} },
   },
   {
@@ -237,7 +238,7 @@ export const WORKSPACE_TOOLS_SPEC = [
   },
   {
     name: 'run_command',
-    description: '在工作区服务器端安全终端执行 Shell 命令行与脚本（如编译打包 npm run build、安装运行测试、执行 Python 或 Node 数据分析处理等）。此工具在“运行脚本与命令”权限开启时可用。',
+    description: '通过统一的 MyChat Agent Runtime 在当前工作区执行命令、脚本、构建、测试和数据处理。运行时自动选择当前可用的 Python / Node.js / Shell 实现；AI 不需要判断自己运行在 Android、Windows 还是服务器。此工具在“运行脚本与命令”权限开启时可用。',
     parameters: {
       type: 'object',
       properties: {
