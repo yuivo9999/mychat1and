@@ -70,8 +70,6 @@ public class MyChatRuntimePlugin extends Plugin {
                     PyObject runner = Python.getInstance().getModule("workspace_runner");
                     return runner.callAttr("run", command, workspace.getAbsolutePath()).toString();
                 } finally {
-                    // The worker owns cleanup. This prevents a timeout from deleting
-                    // files while Python is still using the workspace.
                     deleteRecursively(workspace);
                 }
             });
@@ -164,7 +162,7 @@ public class MyChatRuntimePlugin extends Plugin {
     }
 
     private boolean isSafeRelativePath(String path) {
-        if (path.isEmpty() || path.startsWith("/") || path.startsWith("\") || path.contains(":")) {
+        if (path.isEmpty() || path.startsWith("/") || path.startsWith("\\") || path.contains(":")) {
             return false;
         }
         String normalized = path.replace('\\', '/');
