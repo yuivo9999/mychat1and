@@ -374,6 +374,8 @@ export function updateProjectMemoryRecord(
   if (patch.status) target.status = patch.status;
   target.updatedAt = Date.now();
   target.confidence = memoryConfidence(target.content, target.updatedAt);
+  target.category = inferMemoryCategory(target.content);
+  target.priority = memoryPriority(target.category, target.content, target.confidence);
   if (patch.reason?.trim()) target.resolutionReason = normalizeDecision(patch.reason);
   if (target.status === 'active') target.supersededById = undefined;
   const activeKeyPoints = records.filter(r => r.status === 'active').sort((a,b) => b.updatedAt-a.updatedAt).slice(0, MAX_ACTIVE_MEMORY_RECORDS).map(r => r.content);
