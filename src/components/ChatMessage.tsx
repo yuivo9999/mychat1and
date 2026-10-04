@@ -15,8 +15,10 @@ import {
   FileText,
   Eye,
   FileCode,
+  FolderOpen,
   Globe,
   BarChart2,
+  Wrench,
   X
 } from 'lucide-react';
 import { Message, Attachment, UserSettings } from '../types';
@@ -451,6 +453,41 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   const versions = message.versions || [];
   const currentIdx = message.currentVersionIndex ?? (versions.length > 0 ? versions.length - 1 : 0);
 
+  // Agent / workspace completion summary. This is intentionally derived from
+  // the message payload so ordinary AI answers stay visually clean and no
+  // progress data is guessed when the Agent task state is not attached.
+  const executionSummary = useMemo(() => {
+    if (isUser) return null;
+    const calls = message.toolCalls || [];
+    const modifiedFiles = message.modifiedFiles || [];
+    if (calls.length === 0 && modifiedFiles.length === 0) return null;
+
+    const validationCalls = calls.filter((call: any) =>
+      /run_project_check|run_command|run_python/i.test(call.toolName || '')
+    );
+    const failedCalls = calls.filter((call: any) => call.status === 'error');
+    const successfulCalls = calls.filter((call: any) => call.status === 'success');
+    const passedValidations = validationCalls.filter((call: any) => {
+      if (call.status !== 'success') return false;
+      return !(call.result && typeof call.result === 'object' && call.result.success === false);
+    });
+
+    const validationStatus = validationCalls.length === 0
+      ? 'none'
+      : passedValidations.length === validationCalls.length
+        ? 'passed'
+        : 'failed';
+
+    return {
+      callsCount: calls.length,
+      successfulCalls: successfulCalls.length,
+      failedCalls: failedCalls.length,
+      modifiedFiles: modifiedFiles.length,
+      validationCalls: validationCalls.length,
+      validationStatus,
+    };
+  }, [isUser, message.toolCalls, message.modifiedFiles]);
+
   return (
     <div
       onClick={handleContainerClick}
@@ -736,6 +773,96 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
             modifiedFiles={message.modifiedFiles}
             onDownloadWorkspaceZip={onDownloadWorkspaceZip}
           />
+        )}
+
+        {/* Agent completion summary: keep the final answer readable while making
+            execution, file changes and verification visible at a glance. */}
+        {!isUser && executionSummary && (
+          <div className="mt-3 rounded-xl border border-neutral-200/80 dark:border-neutral-800/80 bg-white/70 dark:bg-neutral-950/40 overflow-hidden">
+            <div className="px-3 py-2 border-b border-neutral-200/60 dark:border-neutral-800/60 flex items-center gap-2">
+              <span className="inline-flex items-center justify-center w-5 h-5 rounded-md bg-indigo-500/10 text-indigo-600 dark:text-indigo-300">
+                <Wrench className="w-3 h-3" />
+              </span>
+              <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">
+                {message.status === 'completed' ? '完成摘要' : '执行概览'}
+              </span>
+              {message.status === 'completed' && executionSummary.failedCalls === 0 && (
+                <span className="ml-auto inline-flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-300">
+                  <Check className="w-3 h-3" />
+                  执行链结束
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-neutral-200/60 dark:divide-neutral-800/60">
+              <div className="px-3 py-2.5">
+                <div className="text-[10px] text-neutral-400">执行步骤</div>
+                <div className="mt-0.5 text-sm font-semibold text-neutral-800 dark:text-neutral-100">
+                  {executionSummary.callsCount}
+                  <span className="ml-1 text-[10px] font-normal text-neutral-400">次</span>
+                </div>
+              </div>
+              <div className="px-3 py-2.5">
+                <div className="text-[10px] text-neutral-400">修改文件</div>
+                <div className="mt-0.5 text-sm font-semibold text-neutral-800 dark:text-neutral-100 flex items-center gap-1">
+                  <FileCode className="w-3 h-3 text-indigo-500" />
+                  {executionSummary.modifiedFiles}
+                </div>
+              </div>
+              <div className="px-3 py-2.5">
+                <div className="text-[10px] text-neutral-400">验证次数</div>
+                <div className="mt-0.5 text-sm font-semibold text-neutral-800 dark:text-neutral-100">
+                  {executionSummary.validationCalls}
+                  <span className="ml-1 text-[10px] font-normal text-neutral-400">次</span>
+                </div>
+              </div>
+              <div className="px-3 py-2.5">
+                <div className="text-[10px] text-neutral-400">最终状态</div>
+                <div className="mt-0.5 flex items-center gap-1 text-xs font-semibold">
+                  {executionSummary.failedCalls > 0 || executionSummary.validationStatus === 'failed' ? (
+                    <>
+                      <AlertTriangle className="w-3 h-3 text-red-500" />
+                      <span className="text-red-600 dark:text-red-300">需处理</span>
+                    </>
+                  ) : executionSummary.validationStatus === 'passed' ? (
+                    <>
+                      <Check className="w-3 h-3 text-emerald-500" />
+                      <span className="text-emerald-600 dark:text-emerald-300">验证通过</span>
+                    </>
+                  ) : (
+                    <span className="text-neutral-500 dark:text-neutral-400">已完成</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {(executionSummary.failedCalls > 0 || executionSummary.validationStatus === 'passed' || executionSummary.modifiedFiles > 0) && (
+              <div className="px-3 py-2 border-t border-neutral-200/60 dark:border-neutral-800/60 flex flex-wrap items-center gap-2">
+                {executionSummary.successfulCalls > 0 && (
+                  <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/8 px-1.5 py-0.5 text-[10px] text-emerald-700 dark:text-emerald-300">
+                    <Check className="w-3 h-3" />
+                    {executionSummary.successfulCalls} 步成功
+                  </span>
+                )}
+                {executionSummary.failedCalls > 0 && (
+                  <span className="inline-flex items-center gap-1 rounded-md bg-red-500/8 px-1.5 py-0.5 text-[10px] text-red-700 dark:text-red-300">
+                    <AlertTriangle className="w-3 h-3" />
+                    {executionSummary.failedCalls} 步失败
+                  </span>
+                )}
+                {executionSummary.modifiedFiles > 0 && onOpenWorkspace && (
+                  <button
+                    type="button"
+                    onClick={onOpenWorkspace}
+                    className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 px-2.5 py-1 text-[10px] font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+                  >
+                    <FolderOpen className="w-3 h-3" />
+                    打开工作区
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         )}
 
         {/* Error Banner */}
