@@ -1089,6 +1089,8 @@ export default function App() {
       // When Agent Mode is explicitly turned ON, and a workspace is bound, Agent capability is 100% active
       const workspaceContextEnabled = !!wsToOperate && (agentMode || workspaceIntent.shouldAccessWorkspace);
       const workspaceAgentEnabled = agentMode && !!wsToOperate;
+      // The model may replace this safe fallback with a structured plan during the first Agent round.
+      let agentTaskPlan = createAgentTaskPlan(text);
 
       // 2. Detect Code Diagnosis intent vs Normal task (only valid when workspace context is enabled)
       const diagIntent = detectDiagnosisIntent(text, targetConv.chatContext);
@@ -1240,7 +1242,6 @@ export default function App() {
           ? 6
           : 1;
       let agentLoopState: AgentLoopState = createAgentLoopState(maxAgentTurns);
-      let agentTaskPlan = createAgentTaskPlan(text);
       const agentTaskId = workspaceAgentEnabled ? `agent_${Date.now()}_${Math.random().toString(36).slice(2, 8)}` : null;
       agentTaskIdRef.current = agentTaskId;
       if (agentTaskId) {
