@@ -164,6 +164,8 @@ export interface AgentTaskChecklistItem {
   id: string;
   title: string;
   status: AgentTaskChecklistStatus;
+  required?: boolean;
+  acceptanceCriteria?: string[];
   evidence?: string;
 }
 
