@@ -121,6 +121,30 @@ class AndroidBridge(
         return file
     }
 
+    @JavascriptInterface
+    fun getWorkspaceNodeRuntimeState(workspaceId: String): String {
+        return try {
+            val root = workspaceRoot(workspaceId)
+            val nodeModules = File(root, "node_modules")
+            val packageJson = File(root, "package.json")
+            val packageLock = File(root, "package-lock.json")
+            val state = JSONObject()
+                .put("workspaceId", workspaceId)
+                .put("workspacePath", root.absolutePath)
+                .put("nodeModulesExists", nodeModules.isDirectory)
+                .put("nodeModulesCount", if (nodeModules.isDirectory) {
+                    nodeModules.listFiles()?.count { it.name != ".package-lock.json" } ?: 0
+                } else 0)
+                .put("packageJsonExists", packageJson.isFile)
+                .put("packageLockExists", packageLock.isFile)
+                .put("packageLockModifiedAt", if (packageLock.isFile) packageLock.lastModified() else 0)
+                .put("runtimePersistent", nodeModules.isDirectory)
+            JSONObject().put("ok", true).put("state", state).toString()
+        } catch (e: Throwable) {
+            JSONObject().put("ok", false).put("error", e.message ?: e.javaClass.simpleName).toString()
+        }
+    }
+
     /**
      * Native HTTP transport for the file:// WebView runtime.
      */
