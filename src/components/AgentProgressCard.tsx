@@ -119,7 +119,12 @@ export const AgentProgressCard: React.FC<AgentProgressCardProps> = ({ message, c
   const completed = items.filter(item => item.status === 'completed').length;
   const active = items.find(item => item.status === 'in_progress');
   const blocked = items.find(item => item.status === 'blocked');
+  const latestCompleted = [...items].reverse().find(item => item.status === 'completed' && item.evidence);
   const hasRunningTools = message.toolCalls?.some((call: any) => call.status === 'running' || call.status === 'pending');
+
+  const progressLines = [payload.summary, payload.currentStep, payload.result, payload.nextStep]
+    .filter((value): value is string => Boolean(value?.trim()))
+    .filter((value, index, values) => values.indexOf(value) === index);
 
   const phaseLabels: Record<string, string> = {
     planning: '规划', exploring: '探索', implementing: '实施', verifying: '验证',
@@ -163,7 +168,7 @@ export const AgentProgressCard: React.FC<AgentProgressCardProps> = ({ message, c
       </div>
 
       <div className={compact ? 'px-3 py-2' : 'px-3 py-2.5'}>
-        {payload.summary && <div className="mb-2 text-[10px] leading-relaxed text-neutral-600 dark:text-neutral-300">{payload.summary}</div>}
+        {progressLines[0] && <div className="mb-2 text-[10px] leading-relaxed text-neutral-600 dark:text-neutral-300">{progressLines[0]}</div>}
         <div className="space-y-1.5">
           {items.slice(0, compact ? 4 : 7).map((item) => (
             <div key={item.id} className="flex items-start gap-2 min-w-0">
@@ -187,21 +192,20 @@ export const AgentProgressCard: React.FC<AgentProgressCardProps> = ({ message, c
           ))}
         </div>
 
-        {payload.currentStep && (
+        {progressLines.slice(1).map((line, index) => {
+          const label = index === 0 ? '当前：' : index === 1 ? '结果：' : '下一步：';
+          return (
+            <div key={label + line} className="mt-2 text-[10px] leading-relaxed text-neutral-500 dark:text-neutral-400">
+              <span className="font-medium text-neutral-600 dark:text-neutral-300">{label}</span>{line}
+            </div>
+          );
+        })}
+        {latestCompleted && !active && (
           <div className="mt-2 pt-2 border-t border-neutral-100 dark:border-neutral-800 text-[10px] leading-relaxed text-neutral-500 dark:text-neutral-400">
-            <span className="font-medium text-neutral-600 dark:text-neutral-300">当前：</span>{payload.currentStep}
+            <span className="font-medium text-neutral-600 dark:text-neutral-300">最新完成：</span>{latestCompleted.evidence}
           </div>
         )}
-        {payload.result && (
-          <div className="mt-2 text-[10px] leading-relaxed text-neutral-500 dark:text-neutral-400">
-            <span className="font-medium text-neutral-600 dark:text-neutral-300">结果：</span>{payload.result}
-          </div>
-        )}
-        {payload.nextStep && (
-          <div className="mt-2 text-[10px] leading-relaxed text-neutral-500 dark:text-neutral-400">
-            <span className="font-medium text-neutral-600 dark:text-neutral-300">下一步：</span>{payload.nextStep}
-          </div>
-        )}
+
         {active && active.evidence && (
           <div className="mt-2 pt-2 border-t border-neutral-100 dark:border-neutral-800 text-[10px] leading-relaxed text-neutral-500 dark:text-neutral-400">
             <span className="font-medium text-neutral-600 dark:text-neutral-300">当前：</span>
