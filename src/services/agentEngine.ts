@@ -12,7 +12,7 @@ import {
 } from './workspaceService';
 import { formatChatContextPrompt, detectWorkspaceIntent, WorkspaceIntent } from './chatContextService';
 import { ChatContext } from '../types/workspace';
-import { executeCode, looksLikePythonSource, getWorkspaceNodeRuntimeState, markWorkspaceDependenciesInstalled, installWorkspaceDependencies } from './codeExecutionAdapter';
+import { executeCode, looksLikePythonSource, getWorkspaceNodeRuntimeState, markWorkspaceDependenciesInstalled, installWorkspaceDependencies, readWorkspaceFile } from './codeExecutionAdapter';
 import { buildProjectRuntimeReport, inspectProjectRuntime } from './projectRuntimeService';
 
 export { detectWorkspaceIntent, type WorkspaceIntent };
@@ -1131,6 +1131,20 @@ export async function executeWorkspaceTool(
       const runData = await installWorkspaceDependencies(ws.id, 120_000);
       let afterState = await getWorkspaceNodeRuntimeState(ws.id);
       let installRecord: { ok: boolean; fingerprint?: string; error?: string } | null = null;
+      let generatedLockfileSynced = false;
+      if (runData.success && info.packageManager === 'npm' && !has(ws, 'package-lock.json')) {
+        const generated = await readWorkspaceFile(ws.id, 'package-lock.json');
+        if (generated?.ok && generated.exists && typeof generated.content === 'string') {
+          const now = Date.now();
+          ws.files['package-lock.json'] = {
+            path: 'package-lock.json',
+            content: generated.content,
+            size: new TextEncoder().encode(generated.content).length,
+            updatedAt: now,
+          };
+          generatedLockfileSynced = true;
+        }
+      }
       if (runData.success && afterState?.nodeModulesExists) {
         installRecord = await markWorkspaceDependenciesInstalled(ws.id);
         afterState = await getWorkspaceNodeRuntimeState(ws.id);
@@ -1149,10 +1163,13 @@ export async function executeWorkspaceTool(
               persisted: !!afterState?.nodeModulesExists,
               fingerprintRecorded: installRecord?.ok === true,
               fingerprint: installRecord?.fingerprint || afterState?.installedDependencyFingerprint || null,
+              generatedLockfileSynced,
             },
           },
           updatedWorkspace: ws, stepIcon: 'lightning',
-          stepTitle: afterState?.dependenciesInSync
+          stepTitle: generatedLockfileSynced
+            ? '依赖安装成功，并已把 Android 生成的 package-lock.json 同步回工作区'
+            : afterState?.dependenciesInSync
             ? '依赖安装成功，依赖指纹已记录；后续无变化时将复用 node_modules'
             : afterState?.nodeModulesExists
               ? '依赖安装成功，但未确认依赖指纹持久化'
