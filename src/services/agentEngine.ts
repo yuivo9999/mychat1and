@@ -1656,8 +1656,14 @@ export async function executeWorkspaceTool(
         baseline: baseline.success ? { width: baseline.width, height: baseline.height, dataUrl: baseline.dataUrl } : null,
         plan: steps,
         flow: flow?.result || flow,
+        visualVerification: {
+          status: 'evidence-only',
+          rule: '动作 API 成功不等于业务成功；若理论上应发生状态变化但 visualDelta.changed=false，应优先检查事件命中、状态更新和 UI 无响应。',
+          changedSteps: evidence.filter((item: any) => item.visualDelta?.changed === true).map((item: any) => item.index),
+          unchangedSteps: evidence.filter((item: any) => item.visualDelta?.changed === false).map((item: any) => item.index),
+        },
         nextAction: flow?.result?.success === true
-          ? '根据 baseline 与最后截图判断布局、键盘遮挡、溢出、按钮状态和页面是否产生真实变化；若发现明确问题，修复后最多再跑 1 轮。'
+          ? '逐步检查 visualDelta：理论上应变化却没有变化的动作优先判为疑似无响应；再结合每步截图判断布局、键盘遮挡、溢出和按钮状态，必要时修复后最多再跑 1 轮。'
           : '根据失败步骤和截图定位明确问题；修复后重新发现元素并再跑一轮。',
       };
       if (result.success) return { result, updatedWorkspace: ws, stepIcon: 'code', stepTitle: `手机自测完成 · 自动规划 ${steps.length} 步` };
