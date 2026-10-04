@@ -137,7 +137,7 @@ export function buildAgentTaskPlanPrompt(goal: string, research?: AgentResearchS
 }
 
 export function parseAgentTaskPlan(text: string, fallbackGoal: string, research?: AgentResearchState): AgentTaskPlan | null {
-  const match = text.match(/<agent_plan>\\s*([\\s\\S]*?)\\s*<\\/agent_plan>/i);
+  const match = text.match(new RegExp('<agent_plan>\\\\s*([\\\\s\\\\S]*?)\\\\s*<\\\\/agent_plan>', 'i'));
   if (!match) return null;
   try {
     const raw = JSON.parse(match[1]); if (!raw || typeof raw !== 'object') return null;
