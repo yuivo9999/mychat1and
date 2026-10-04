@@ -1535,7 +1535,10 @@ export default function App() {
             const executableChange = Array.from(modifiedPaths).some(path =>
               /(?:\\.(?:ts|tsx|js|jsx|mjs|cjs|py|json|css|html|rs|go)|(?:^|\\/)package-lock\\.json|(?:^|\\/)package\\.json)$/.test(path)
             );
-            if (!isDiagnosisMode && !verificationAlreadyRequested && executableChange && wsToOperate) {
+            const autoVerificationSupported = wsToOperate
+              ? inspectProjectRuntime(wsToOperate).checkStrategy !== 'unsupported'
+              : false;
+            if (!isDiagnosisMode && !verificationAlreadyRequested && executableChange && autoVerificationSupported && wsToOperate) {
               const autoVerify = await executeWorkspaceTool('run_project_check', {}, wsToOperate);
               wsToOperate = autoVerify.updatedWorkspace;
               if (autoVerify.errorMessage) validationFailureCount += 1;
