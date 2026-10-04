@@ -1306,9 +1306,10 @@ export default function App() {
                   stepIcon: 'lightning' as const,
                   stepTitle: "运行时工具被拒绝 (脚本权限未开启)"
                 };
-              } else if (tc.tool === 'get_project_memory' || tc.tool === 'update_project_memory' || tc.tool === 'archive_project_memory') {
-                if (!historySearchEnabled || !targetConv.projectId) {
-                  outcome = { result: null, updatedWorkspace: wsToOperate, errorMessage: !historySearchEnabled ? '历史记忆管理未开启。' : '当前会话不属于项目，无法管理项目共享记忆。', stepIcon: 'search' as const, stepTitle: '项目共享记忆工具不可用' };
+              } else if (tc.tool === 'get_project_memory' || tc.tool === 'create_project_memory' || tc.tool === 'update_project_memory' || tc.tool === 'archive_project_memory') {
+                const projectMemoryEnabled = settings.enableProjectMemory ?? true;
+                if (!projectMemoryEnabled || !targetConv.projectId) {
+                  outcome = { result: null, updatedWorkspace: wsToOperate, errorMessage: !projectMemoryEnabled ? '项目共享记忆未开启。' : '当前会话不属于项目，无法管理项目共享记忆。', stepIcon: 'search' as const, stepTitle: '项目共享记忆工具不可用' };
                 } else {
                   const project = projects.find(p => p.id === targetConv.projectId);
                   if (!project) {
@@ -1316,6 +1317,18 @@ export default function App() {
                   } else if (tc.tool === 'get_project_memory') {
                     const records = getProjectMemoryRecords(project, tc.args.includeHistory === true, tc.args.limit);
                     outcome = { result: { projectId: project.id, projectName: project.name, records }, updatedWorkspace: wsToOperate, stepIcon: 'search' as const, stepTitle: '读取项目共享记忆：' + records.length + ' 条' };
+                  } else if (tc.tool === 'create_project_memory') {
+                    const content = typeof tc.args.content === 'string' ? tc.args.content.trim() : '';
+                    if (content.length < 6) {
+                      outcome = { result: null, updatedWorkspace: wsToOperate, errorMessage: '项目记忆内容过短，未写入。请只保存稳定、可复用的项目级共识。', stepIcon: 'search' as const, stepTitle: '项目记忆新增被拒绝' };
+                    } else {
+                      const updatedProject = createProjectMemoryRecord(project, content, targetConv.id, typeof tc.args.reason === 'string' ? tc.args.reason : undefined);
+                      saveProject(updatedProject);
+                      setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
+                      const createdRecord = getProjectMemoryRecords(updatedProject, true, 60)
+                        .sort((a, b) => b.updatedAt - a.updatedAt)[0];
+                      outcome = { result: { success: true, record: createdRecord }, updatedWorkspace: wsToOperate, stepIcon: 'search' as const, stepTitle: '已新增项目共享记忆' };
+                    }
                   } else {
                     const recordId = String(tc.args.recordId || '').trim();
                     const records = getProjectMemoryRecords(project, true, 60);
