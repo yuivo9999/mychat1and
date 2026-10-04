@@ -91,7 +91,38 @@ export async function executeCode(request: CodeExecutionRequest): Promise<CodeEx
       && window.MyChatAndroid?.executeNode) {
     try {
       const nodeCode = request.language === 'typescript'
-        ? `require('typescript');\n${request.code}`
+        ? `const fs = require('fs');
+const path = require('path');
+const Module = require('module');
+const ts = require('typescript');
+const source = ${JSON.stringify(request.code)};
+const filename = path.join(process.cwd(), '.mychat-ts-runtime.cjs');
+const transpiled = ts.transpileModule(source, {
+  compilerOptions: {
+    target: ts.ScriptTarget.ES2022,
+    module: ts.ModuleKind.CommonJS,
+    jsx: ts.JsxEmit.ReactJSX,
+    esModuleInterop: true,
+    sourceMap: false,
+    inlineSourceMap: false
+  },
+  fileName: filename,
+  reportDiagnostics: true
+});
+if (transpiled.diagnostics && transpiled.diagnostics.length) {
+  const message = ts.formatDiagnosticsWithColorAndContext(transpiled.diagnostics, {
+    getCanonicalFileName: file => file,
+    getCurrentDirectory: () => process.cwd(),
+    getNewLine: () => '\\n'
+  });
+  console.error(message);
+  process.exitCode = 1;
+} else {
+  const runtimeModule = new Module(filename, module);
+  runtimeModule.filename = filename;
+  runtimeModule.paths = Module._nodeModulePaths(process.cwd());
+  runtimeModule._compile(transpiled.outputText, filename);
+}`
         : request.code;
       const raw = await window.MyChatAndroid.executeNode(
         `node -e ${JSON.stringify(nodeCode)}`,
