@@ -1416,7 +1416,7 @@ export default function App() {
 
             const progressKind = classifyAgentProgress(
               detectedToolCalls.map(tc => tc.tool),
-              validationFailureCount > 0,
+              validationFailureCount > validationFailuresBeforeTurn,
             );
             const hasMeaningfulProgress =
               detectedToolCalls.length > 0 &&
