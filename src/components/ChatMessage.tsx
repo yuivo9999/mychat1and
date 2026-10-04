@@ -69,6 +69,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   const statsContainerRef = useRef<HTMLDivElement>(null);
   const triggerButtonRef = useRef<HTMLButtonElement>(null);
   const messageContentRef = useRef<HTMLDivElement>(null);
+  const [activeOutlineIndex, setActiveOutlineIndex] = useState(0);
 
   const handleToggleStats = () => {
     if (!isStatsOpen && triggerButtonRef.current) {
@@ -235,12 +236,57 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
         ? '生成失败'
         : '已完成';
 
+  // Keep the chapter navigator synchronized with the section currently being read.
+  // This is intentionally scoped to the rendered AI response and does not affect
+  // the bottom word-count/action bar.
+  useEffect(() => {
+    if (isUser || responseOutline.length === 0) {
+      setActiveOutlineIndex(0);
+      return;
+    }
+
+    const root = messageContentRef.current;
+    if (!root) return;
+
+    const headings = Array.from(root.querySelectorAll('h1, h2, h3')) as HTMLElement[];
+    if (headings.length === 0) return;
+
+    let rafId = 0;
+    const updateActiveHeading = () => {
+      rafId = 0;
+      const anchor = 118;
+      let nextIndex = 0;
+
+      headings.forEach((heading, index) => {
+        const rect = heading.getBoundingClientRect();
+        if (rect.top <= anchor) nextIndex = index;
+      });
+
+      setActiveOutlineIndex(Math.min(nextIndex, responseOutline.length - 1));
+    };
+
+    const handleScroll = () => {
+      if (!rafId) rafId = window.requestAnimationFrame(updateActiveHeading);
+    };
+
+    updateActiveHeading();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      if (rafId) window.cancelAnimationFrame(rafId);
+    };
+  }, [isUser, responseOutline.length, htmlContent]);
+
   const jumpToOutlineItem = (outlineIndex: number) => {
     const root = messageContentRef.current;
     if (!root) return;
-    const headings = Array.from(root.querySelectorAll('h1, h2, h3'));
-    const target = headings[outlineIndex] as HTMLElement | undefined;
-    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const headings = Array.from(root.querySelectorAll('h1, h2, h3')) as HTMLElement[];
+    const target = headings[outlineIndex];
+    if (!target) return;
+
+    setActiveOutlineIndex(outlineIndex);
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   const handleCopy = () => {
@@ -704,9 +750,14 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                     key={`outline-${item.index}-${outlineIndex}`}
                     type="button"
                     onClick={() => jumpToOutlineItem(outlineIndex)}
+                    aria-current={activeOutlineIndex === outlineIndex ? 'true' : undefined}
+                    aria-label={`跳转到章节：${item.title}`}
                     className={
-                      "shrink-0 max-w-[150px] truncate rounded-md px-1.5 py-0.5 text-[10px] text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-200/70 dark:hover:bg-neutral-800 transition " +
-                      (item.level > 1 ? 'pl-2.5' : '')
+                      "response-outline-item shrink-0 max-w-[150px] truncate rounded-md px-2 py-1 text-[10px] border transition " +
+                      (item.level > 1 ? 'pl-3' : '') +
+                      (activeOutlineIndex === outlineIndex
+                        ? ' response-outline-item-active text-neutral-900 dark:text-neutral-100'
+                        : ' text-neutral-500 dark:text-neutral-400 border-transparent hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-200/70 dark:hover:bg-neutral-800')
                     }
                     title={item.title}
                   >
