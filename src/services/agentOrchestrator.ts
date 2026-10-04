@@ -152,6 +152,12 @@ export function stripAgentProgressBlock(text: string): string {
   return text.replace(/<agent_progress>\s*[\s\S]*?\s*<\/agent_progress>/gi, '').trim();
 }
 
+export function areAgentTaskRequirementsMet(plan: AgentTaskPlan): boolean {
+  return plan.checklist
+    .filter(item => item.required !== false)
+    .every(item => item.status === 'completed');
+}
+
 export function createAgentTaskPlan(goal: string): AgentTaskPlan {
   return {
     goal,
