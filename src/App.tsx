@@ -2999,7 +2999,7 @@ export default function App() {
       />
 
       {/* Workspace Web Project Live Preview Modal */}
-      <WorkspacePreviewModal isOpen={isPreviewOpen} onClose={() => setIsPreviewOpen(false)} workspaces={workspaces} initialWorkspaceId={currentWorkspace?.id} onSaveWorkspace={handleSaveWorkspaceState} onRequestAgentAudit={() => void handleSendMessage('请对当前手机项目执行 AI 预览检查：获取 390×780 真实截图，结合截图、Console、运行时证据与代码检查布局溢出、遮挡、空白、手机响应式、交互和 Accessibility；发现明确问题直接修复并重新截图验证；最多 2 轮；不要检查 Network、电脑或平板端。',[])} />
+      <WorkspacePreviewModal isOpen={isPreviewOpen} onClose={() => setIsPreviewOpen(false)} workspaces={workspaces} initialWorkspaceId={currentWorkspace?.id} onSaveWorkspace={handleSaveWorkspaceState} onRequestAgentAudit={() => void handleSendMessage('请对当前手机项目执行 AI 预览检查：获取 390×780 真实截图，结合截图、Console、运行时证据与代码检查布局溢出、遮挡、空白、手机响应式、交互和 Accessibility；发现明确问题直接修复并重新截图验证；最多 2 轮；不要检查 Network、电脑或平板端。',[])} onRequestAgentMobileSelfTest={() => void handleSendMessage('请对当前手机项目执行一键手机自测：调用 auto_test_mobile_preview。只测试手机 390×780；先发现真实交互元素并生成关键路径，执行真实点击、输入、等待、滚动并逐步截图；结合 baseline 与最终截图判断页面是否真的响应，重点检查键盘遮挡、固定头尾覆盖、横向溢出、按钮可见性、弹窗越界、滚动和提交后状态；发现明确问题直接修复，并最多复验 1 轮。不要检查 Network、电脑或平板。',[])} />
 
       {/* Workspace AI File Modification Audit Modal (up to 1000 records) */}
       <AiFileAuditModal
