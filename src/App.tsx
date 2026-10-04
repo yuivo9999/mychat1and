@@ -1474,8 +1474,16 @@ export default function App() {
         // If this was a meaningful project task, give the model one final bounded memory-audit turn.
         // The audit must decide whether this turn created a durable project rule/decision; ordinary progress,
         // temporary errors, and file lists must result in no-op. Existing memory should be read before edits.
-        if (!memoryAuditCompleted && projectMemoryEnabled && targetConv.projectId) {
+        if (!memoryAuditCompleted && projectMemoryEnabled && targetConv.projectId && turn < maxAgentTurns) {
           memoryAuditCompleted = true;
+          agentLoopState = {
+            ...agentLoopState,
+            phase: 'memory_audit',
+            progressKind: 'memory',
+          };
+          setStatusMessage(
+            `Agent · ${getAgentPhaseLabel(agentLoopState.phase)} · 正在进行本轮任务的最终记忆审计...`
+          );
           currentHistoryMessages.push({
             id: `msg_memory_audit_${turn}_${Date.now()}`,
             role: 'user',
@@ -1484,7 +1492,7 @@ export default function App() {
           });
           memoryAuditTurn = true;
           turn++;
-          setStatusMessage(`Agent 正在进行项目记忆最终审计...`);
+          await new Promise<void>(resolve => setTimeout(resolve, getAgentPauseDelayMs(agentLoopState)));
           continue;
         }
 
