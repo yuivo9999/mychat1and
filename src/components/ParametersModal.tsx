@@ -152,7 +152,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
     promptPerfect: '开启后在发送给 AI 之前，由专用引擎自动将您的简短提示词重写为专业、结构清晰、完美的 Prompt 模板，提高生成质量。',
     context7: '开启后系统将采用“智能 7 轮高精度平衡窗口”，精准维持最近的 7 轮对话为全保真高对比度上下文，超出部分自动由智能摘要压缩。兼顾超长对话记忆与极低 Token 资源消耗。',
     uiUxSkill: '开启后 AI 同时承担产品设计、UI/UX、移动端/Android 设计与 UI Review 职责。执行界面任务时必须先做信息架构与设计决策，再实现并进行视觉与响应式自检。',
-    executeScript: '开启后允许 Agent 运行终端 Shell 命令行及执行脚本（如编译打包、运行测试、Python 或 Node 数据处理等）。提供极致完整的全自动编码体验！',
+    executeScript: '开启 Agent 脚本执行能力。Android App 中会绕过浏览器沙盒，由原生 Python 运行时直接在当前工作区执行 Python，并把产生的文本文件修改同步回来；浏览器开发模式继续使用本地执行后端。',
     maxTokens: '单次回复允许生成的最大 Token 限制（4096 约合 2000 个汉字）。',
     temperature: '控制回答的多样性。0.0~0.3 严谨确定（代码/数学）；0.7~1.0 丰富发散（创意/写作）。',
     latex: '自动通过 KaTeX 引擎将数学公式/物理符号/微积分渲染为学术级排版。',
@@ -370,7 +370,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
             <div className="flex items-center justify-between p-2.5 rounded-xl bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 shadow-2xs">
               <div className="space-y-0.5 pr-2">
                 <div className="flex items-center gap-1.5 relative">
-                  <span className="param-item-label text-xs font-semibold text-neutral-900 dark:text-neutral-100">运行脚本与命令</span>
+                  <span className="param-item-label text-xs font-semibold text-neutral-900 dark:text-neutral-100">运行脚本与命令（Android 原生运行时）</span>
                   <button
                     type="button"
                     onMouseEnter={() => setActiveTooltip('executeScript')}
@@ -386,7 +386,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
                     </div>
                   )}
                 </div>
-                <p className="param-item-sub text-[11px] text-neutral-500 dark:text-neutral-400">允许 Agent 在终端运行脚本与编译</p>
+                <p className="param-item-sub text-[11px] text-neutral-500 dark:text-neutral-400">Android App 中允许 Agent 直接在工作区运行 Python；不依赖浏览器沙盒或本地 Node 服务器</p>
               </div>
 
               <button
