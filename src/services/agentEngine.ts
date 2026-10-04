@@ -471,6 +471,57 @@ ${outcome.result?.tree || JSON.stringify(outcome.result?.files, null, 2)}
 \`\`\``;
     }
 
+    case 'inspect_project': {
+      const result = outcome.result || {};
+      return `### 项目运行时检查完成: \`inspect_project\`
+- 项目类型: **${result.kind || 'unknown'}**
+- 包管理器: ${result.packageManager || '无'}
+- 清单: ${result.manifest || '无'}
+- 可用脚本: ${(result.scripts || []).join(', ') || '无'}
+- 推荐检查命令: ${(result.checkCommands || []).join(' | ') || '无'}
+- 入口候选: ${(result.entrypoints || []).join(', ') || '无'}
+- 运行时信号: ${(result.signals || []).join('；') || '无'}
+> 这是后续安装依赖、构建、测试与修复的事实基线，不要凭经验猜测项目工具链。`;
+    }
+
+    case 'install_dependencies':
+    case 'run_project_check': {
+      const result = outcome.result || {};
+      const command = result.command || args.command || '自动检查命令';
+      const status = result.exitCode === 0 ? '通过' : '失败';
+      return `### 项目运行命令结果: \`${toolName}\`
+- 命令: \`${command}\`
+- 状态: **${status}**
+- 运行时: ${result.runtime || 'unknown'}
+- 退出码: ${result.exitCode ?? 'unknown'}
+- stdout:
+\`\`\`
+${result.stdout || '(空)'}
+\`\`\`
+- stderr:
+\`\`\`
+${result.stderr || '(空)'}
+\`\`\`
+- 错误: ${result.error || outcome.errorMessage || '无'}
+> 若检查失败，优先定位 stdout/stderr 中的文件路径与行号，读取相关代码后修复，再重新执行检查；不要重复执行完全相同的失败命令而不改变代码。`;
+    }
+
+    case 'run_python':
+    case 'run_command': {
+      const result = outcome.result || {};
+      return `### 运行时执行结果: \`${toolName}\`
+- 运行时: ${result.runtime || 'unknown'}
+- 退出码: ${result.exitCode ?? 'unknown'}
+- stdout:
+\`\`\`
+${result.stdout || '(空)'}
+\`\`\`
+- stderr:
+\`\`\`
+${result.stderr || '(空)'}
+\`\`\`
+- 错误: ${result.error || outcome.errorMessage || '无'}`;
+    }
     default: {
       return `### 工具执行成功: \`${toolName}\`
 - 参数: \`${JSON.stringify(args)}\`
