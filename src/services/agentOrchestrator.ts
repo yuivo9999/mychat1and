@@ -28,10 +28,19 @@ export interface AgentLoopState {
   progressKind: AgentProgressKind;
 }
 
+export interface AgentResearchState {
+  required: boolean;
+  completed: boolean;
+  reason: string;
+  evidence?: string;
+  sources?: string[];
+}
+
 export interface AgentTaskPlan {
   goal: string;
   definitionOfDone: string[];
   checklist: AgentTaskChecklistItem[];
+  research?: AgentResearchState;
 }
 
 export interface AgentTaskChecklistItem {
