@@ -38,23 +38,9 @@ export interface AgentRuntimeResult {
   command?: string;
 }
 
-interface AndroidAgentBridge {
-  getRuntimeInfo?: () => Promise<unknown> | unknown;
-  executePython?: (code: string, timeoutMs?: number, workspaceId?: string) => Promise<unknown> | unknown;
-  executeNode?: (command: string, timeoutMs?: number, workspaceId?: string) => Promise<unknown> | unknown;
-  executeCommand?: (command: string, timeoutMs?: number, workspaceId?: string) => Promise<unknown> | unknown;
-  readWorkspaceFile?: (workspaceId: string, relativePath: string) => Promise<unknown> | unknown;
-  installWorkspaceDependencies?: (workspaceId: string, timeoutMs?: number) => Promise<unknown> | unknown;
-  getWorkspaceNodeRuntimeState?: (workspaceId: string) => Promise<unknown> | unknown;
-}
+import { AndroidExecutionBridge } from './codeExecutionAdapter';
 
-declare global {
-  interface Window {
-    MyChatAndroid?: AndroidAgentBridge;
-  }
-}
-
-function bridge(): AndroidAgentBridge | null {
+function bridge(): AndroidExecutionBridge | null {
   return typeof window !== 'undefined' ? window.MyChatAndroid || null : null;
 }
 

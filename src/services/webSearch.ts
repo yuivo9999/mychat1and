@@ -290,9 +290,9 @@ async function performNativeSearch(
     })());
   }
 
-  for (const customEng of engineList.filter((e: any) => e.enabled && e.url && !['bing', 'google', 'wikipedia'].includes(e.id))) {
+  for (const customEng of (engineList as any[]).filter(e => e.enabled && e.url && !['bing', 'google', 'wikipedia'].includes(e.id))) {
     tasks.push((async () => {
-      const targetUrl = customEng.url.replace('{query}', encodeURIComponent(query));
+      const targetUrl = String(customEng.url).replace('{query}', encodeURIComponent(query));
       const response = await requestText(targetUrl, {
         headers: { 'User-Agent': 'Mozilla/5.0 (Linux; Android 14)' },
         timeoutMs: 10000,

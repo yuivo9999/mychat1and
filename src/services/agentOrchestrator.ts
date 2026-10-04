@@ -137,7 +137,7 @@ export function buildAgentTaskPlanPrompt(goal: string, research?: AgentResearchS
 }
 
 export function parseAgentTaskPlan(text: string, fallbackGoal: string, research?: AgentResearchState): AgentTaskPlan | null {
-  const match = text.match(new RegExp('<agent_plan>\\\\s*([\\\\s\\\\S]*?)\\\\s*<\\\\/agent_plan>', 'i'));
+  const match = text.match(/<agent_plan>\s*([\s\S]*?)\s*<\/agent_plan>/i);
   if (!match) return null;
   try {
     const raw = JSON.parse(match[1]); if (!raw || typeof raw !== 'object') return null;
@@ -166,7 +166,7 @@ export function buildAgentReplanPrompt(plan: AgentTaskPlan, trigger = '执行过
 }
 
 export function parseAgentTaskReplan(text: string, currentPlan: AgentTaskPlan): AgentTaskPlan | null {
-  const match = text.match(new RegExp('<agent_replan>\\\\s*([\\\\s\\\\S]*?)\\\\s*<\\\\/agent_replan>', 'i'));
+  const match = text.match(/<agent_replan>\s*([\s\S]*?)\s*<\/agent_replan>/i);
   if (!match) return null;
   try {
     const raw = JSON.parse(match[1]);
@@ -235,11 +235,11 @@ export function parseAgentTaskReplan(text: string, currentPlan: AgentTaskPlan): 
 }
 
 export function stripAgentReplanBlock(text: string): string {
-  return text.replace(new RegExp('<agent_replan>\\\\s*[\\\\s\\\\S]*?\\\\s*<\\\\/agent_replan>', 'gi'), '').trim();
+  return text.replace(/<agent_replan>\s*[\s\S]*?(?:<\/agent_replan>|$)/gi, '').trim();
 }
 
 export function stripAgentPlanBlock(text: string): string {
-  return text.replace(/<agent_plan>\s*[\s\S]*?\s*<\/agent_plan>/gi, '').trim();
+  return text.replace(/<agent_plan>\s*[\s\S]*?(?:<\/agent_plan>|$)/gi, '').trim();
 }
 
 function areTaskDependenciesCompleted(plan: AgentTaskPlan, item: AgentTaskChecklistItem): boolean {
@@ -328,7 +328,7 @@ export function completeAgentTaskFromEvidence(
 }
 
 export function stripAgentProgressBlock(text: string): string {
-  return text.replace(/<agent_progress>\s*[\s\S]*?\s*<\/agent_progress>/gi, '').trim();
+  return text.replace(/<agent_progress>\s*[\s\S]*?(?:<\/agent_progress>|$)/gi, '').trim();
 }
 
 export function areAgentTaskRequirementsMet(plan: AgentTaskPlan): boolean {

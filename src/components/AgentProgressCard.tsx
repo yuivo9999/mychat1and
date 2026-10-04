@@ -44,8 +44,8 @@ function parseAgentProgress(content: string): { payload: AgentProgressPayload; i
       result: typeof raw?.result === 'string' ? raw.result : undefined,
       nextStep: typeof raw?.nextStep === 'string' ? raw.nextStep : undefined,
     };
-    const completed = new Set(Array.isArray(raw?.completed) ? raw.completed.map(String) : []);
-    const inProgress = new Set(Array.isArray(raw?.inProgress) ? raw.inProgress.map(String) : []);
+    const completed = new Set<string>(Array.isArray(raw?.completed) ? raw.completed.map(String) : []);
+    const inProgress = new Set<string>(Array.isArray(raw?.inProgress) ? raw.inProgress.map(String) : []);
     const blocked = new Map<string, string>();
 
     if (Array.isArray(raw?.blocked)) {
@@ -61,7 +61,7 @@ function parseAgentProgress(content: string): { payload: AgentProgressPayload; i
       });
     }
 
-    const ids = new Set<string>([...completed, ...inProgress, ...blocked.keys(), ...evidence.keys()]);
+    const ids = new Set<string>([...Array.from(completed), ...Array.from(inProgress), ...Array.from(blocked.keys()), ...Array.from(evidence.keys())]);
     if (!ids.size) return null;
 
     return { payload, items: Array.from(ids).map((id) => ({

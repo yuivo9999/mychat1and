@@ -28,7 +28,8 @@ export interface CodeExecutionResult {
   runtime: 'android' | 'server';
 }
 
-interface AndroidExecutionBridge {
+export interface AndroidExecutionBridge {
+  getRuntimeInfo?: () => Promise<unknown> | unknown;
   executePython?: (code: string, timeoutMs?: number, workspaceId?: string) => Promise<unknown> | unknown;
   executeCommand?: (command: string, timeoutMs?: number, workspaceId?: string) => Promise<unknown> | unknown;
   executeNode?: (command: string, timeoutMs?: number, workspaceId?: string) => Promise<unknown> | unknown;

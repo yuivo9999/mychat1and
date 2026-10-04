@@ -500,6 +500,7 @@ export async function performGitHubResearch(rawQuery: string): Promise<GitHubRes
 
   let issues = 0;
   let pullRequests = 0;
+  let commits = 0;
 
   if (repoRef) {
     const scoped = await fetchIssuesForRepo(repoRef, query, results);

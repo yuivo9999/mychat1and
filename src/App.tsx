@@ -52,6 +52,7 @@ import {
   isWorkspaceZipRequested
 } from './services/workspaceFileAttachment';
 import { WorkspaceDrawer } from './components/WorkspaceDrawer';
+import { inspectProjectRuntime } from './services/projectRuntimeService';
 import { 
   getConversations, 
   saveConversation, 
@@ -628,6 +629,9 @@ export default function App() {
     agentPauseRequestedRef.current = true;
     const existing = currentConversation.agentTask;
     const pausedTask: AgentTaskState = {
+      goal: existing?.goal || '执行用户任务',
+      definitionOfDone: existing?.definitionOfDone || [],
+      checklist: existing?.checklist || [],
       ...existing,
       taskId: agentTaskIdRef.current,
       status: 'paused',
@@ -1079,6 +1083,21 @@ export default function App() {
       }
     }
 
+    let wsToOperate: Workspace | null = currentWorkspace ? JSON.parse(JSON.stringify(currentWorkspace)) : null;
+    const historySearchEnabled = settings.enableHistorySearch ?? false;
+    const projectMemoryEnabled = settings.enableProjectMemory ?? true;
+    const workspaceContextEnabled = !!wsToOperate && (agentMode || workspaceIntent.shouldAccessWorkspace);
+    const workspaceAgentEnabled = agentMode && !!wsToOperate;
+    let agentTaskPlan = createAgentTaskPlan(text);
+    const maxAgentTurns = workspaceAgentEnabled
+      ? 12
+      : (historySearchEnabled || (projectMemoryEnabled && !!targetConv.projectId))
+        ? 6
+        : 1;
+    let agentLoopState: AgentLoopState = createAgentLoopState(maxAgentTurns);
+    const agentTaskId = workspaceAgentEnabled ? `agent_${Date.now()}_${Math.random().toString(36).slice(2, 8)}` : null;
+    agentTaskIdRef.current = agentTaskId;
+
     try {
       const baseParams = updatedConv.parameters || parameters;
       const activeParams: ModelParameters = {
@@ -1088,7 +1107,7 @@ export default function App() {
       };
       const baseSystemPrompt = targetConv.systemPrompt || settings.defaultSystemPrompt;
       let effectiveSystemPrompt = webContext
-        ? (baseSystemPrompt ? `${baseSystemPrompt}\\n\\n${webContext}` : webContext)
+        ? (baseSystemPrompt ? `${baseSystemPrompt}\n\n${webContext}` : webContext)
         : baseSystemPrompt;
 
       if (isUiUxSkillEnabled) {
@@ -1096,15 +1115,8 @@ export default function App() {
           ? `${effectiveSystemPrompt}\n\n${UI_UX_DESIGN_SKILL_PROMPT}`
           : UI_UX_DESIGN_SKILL_PROMPT;
       }
-      let wsToOperate: Workspace | null = currentWorkspace ? JSON.parse(JSON.stringify(currentWorkspace)) : null;
 
-      // 1. Detect Workspace Intent & Agent Mode Activation
-      const workspaceIntent = detectWorkspaceIntent(text, targetConv.chatContext);
-      // When Agent Mode is explicitly turned ON, and a workspace is bound, Agent capability is 100% active
-      const workspaceContextEnabled = !!wsToOperate && (agentMode || workspaceIntent.shouldAccessWorkspace);
-      const workspaceAgentEnabled = agentMode && !!wsToOperate;
       // The model may replace this safe fallback with a structured plan during the first Agent round.
-      let agentTaskPlan = createAgentTaskPlan(text);
       agentTaskPlan.research = {
         required: agentResearchNeeded && (webAccessEnabled || isContext7Enabled),
         completed: !!webContext,
@@ -1122,8 +1134,6 @@ export default function App() {
       const isDiagnosisMode = workspaceContextEnabled && (diagIntent.isDiagnosis || workspaceIntent.type === 'inspect');
 
       // 3. System Prompt: ONLY inject Workspace Summary, Tools Protocol & Diagnosis Protocol when Workspace Agent is explicitly enabled!
-      const historySearchEnabled = settings.enableHistorySearch ?? false;
-      const projectMemoryEnabled = settings.enableProjectMemory ?? true;
       if (workspaceAgentEnabled) {
         effectiveSystemPrompt = buildAgentSystemPrompt(
           wsToOperate,
@@ -1268,14 +1278,6 @@ export default function App() {
       );
       let memoryAuditCompleted = !memoryAuditEligible;
       let memoryAuditTurn = false;
-      const maxAgentTurns = workspaceAgentEnabled
-        ? 12
-        : (historySearchEnabled || (projectMemoryEnabled && !!targetConv.projectId))
-          ? 6
-          : 1;
-      let agentLoopState: AgentLoopState = createAgentLoopState(maxAgentTurns);
-      const agentTaskId = workspaceAgentEnabled ? `agent_${Date.now()}_${Math.random().toString(36).slice(2, 8)}` : null;
-      agentTaskIdRef.current = agentTaskId;
       if (agentTaskId) {
         const initialTask: AgentTaskState = {
           taskId: agentTaskId,
@@ -1409,7 +1411,7 @@ export default function App() {
                   : `Agent [第 ${turn + 1} 轮 · 步骤 ${i + 1}/${detectedToolCalls.length}] 正在执行: ${tc.tool} (${targetIdentifier})...`
               );
 
-              let outcome;
+              let outcome: any;
               if (tc.tool === 'capture_project_runtime_screenshot' && wsToOperate && !isPreviewOpen) {
                 setActiveWorkspaceId(wsToOperate.id);
                 setIsPreviewOpen(true);
@@ -1628,7 +1630,9 @@ export default function App() {
             }
 
             // Sync updated workspace to state
-            await handleSaveWorkspaceState(wsToOperate);
+            if (wsToOperate) {
+              await handleSaveWorkspaceState(wsToOperate);
+            }
 
             if (validationFailureCount >= 3) {
               toolResultsForPrompt.push('### 自动验证保护阈值已触发\n同一任务已经累计 3 次项目检查失败。请停止继续盲目执行检查；如果尚未完成修复，请根据现有错误证据总结剩余问题与环境限制。');
@@ -1710,6 +1714,8 @@ export default function App() {
                   phase: agentLoopState.phase,
                   round: agentLoopState.round,
                   maxRounds: maxAgentTurns,
+                  ...agentTaskPlan,
+                  ...getAgentTaskStepText(agentLoopState),
                   progressSummary: validationFailureCount >= 3 ? '验证失败保护已触发' : '连续无有效进展，等待新的用户指示',
                   pauseReason: validationFailureCount >= 3 ? '项目检查连续失败达到保护阈值' : '连续多个阶段没有产生新的可验证进展',
                   updatedAt: Date.now(),
@@ -1742,6 +1748,8 @@ export default function App() {
                   phase: agentLoopState.phase,
                   round: agentLoopState.round,
                   maxRounds: maxAgentTurns,
+                  ...agentTaskPlan,
+                  ...getAgentTaskStepText(agentLoopState),
                   progressSummary: getAgentPhaseLabel(agentLoopState.phase),
                   pauseReason: '用户手动暂停 Agent，已停在安全轮次边界',
                   updatedAt: Date.now(),
@@ -1756,6 +1764,8 @@ export default function App() {
                   phase: agentLoopState.phase,
                   round: agentLoopState.round,
                   maxRounds: maxAgentTurns,
+                  ...agentTaskPlan,
+                  ...getAgentTaskStepText(agentLoopState),
                   progressSummary: '用户已继续 Agent 任务',
                   updatedAt: Date.now(),
                 });
@@ -1863,7 +1873,7 @@ export default function App() {
             webSearchResults: webResults.length > 0 ? webResults : m.webSearchResults,
           };
         });
-        const finalConv = { 
+        const finalConv: Conversation = { 
           ...c, 
           messages: finalMessages,
           workspaceId: wsToOperate?.id || c.workspaceId,
@@ -1874,6 +1884,8 @@ export default function App() {
             phase: (validationFailureCount >= 3 || shouldProtectAgainstNoProgress(agentLoopState) || !areAgentTaskRequirementsMet(agentTaskPlan)) ? agentLoopState.phase : 'completed',
             round: agentLoopState.round,
             maxRounds: maxAgentTurns,
+            ...agentTaskPlan,
+            ...getAgentTaskStepText(agentLoopState),
             progressSummary: (validationFailureCount >= 3 || shouldProtectAgainstNoProgress(agentLoopState)) ? '等待新的用户指示' : 'Agent 任务完成',
             pauseReason: (validationFailureCount >= 3 || shouldProtectAgainstNoProgress(agentLoopState)) ? '自动循环已安全停止，需要新的证据、决策或用户指示' : undefined,
             updatedAt: Date.now(),

@@ -630,13 +630,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <p className="text-xs text-neutral-500 mt-1">统一管理当前对话、项目、历史聊天与时间信息如何提供给 AI。关闭不会删除已有数据。</p>
                 </div>
                 <div className="space-y-2.5">
-                  {[
+                  {([
                     ['enableChatContextMemory', '单聊上下文记忆', '保留当前聊天的任务、要求和关键决策。', true],
                     ['enableProjectMemory', '项目共享记忆', '共享同一项目的摘要、关键决策和相关会话信息。', true],
                     ['enableHistorySearch', '历史对话搜索', '允许 AI 按需主动搜索过去的聊天记录。', false],
                     ['enableTimeGapHints', '时间间隔提醒', '对间隔较大的消息加入时间提示，帮助 AI 理解时间跨度。', true],
                     ['enableHistoryCompaction', '历史上下文自动压缩', '压缩较早上下文，减少 Token，同时保留任务轨迹和关键决策。', true],
-                  ].map(([key, title, desc, defaultValue]) => {
+                  ] as const).map(([key, title, desc, defaultValue]) => {
                     const enabled = settings[key as keyof UserSettings] ?? defaultValue;
                     return (
                       <button key={key} type="button" onClick={() => onSaveSettings({ ...settings, [key]: !enabled })}

@@ -13,7 +13,7 @@ import {
 } from './workspaceService';
 import { formatChatContextPrompt, detectWorkspaceIntent, WorkspaceIntent } from './chatContextService';
 import { ChatContext } from '../types/workspace';
-import { looksLikePythonSource, getWorkspaceNodeRuntimeState, markWorkspaceDependenciesInstalled, readWorkspaceFile } from './codeExecutionAdapter';
+import { looksLikePythonSource, getWorkspaceNodeRuntimeState, markWorkspaceDependenciesInstalled, readWorkspaceFile, executeCode } from './codeExecutionAdapter';
 import { executeAgentRuntime, getAgentRuntimeCapabilities, installAgentDependencies } from './agentRuntime';
 import { buildProjectRuntimeReport, inspectProjectRuntime, getProjectRuntimeDiagnostics, startProjectRuntime, stopProjectRuntime, captureProjectRuntimeScreenshot, interactProjectPreview, discoverProjectPreviewElements } from './projectRuntimeService';
 
@@ -643,47 +643,6 @@ ${formattedMatches}`;
 ${(files || []).map((f: string) => `  - \`${f}\``).join('\n')}`;
     }
 
-    case 'trace_mobile_ui_source': {
-      const target = String(args.target || '').trim();
-      const role = String(args.role || '').trim();
-      const action = String(args.action || '').trim();
-      const evidence = String(args.evidence || '').trim();
-      const candidates = Array.from(new Set([
-        target,
-        target.replace(/^#/, ''),
-        target.match(/data-testid=["']?([^"']+)/i)?.[1] || '',
-        target.match(/[.#]([A-Za-z_][\\w-]{2,})/)?.[1] || '',
-        role === 'button' ? 'onClick' : '',
-        role === 'textbox' ? 'onChange' : '',
-        action === 'tap' ? 'onClick' : '',
-        action === 'type' ? 'onChange' : '',
-        /(submit|send|save|login|register|confirm|next|start|search|提交|发送|保存|登录|注册|确定|下一步|开始|搜索)/i.test(target) ? 'handleSubmit' : '',
-        evidence.match(/(?:changedValues|appeared|disappeared)[^\\n]*/i)?.[0] || '',
-      ].filter(Boolean)));
-      const allMatches: any[] = [];
-      for (const query of candidates.slice(0, 6)) {
-        const matches = searchWorkspaceCode(ws, query);
-        for (const match of matches.slice(0, 12)) allMatches.push({ query, ...match });
-      }
-      const deduped = allMatches.filter((m, i, arr) =>
-        i === arr.findIndex((x) => x.path === m.path && x.line === m.line)
-      ).slice(0, 40);
-      return {
-        result: {
-          target, role, action,
-          queries: candidates.slice(0, 6),
-          matchCount: deduped.length,
-          matches: deduped,
-          guidance: deduped.length
-            ? '优先读取排名靠前的组件上下文，再追踪其事件处理器、状态更新与路由/条件渲染。'
-            : '未找到直接匹配；应改用组件文件名、可见文案、data-testid 或事件函数名继续 search_code。',
-        },
-        updatedWorkspace: ws,
-        stepIcon: 'search',
-        stepTitle: `追踪手机 UI 源码: "${target}" (${deduped.length} 个候选)`,
-      };
-    }
-
     case 'patch_file': {
       return `### 工具执行成功: \`patch_file\`
 - 目标文件: \`${args.path}\`
@@ -957,6 +916,47 @@ export async function executeWorkspaceTool(
         updatedWorkspace: ws,
         stepIcon: 'search',
         stepTitle: `搜索代码库: "${query}" (匹配 ${matches.length} 处)`,
+      };
+    }
+
+    case 'trace_mobile_ui_source': {
+      const target = String(args.target || '').trim();
+      const role = String(args.role || '').trim();
+      const action = String(args.action || '').trim();
+      const evidence = String(args.evidence || '').trim();
+      const candidates = Array.from(new Set([
+        target,
+        target.replace(/^#/, ''),
+        target.match(/data-testid=["']?([^"']+)/i)?.[1] || '',
+        target.match(/[.#]([A-Za-z_][\w-]{2,})/)?.[1] || '',
+        role === 'button' ? 'onClick' : '',
+        role === 'textbox' ? 'onChange' : '',
+        action === 'tap' ? 'onClick' : '',
+        action === 'type' ? 'onChange' : '',
+        /(submit|send|save|login|register|confirm|next|start|search|提交|发送|保存|登录|注册|确定|下一步|开始|搜索)/i.test(target) ? 'handleSubmit' : '',
+        evidence.match(/(?:changedValues|appeared|disappeared)[^\n]*/i)?.[0] || '',
+      ].filter(Boolean)));
+      const allMatches: any[] = [];
+      for (const query of candidates.slice(0, 6)) {
+        const matches = searchWorkspaceCode(ws, query);
+        for (const match of matches.slice(0, 12)) allMatches.push({ query, ...match });
+      }
+      const deduped = allMatches.filter((m, i, arr) =>
+        i === arr.findIndex((x) => x.path === m.path && x.line === m.line)
+      ).slice(0, 40);
+      return {
+        result: {
+          target, role, action,
+          queries: candidates.slice(0, 6),
+          matchCount: deduped.length,
+          matches: deduped,
+          guidance: deduped.length
+            ? '优先读取排名靠前的组件上下文，再追踪其事件处理器、状态更新与路由/条件渲染。'
+            : '未找到直接匹配；应改用组件文件名、可见文案、data-testid 或事件函数名继续 search_code。',
+        },
+        updatedWorkspace: ws,
+        stepIcon: 'search',
+        stepTitle: `追踪手机 UI 源码: "${target}" (${deduped.length} 个候选)`,
       };
     }
 
@@ -1387,7 +1387,7 @@ export async function executeWorkspaceTool(
       let afterState = await getWorkspaceNodeRuntimeState(ws.id);
       let installRecord: { ok: boolean; fingerprint?: string; error?: string } | null = null;
       let generatedLockfileSynced = false;
-      if (runData.success && info.packageManager === 'npm' && !has(ws, 'package-lock.json')) {
+      if (runData.success && info.packageManager === 'npm' && !ws.files['package-lock.json']) {
         const generated = await readWorkspaceFile(ws.id, 'package-lock.json');
         if (generated?.ok && generated.exists && typeof generated.content === 'string') {
           const now = Date.now();
@@ -1707,8 +1707,8 @@ export async function executeWorkspaceTool(
       const baselineState = summarizeMobileState(discovery);
       const diffMobileState = (before: any, after: any) => {
         if (!before?.success || !after?.success) return { comparable: false, reason: 'DOM 不可访问或元素发现失败' };
-        const beforeMap = new Map((before.visibleElements || []).map((e: any) => [`${e.tag}|${e.role}|${e.text}|${e.x}|${e.y}`, e]));
-        const afterMap = new Map((after.visibleElements || []).map((e: any) => [`${e.tag}|${e.role}|${e.text}|${e.x}|${e.y}`, e]));
+        const beforeMap = new Map<string, any>((before.visibleElements || []).map((e: any) => [`${e.tag}|${e.role}|${e.text}|${e.x}|${e.y}`, e]));
+        const afterMap = new Map<string, any>((after.visibleElements || []).map((e: any) => [`${e.tag}|${e.role}|${e.text}|${e.x}|${e.y}`, e]));
         const changedValues: any[] = [];
         for (const [key, beforeItem] of beforeMap) {
           const afterItem = afterMap.get(key);
@@ -1811,7 +1811,7 @@ export async function executeWorkspaceTool(
             coordinateFallback: !step.target && typeof step.x === 'number' && typeof step.y === 'number',
             interactionSucceeded: interaction.success === true,
             structuredStateComparable: stateDelta.comparable === true,
-            stateChanged: stateDelta.comparable === true && (stateDelta.elementCountChanged || stateDelta.scrollChanged || stateDelta.activeChanged || stateDelta.changedValues?.length > 0),
+            stateChanged: stateDelta.comparable === true && (stateDelta.elementCountChanged || stateDelta.scrollChanged || stateDelta.activeChanged || (stateDelta.changedValues?.length ?? 0) > 0),
           },
           stateBefore: beforeState,
           stateAfter: afterState,
@@ -1847,7 +1847,7 @@ export async function executeWorkspaceTool(
             : 'interaction-failed';
         } else if (stateDelta.comparable === true && stateDelta.scrollChanged && step.action === 'scroll') {
           item.diagnosis.failureClass = 'state-change-observed';
-        } else if (stateDelta.comparable === true && stateDelta.changedValues?.length > 0) {
+        } else if (stateDelta.comparable === true && (stateDelta.changedValues?.length ?? 0) > 0) {
           item.diagnosis.failureClass = 'state-change-observed';
         } else if (item.visualDelta?.changed === false && ['tap', 'type', 'back'].includes(step.action)) {
           item.diagnosis.failureClass = 'possible-no-op';
@@ -1912,7 +1912,7 @@ export async function executeWorkspaceTool(
           : '根据失败步骤和截图定位明确问题；修复后重新发现元素并再跑一轮。',
       };
       if (result.success) return { result, updatedWorkspace: ws, stepIcon: 'code', stepTitle: `手机自测完成 · 自动规划 ${steps.length} 步` };
-      return { result, updatedWorkspace: ws, errorMessage: flow?.errorMessage || '手机自测流程失败', stepIcon: 'lightning', stepTitle: '手机自测发现需要处理的问题' };
+      return { result, updatedWorkspace: ws, errorMessage: (flow as any)?.errorMessage || '手机自测流程失败', stepIcon: 'lightning', stepTitle: '手机自测发现需要处理的问题' };
     }
 
     case 'run_mobile_preview_flow': {
@@ -2086,7 +2086,7 @@ export async function executeWorkspaceTool(
       try {
         const runData = await executeCode({
           language: 'shell',
-          sourceOrCommand: command,
+          code: command,
           timeoutMs: 20_000,
           workspaceId: ws.id,
         });

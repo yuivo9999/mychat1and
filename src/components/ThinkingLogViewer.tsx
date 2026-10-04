@@ -10,17 +10,19 @@ export function parseThinkingContent(rawText: string): { thinkingText: string; m
   if (!rawText) return { thinkingText: '', mainContent: '' };
 
   const thinkMatch = rawText.match(/<think>([\s\S]*?)(?:<\/think>|$)/i);
-  if (!thinkMatch) {
-    return {
-      thinkingText: '',
-      mainContent: rawText.replace(/<agent_progress>\s*[\s\S]*?\s*<\/agent_progress>/gi, '').trim(),
-    };
+  let thinkingText = '';
+  let contentWithoutThink = rawText;
+
+  if (thinkMatch) {
+    thinkingText = thinkMatch[1].trim();
+    contentWithoutThink = rawText.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, '');
   }
 
-  const thinkingText = thinkMatch[1].trim();
-  const mainContent = rawText
-    .replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, '')
-    .replace(/<agent_progress>\s*[\s\S]*?\s*<\/agent_progress>/gi, '')
+  const mainContent = contentWithoutThink
+    .replace(/<agent_progress>\s*[\s\S]*?(?:<\/agent_progress>|$)/gi, '')
+    .replace(/<agent_plan>\s*[\s\S]*?(?:<\/agent_plan>|$)/gi, '')
+    .replace(/<agent_replan>\s*[\s\S]*?(?:<\/agent_replan>|$)/gi, '')
+    .replace(/```(?:tool_call|json:tool_call|tool)\s*[\s\S]*?(?:```|$)/gi, '')
     .trim();
 
   return { thinkingText, mainContent };

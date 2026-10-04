@@ -1,4 +1,4 @@
-import { BaseAdapter, AdapterOptions, StreamCallbacks, parseHttpError, executeFetch, safeExtractText } from './base';
+import { BaseAdapter, AdapterOptions, StreamCallbacks, parseHttpError, executeFetch, safeExtractText, isConciseReplyModeEnabled, registerActiveRequestController } from './base';
 import { ApiKeyConfig } from '../../types';
 import { extractAttachmentText } from '../fileParser';
 import { isGeminiNativeFileModel, resolveGoogleNativeMimeType, supportsGoogleNativeFileMime } from '../googleFileSupport';

@@ -155,7 +155,6 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
         conciseReplyMode: false,
         enableChatContextMemory: false,
         enableHistorySearch: true,
-        uiUxSkill: false,
       });
     }
   };

@@ -496,7 +496,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   showTimestamps: true,
   showModelName: true,
   enableStreaming: true,
-  enableMarkdown: false,
+  enableMarkdown: true,
   enableCodeHighlight: true,
   renderLatex: true,
   showLineNumbers: true,
