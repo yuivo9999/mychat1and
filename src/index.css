@@ -1392,3 +1392,45 @@ html.theme-classic2 .param-toggle-dot,
     scroll-margin-top: 5.5rem;
   }
 }
+
+
+/* Copyable AI tables and web-linked quotations */
+.ai-table-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0.25rem 0.5rem;
+  border-bottom: 1px solid rgba(115, 115, 115, 0.14);
+  background: rgba(115, 115, 115, 0.035);
+}
+.ai-table-copy-btn {
+  padding: 0.22rem 0.55rem;
+  border: 1px solid rgba(115, 115, 115, 0.2);
+  border-radius: 0.45rem;
+  background: transparent;
+  font-size: 0.7rem;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+.ai-table-copy-btn:hover {
+  background: rgba(99, 102, 241, 0.08);
+  border-color: rgba(99, 102, 241, 0.25);
+}
+.ai-quote-source {
+  display: block;
+  margin-top: 0.55rem;
+  font-size: 0.7rem;
+  line-height: 1.35;
+  font-style: normal;
+  text-decoration: none;
+  opacity: 0.78;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ai-quote-source:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
