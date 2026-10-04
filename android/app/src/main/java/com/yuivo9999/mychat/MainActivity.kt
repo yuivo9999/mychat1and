@@ -52,7 +52,7 @@ class AndroidBridge(
 
     @JavascriptInterface
     fun getRuntimeInfo(): String {
-        val nodeBinary = File(activity.filesDir, "node-runtime/bin/node")
+        val nodeBinary = File(activity.applicationInfo.nativeLibraryDir, "libnode.so")
         return JSONObject()
             .put("platform", "android")
             .put("python", Python.getInstance().getModule("sys").get("version").toString())
@@ -183,15 +183,14 @@ class AndroidBridge(
 
     @JavascriptInterface
     fun executeNode(command: String, timeoutMs: Int, workspaceId: String = ""): String {
-        val runtimeRoot = File(activity.filesDir, "node-runtime")
-        val nodeBinary = File(runtimeRoot, "bin/node")
-        if (!nodeBinary.exists()) {
+        val nodeBinary = File(activity.applicationInfo.nativeLibraryDir, "libnode.so")
+        if (!nodeBinary.isFile) {
             return JSONObject()
                 .put("success", false)
                 .put("stdout", "")
                 .put("stderr", "Android Node.js runtime is not bundled")
                 .put("exitCode", -1)
-                .put("error", "Node.js runtime unavailable. Add node-runtime/bin/node to the APK runtime bundle.")
+                .put("error", "Node.js runtime unavailable. Build the APK after preparing the bundled runtime.")
                 .toString()
         }
 
@@ -202,20 +201,31 @@ class AndroidBridge(
         }
 
         val future = executor.submit(Callable {
-            nodeBinary.setExecutable(true, false)
-            val process = ProcessBuilder("sh", "-c", command)
+            val trimmed = command.trim()
+            val processBuilder = if (trimmed.startsWith("node -e ")) {
+                val encoded = trimmed.removePrefix("node -e ").trim()
+                val code = org.json.JSONTokener(encoded).nextValue() as? String
+                    ?: throw IllegalArgumentException("node -e 参数不是有效 JSON 字符串")
+                ProcessBuilder(nodeBinary.absolutePath, "-e", code)
+            } else if (trimmed == "node" || trimmed.startsWith("node --")) {
+                val args = trimmed.removePrefix("node").trim()
+                if (args.isBlank()) ProcessBuilder(nodeBinary.absolutePath)
+                else ProcessBuilder(listOf(nodeBinary.absolutePath) + args.split(Regex("\\s+")))
+            } else {
+                ProcessBuilder("sh", "-c", trimmed)
+            }
+
+            val process = processBuilder
                 .directory(File(workspacePath))
-                .environment().apply {
-                    put("PATH", runtimeRoot.resolve("bin").absolutePath + ":" + getOrDefault("PATH", ""))
-                    put("LD_LIBRARY_PATH", runtimeRoot.resolve("lib").absolutePath)
-                    put("HOME", activity.filesDir.absolutePath)
-                }.let {
-                    ProcessBuilder("sh", "-c", command)
-                        .directory(File(workspacePath))
-                        .redirectErrorStream(false)
-                        .apply { environment().putAll(it) }
-                        .start()
+                .redirectErrorStream(false)
+                .apply {
+                    environment()["LD_LIBRARY_PATH"] = activity.applicationInfo.nativeLibraryDir
+                    environment()["HOME"] = activity.filesDir.absolutePath
+                    environment()["TMPDIR"] = activity.cacheDir.absolutePath
+                    environment()["PATH"] = activity.applicationInfo.nativeLibraryDir +
+                        File.pathSeparator + (environment()["PATH"] ?: "")
                 }
+                .start()
 
             val stdoutFuture = executor.submit(Callable {
                 process.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
@@ -269,6 +279,7 @@ class AndroidBridge(
                 .put("error", "Node command execution timed out")
                 .toString()
         } catch (e: Throwable) {
+            future.cancel(true)
             JSONObject()
                 .put("success", false)
                 .put("stdout", "")
