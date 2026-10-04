@@ -1195,7 +1195,7 @@ export async function executeWorkspaceTool(
         };
       }
 
-      const runData = await installWorkspaceDependencies(ws.id, 120_000);
+      const runData = await installAgentDependencies(ws.id, 120_000);
       let afterState = await getWorkspaceNodeRuntimeState(ws.id);
       let installRecord: { ok: boolean; fingerprint?: string; error?: string } | null = null;
       let generatedLockfileSynced = false;
@@ -1321,7 +1321,7 @@ export async function executeWorkspaceTool(
           stepIcon: 'search', stepTitle: '项目检查跳过: 未找到检查命令',
         };
       }
-      const runData = await executeCode({ language: 'shell', code: command, timeoutMs: 120_000, workspaceId: ws.id });
+      const runData = await executeAgentRuntime({ language: 'shell', sourceOrCommand: command, timeoutMs: 120_000, workspaceId: ws.id });
       const result = { command, stdout: runData.stdout, stderr: runData.stderr, exitCode: runData.exitCode, error: runData.error, runtime: runData.runtime };
       if (runData.success) return { result, updatedWorkspace: ws, stepIcon: 'code', stepTitle: '项目检查通过: ' + command };
       return {
@@ -1343,7 +1343,7 @@ export async function executeWorkspaceTool(
         };
       }
 
-      const runData = await executeCode({ language: 'python', code, timeoutMs: 20_000, workspaceId: ws.id });
+      const runData = await executeAgentRuntime({ language: 'python', sourceOrCommand: code, timeoutMs: 20_000, workspaceId: ws.id });
       if (runData.success) {
         return {
           result: { stdout: runData.stdout, stderr: runData.stderr, exitCode: runData.exitCode, runtime: runData.runtime },
@@ -1377,7 +1377,7 @@ export async function executeWorkspaceTool(
       // Android compatibility: if the caller supplied raw Python source,
       // do not force the model to remember "python -c" syntax.
       if (looksLikePythonSource(command)) {
-        const runData = await executeCode({ language: 'python', code: command, timeoutMs: 20_000, workspaceId: ws.id });
+        const runData = await executeAgentRuntime({ language: 'python', sourceOrCommand: command, timeoutMs: 20_000, workspaceId: ws.id });
         if (runData.success) {
           return {
             result: { stdout: runData.stdout, stderr: runData.stderr, exitCode: runData.exitCode, runtime: runData.runtime },
@@ -1398,7 +1398,7 @@ export async function executeWorkspaceTool(
       try {
         const runData = await executeCode({
           language: 'shell',
-          code: command,
+          sourceOrCommand: command,
           timeoutMs: 20_000,
           workspaceId: ws.id,
         });
