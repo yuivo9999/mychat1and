@@ -1548,17 +1548,34 @@ export async function executeWorkspaceTool(
         };
         const actionCandidates = elements
           .filter((e: any) => ['button', 'a'].includes(e.tag) || ['button', 'link'].includes(e.role || ''))
-          .map((e: any) => ({ e, score: scoreAction(e) }))
+          .map((e: any) => ({ e, score: scoreAction(e), text: textOf(e) }))
           .sort((a: any, b: any) => b.score - a.score);
-        const action = actionCandidates[0]?.e || elements[0];
+
+        // 不是只测一条“第一个按钮”路径：从真实元素中挑选主 CTA + 第二独立交互，
+        // 尽量覆盖表单/主操作、导航/菜单等不同区域；明确破坏性操作永不自动点击。
+        const destructivePattern = /删除|移除|清空|退出账号|注销|重置|永久|delete|remove|clear|logout|reset|destroy/i;
+        const safeCandidates = actionCandidates.filter((candidate: any) => !destructivePattern.test(candidate.text));
+        const action = safeCandidates[0]?.e || actionCandidates[0]?.e || elements[0];
+        const secondary = safeCandidates.find((candidate: any) => {
+          if (!action) return false;
+          const e = candidate.e;
+          if (e === action) return false;
+          if (action.selector && e.selector) return action.selector !== e.selector;
+          return Math.abs((e.x || 0) - (action.x || 0)) > 8 || Math.abs((e.y || 0) - (action.y || 0)) > 8;
+        })?.e;
+
+        const addTap = (e: any) => {
+          if (!e) return;
+          if (e.selector) plan.push({ action: 'tap', target: e.selector });
+          else plan.push({ action: 'tap', x: e.x + e.width / 2, y: e.y + e.height / 2 });
+        };
         const inputAction = input && action && (
           input.selector && action.selector
             ? input.selector === action.selector
             : Math.abs((input.x || 0) - (action.x || 0)) < 4 && Math.abs((input.y || 0) - (action.y || 0)) < 4
-        ) ? actionCandidates[1]?.e || elements[0] : action;
+        ) ? secondary : action;
 
-        // 规划不是简单“找到第一个按钮”，而是根据真实文案/ARIA/type/尺寸/位置选择最可能的主路径。
-        // 同时避免把输入框本身当成提交动作；没有明确 CTA 时才退回第一个可交互元素。
+        // 第一条路径：输入（若存在）→ 主 CTA → 等待，验证表单/提交状态。
         if (input?.selector) {
           plan.push({ action: 'tap', target: input.selector });
           plan.push({ action: 'type', target: input.selector, value: 'MyChat mobile test' });
@@ -1566,12 +1583,17 @@ export async function executeWorkspaceTool(
           plan.push({ action: 'tap', x: input.x + input.width / 2, y: input.y + input.height / 2 });
           plan.push({ action: 'type', value: 'MyChat mobile test' });
         }
-        if (inputAction) {
-          if (inputAction.selector) plan.push({ action: 'tap', target: inputAction.selector });
-          else plan.push({ action: 'tap', x: inputAction.x + inputAction.width / 2, y: inputAction.y + inputAction.height / 2 });
-          plan.push({ action: 'wait', value: '500' });
+        addTap(inputAction);
+        if (inputAction) plan.push({ action: 'wait', value: '500' });
+
+        // 第二条路径：滚动后尝试一个与主操作空间不同的安全交互。
+        if (includeScroll) {
+          plan.push({ action: 'scroll', value: '480' });
+          if (secondary && secondary !== inputAction) {
+            addTap(secondary);
+            plan.push({ action: 'wait', value: '500' });
+          }
         }
-        if (includeScroll) plan.push({ action: 'scroll', value: '480' });
       } else if (baseline.success && discovery.crossOrigin) {
         plan.push({ action: 'tap', x: 195, y: 390 });
         plan.push({ action: 'wait', value: '500' });
