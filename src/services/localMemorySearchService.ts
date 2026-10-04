@@ -26,8 +26,8 @@ export function searchLocalMemory(conversations: Conversation[], options: LocalM
     const title = conv.title || '无标题会话';
     const titleLower = title.toLowerCase();
     for (const message of conv.messages) {
-      if (options.dateFrom && message.timestamp < options.dateFrom) continue;
-      if (options.dateTo && message.timestamp > options.dateTo) continue;
+        if (typeof options.dateFrom === 'number' && message.timestamp < options.dateFrom) continue;
+      if (typeof options.dateTo === 'number' && message.timestamp > options.dateTo) continue;
       const content = message.content || '';
       const lower = content.toLowerCase();
       const matchedTerms = terms.filter(t => lower.includes(t));
@@ -47,5 +47,5 @@ export function searchLocalMemory(conversations: Conversation[], options: LocalM
 
 export function formatLocalMemorySearchResult(result: any): string {
   if (!result.results.length) return '### 本地记忆检索结果\n查询: `' + result.query + '`\n没有找到相关历史内容。';
-  return '### 本地记忆检索结果\n查询: `' + result.query + '`\n返回 ' + result.results.length + ' 条相关片段\n\n' + result.results.map((x:any,i:number) => (i+1) + '. **' + x.title + '** [' + x.role + ']\n   - conversationId: `' + x.conversationId + '`\n   - ' + x.snippet).join('\n');
+  return '### 本地记忆检索结果\n查询: `' + result.query + '`\n范围: ' + result.scope + '\n返回 ' + result.results.length + ' 条相关片段（共 ' + result.totalMatches + ' 条匹配）\n\n' + result.results.map((x:any,i:number) => (i+1) + '. **' + x.title + '** [' + x.role + ']\n   - projectId: `' + (x.projectId || '无') + '`\n   - conversationId: `' + x.conversationId + '`\n   - messageId: `' + x.messageId + '`\n   - ' + x.snippet).join('\n');
 }
