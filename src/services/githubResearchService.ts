@@ -224,7 +224,11 @@ async function fetchReleases(fullName: string, results: WebSearchResult[]): Prom
 }
 
 async function fetchIssuesForRepo(fullName: string, query: string, results: WebSearchResult[]): Promise<{ issues: number; pullRequests: number }> {
-  const q = encodeURIComponent(`repo:${fullName} ${query.replace(/github\.com[/:][^\s]+/i, '').trim()}`.trim());
+  const scopedQuery = query
+    .replace(/github\.com[/:][^\s]+/i, '')
+    .replace(fullName, '')
+    .trim();
+  const q = encodeURIComponent(`repo:${fullName}${scopedQuery ? ` ${scopedQuery}` : ''}`);
   const response = await requestJson(`https://api.github.com/search/issues?q=${q}&sort=updated&order=desc&per_page=8`);
   if (!response.ok) return { issues: 0, pullRequests: 0 };
 
