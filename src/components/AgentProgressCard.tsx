@@ -25,6 +25,7 @@ interface AgentProgressCardProps {
   compact?: boolean;
   taskState?: AgentTaskState | null;
   onContinue?: (messageId: string) => void;
+  onStop?: (messageId: string) => void;
 }
 
 function parseAgentProgress(content: string): { payload: AgentProgressPayload; items: ProgressItem[] } | null {
@@ -101,7 +102,7 @@ function buildTaskStateView(task: AgentTaskState | null): { payload: AgentProgre
   };
 }
 
-export const AgentProgressCard: React.FC<AgentProgressCardProps> = ({ message, compact = false, taskState: providedTaskState, onContinue }) => {
+export const AgentProgressCard: React.FC<AgentProgressCardProps> = ({ message, compact = false, taskState: providedTaskState, onContinue, onStop }) => {
   const parsed = useMemo(() => parseAgentProgress(message.content), [message.content]);
   const taskState = providedTaskState ?? null;
 
@@ -209,6 +210,7 @@ export const AgentProgressCard: React.FC<AgentProgressCardProps> = ({ message, c
         {(payload.status === 'waiting_user' || payload.status === 'paused') && (
           <div className="mt-2 flex items-center justify-end gap-2 pt-2 border-t border-neutral-100 dark:border-neutral-800">
             {pauseReason && <span className="mr-auto text-[10px] text-neutral-500 dark:text-neutral-400">需要你的指示才能继续</span>}
+            {onStop && <button type="button" onClick={() => onStop(message.id)} className="inline-flex items-center rounded-full px-3 py-1.5 text-[10px] font-medium border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300">结束任务</button>}
             {onContinue && (
               <button
                 type="button"
