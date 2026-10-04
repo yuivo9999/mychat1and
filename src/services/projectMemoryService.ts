@@ -61,7 +61,7 @@ function buildRecord(content: string, conversation: Conversation, index: number)
 
 /**
  * Reconcile project memory instead of blindly appending strings.
- * - exact/near duplicates are merged
+ * - exact duplicates are merged
  * - explicit replacement decisions supersede older related decisions
  * - old superseded records remain locally for traceability
  * - only active records are injected into normal model context
@@ -107,7 +107,7 @@ function reconcileMemoryRecords(
 
     if (looksLikeSupersedingDecision(candidate.content) && related.length > 0) {
       for (const item of related.slice(0, 3)) {
-        if (item.record.updatedAt <= candidate.updatedAt || item.overlap >= 0.75) {
+        if (item.record.updatedAt <= candidate.updatedAt) {
           item.record.status = 'superseded';
           item.record.updatedAt = candidate.updatedAt;
           item.record.supersededById = candidate.id;
