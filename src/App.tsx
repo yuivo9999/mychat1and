@@ -1295,7 +1295,7 @@ export default function App() {
               const textChunk = safeExtractText(chunk);
               if (!textChunk) return;
               turnAccumulatedText += textChunk;
-              const cleanTurnText = cleanResponseText(stripAgentPlanBlock(turnAccumulatedText));
+              const cleanTurnText = cleanResponseText(stripAgentProgressBlock(stripAgentPlanBlock(turnAccumulatedText)));
               const fullNarrativeSoFar = cumulativeAssistantNarrative
                 ? (cleanTurnText ? `${cumulativeAssistantNarrative}\n\n${cleanTurnText}` : cumulativeAssistantNarrative)
                 : cleanTurnText;
@@ -1336,8 +1336,12 @@ export default function App() {
           } : undefined
         );
 
-        finalFullText = stripAgentPlanBlock(turnAccumulatedText);
-        const cleanedThisTurn = cleanResponseText(stripAgentPlanBlock(turnAccumulatedText));
+        finalFullText = stripAgentProgressBlock(stripAgentPlanBlock(turnAccumulatedText));
+        const cleanedThisTurn = cleanResponseText(stripAgentProgressBlock(stripAgentPlanBlock(turnAccumulatedText)));
+
+        if (workspaceAgentEnabled) {
+          agentTaskPlan = applyAgentTaskProgress(agentTaskPlan, turnAccumulatedText);
+        }
 
         if (workspaceAgentEnabled && agentLoopState.round === 0) {
           const parsedPlan = parseAgentTaskPlan(turnAccumulatedText, text);
