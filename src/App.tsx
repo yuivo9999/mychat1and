@@ -33,7 +33,8 @@ import {
   pruneAgentLoopHistory,
   detectDiagnosisIntent,
   detectWorkspaceIntent,
-  formatChatContextPrompt
+  formatChatContextPrompt,
+  injectTimeGapHints
 } from './services/chatContextService';
 import { 
   buildAgentSystemPrompt, 
@@ -1058,7 +1059,7 @@ export default function App() {
       }
 
       // 4. Project Collective Memory (Multiple chats inside same project share project memory)
-      if (targetConv.projectId) {
+      if ((settings.enableProjectMemory ?? true) && targetConv.projectId) {
         const currentProj = projects.find(p => p.id === targetConv.projectId);
         if (currentProj) {
           const projConvs = conversations.filter(c => c.projectId === currentProj.id);
@@ -1159,9 +1160,23 @@ export default function App() {
       // History compaction is independent from Context7 documentation retrieval.
       // Keep the normal recent-message window stable so the Context7 toggle has one clear meaning.
       const historyWindowSize = 10;
-      // Prepare golden-balance hierarchical compaction (L3: Rolling Summary + L4: Code Decoupled Recent Window)
-      const { compactedSummary, effectiveMessages } = prepareChatHistoryWithHierarchicalCompaction(previousHistory, historyWindowSize);
+
+      // 🧩 历史上下文自动压缩：关闭后保留原始历史，不做摘要/代码块裁剪。
+      let compactedSummary: string | undefined;
+      let effectiveMessages: Message[];
+      if (settings.enableHistoryCompaction ?? true) {
+        const compacted = prepareChatHistoryWithHierarchicalCompaction(previousHistory, historyWindowSize);
+        compactedSummary = compacted.compactedSummary;
+        effectiveMessages = compacted.effectiveMessages;
+      } else {
+        effectiveMessages = previousHistory;
+      }
+
+      // 🕒 时间间隔提醒：仅在开启时向 API-facing history 注入轻量 system marker。
       let currentHistoryMessages = [...effectiveMessages, apiUserMessage];
+      if (settings.enableTimeGapHints ?? true) {
+        currentHistoryMessages = injectTimeGapHints(currentHistoryMessages);
+      }
 
       if (compactedSummary) {
         currentHistoryMessages = [
@@ -1405,14 +1420,16 @@ export default function App() {
         cleanedFinalAnswer += `\n\n> 📦 **项目工作区已更新**：AI 已协同修改工作区文件 \`${Array.from(modifiedPaths).join('`, `')}\`。\n> 🧪 **运行与测试提示**：若“运行脚本与命令”权限已开启，AI 可在当前 MyChat 运行时中执行依赖安装、项目检查与脚本验证，并根据真实 stdout/stderr 进入有限次数的“失败 → 定位 → 修改 → 再验证”闭环；若运行时不支持目标工具链，则会明确报告环境限制。`;
       }
 
-      // Update THIS chat's isolated private context memory
-      const updatedChatContext = updateChatContext(
-        targetConv.chatContext,
-        text,
-        cleanedFinalAnswer,
-        Array.from(modifiedPaths),
-        executedToolCalls
-      );
+      // Update THIS chat's isolated private context memory only when enabled.
+      const updatedChatContext = (settings.enableChatContextMemory ?? true)
+        ? updateChatContext(
+            targetConv.chatContext,
+            text,
+            cleanedFinalAnswer,
+            Array.from(modifiedPaths),
+            executedToolCalls
+          )
+        : targetConv.chatContext;
 
       const finalCompletedSteps = currentThinkingSteps.map(s => ({ ...s, status: 'completed' as const }));
       setConversations(prev => prev.map(c => {
@@ -1446,7 +1463,7 @@ export default function App() {
       }));
 
       // Update project collective memory if part of a project
-      if (targetConv.projectId) {
+      if ((settings.enableProjectMemory ?? true) && targetConv.projectId) {
         const proj = projects.find(p => p.id === targetConv.projectId);
         if (proj) {
           const allProjConvs = conversations
