@@ -177,7 +177,7 @@ async function performNativeSearch(
 
   for (const targetUrl of urls.slice(0, 3)) {
     tasks.push((async () => {
-      const page = await crawl(targetUrl, 8000);
+      const page = await crawl(targetUrl, 10000);
       if (page) pageContents.push(page);
     })());
   }
@@ -191,14 +191,14 @@ async function performNativeSearch(
           'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
           'Cookie': 'SRCHHPGUSR=ADLT=OFF&NRSLT=20;',
         },
-        timeoutMs: 5000,
+        timeoutMs: 10000,
       });
       if (response.ok) results.push(...parseBingResults(response.body));
     })());
     tasks.push((async () => {
       const response = await requestText(`https://www.bing.com/news/search?q=${encodeURIComponent(query)}&format=rss`, {
         headers: { 'User-Agent': 'Mozilla/5.0 (Linux; Android 14)' },
-        timeoutMs: 5000,
+        timeoutMs: 10000,
       });
       if (response.ok) results.push(...parseRssItems(response.body));
     })());
@@ -209,7 +209,7 @@ async function performNativeSearch(
     tasks.push((async () => {
       const response = await requestText(`https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=zh-CN&gl=CN&ceid=CN:zh-Hans`, {
         headers: { 'User-Agent': 'Mozilla/5.0 (Linux; Android 14)' },
-        timeoutMs: 5000,
+        timeoutMs: 10000,
       });
       if (response.ok) results.push(...parseRssItems(response.body));
     })());
@@ -220,7 +220,7 @@ async function performNativeSearch(
     tasks.push((async () => {
       const response = await requestText(`https://zh.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(query)}&limit=5&namespace=0&format=json&origin=*`, {
         headers: { 'User-Agent': 'Mozilla/5.0 (Linux; Android 14)' },
-        timeoutMs: 5000,
+        timeoutMs: 10000,
       });
       if (!response.ok) return;
       try {
@@ -240,7 +240,7 @@ async function performNativeSearch(
       const targetUrl = customEng.url.replace('{query}', encodeURIComponent(query));
       const response = await requestText(targetUrl, {
         headers: { 'User-Agent': 'Mozilla/5.0 (Linux; Android 14)' },
-        timeoutMs: 5000,
+        timeoutMs: 10000,
       });
       if (response.ok && response.body.includes('<item>')) results.push(...parseRssItems(response.body));
     })());
