@@ -83,6 +83,19 @@ export function isAgentStopRequested(taskId?: string | null): boolean {
   return agentStopRequests.has(taskId);
 }
 
+/** Throw a typed cancellation error when an Agent task has been stopped. */
+export function assertAgentTaskNotStopped(taskId?: string | null): void {
+  if (!isAgentStopRequested(taskId)) return;
+  throw new AgentTaskStoppedError();
+}
+
+export class AgentTaskStoppedError extends Error {
+  constructor() {
+    super('Agent 任务已由用户停止');
+    this.name = 'AgentTaskStoppedError';
+  }
+}
+
 /** Explicitly release the in-memory stop marker once an Agent loop has fully exited. */
 export function cleanupAgentStopRequest(taskId?: string | null): void {
   if (taskId) agentStopRequests.delete(taskId);
