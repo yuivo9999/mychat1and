@@ -1137,6 +1137,7 @@ export async function getUserSettings(): Promise<UserSettings> {
   // 2. Fetch from IndexedDB and update cache
   try {
     const db = await openDB();
+    let shouldPersistHistoryDefault = false;
     const result = await new Promise<UserSettings>((resolve) => {
       const transaction = db.transaction('settings', 'readonly');
       const store = transaction.objectStore('settings');
@@ -1151,7 +1152,7 @@ export async function getUserSettings(): Promise<UserSettings> {
           if (localStorage.getItem(migrationKey) !== 'true') {
             merged.enableHistorySearch = true;
             localStorage.setItem(migrationKey, 'true');
-            store.put(merged, 'user_settings');
+            shouldPersistHistoryDefault = true;
           }
         } catch {}
         resolve(merged);
@@ -1159,6 +1160,10 @@ export async function getUserSettings(): Promise<UserSettings> {
       request.onerror = () => resolve(cached || DEFAULT_SETTINGS);
     });
 
+    if (shouldPersistHistoryDefault) {
+      const writeTx = db.transaction('settings', 'readwrite');
+      writeTx.objectStore('settings').put(result, 'user_settings');
+    }
     try {
       localStorage.setItem('omnichat_settings_cache', JSON.stringify(result));
     } catch {}
