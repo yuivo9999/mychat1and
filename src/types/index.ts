@@ -123,6 +123,8 @@ export type ProjectMemoryMode = 'default' | 'isolated';
 
 export type ProjectMemoryRecordStatus = 'active' | 'superseded' | 'archived';
 
+export type ProjectMemoryCategory = 'rule' | 'constraint' | 'architecture' | 'technology' | 'ui' | 'workflow' | 'decision' | 'other';
+
 export interface ProjectMemoryRecord {
   id: string;
   content: string;
@@ -135,6 +137,8 @@ export interface ProjectMemoryRecord {
   confidence?: number;
   conflictGroupId?: string;
   resolutionReason?: string;
+  category?: ProjectMemoryCategory;
+  priority?: number;
 }
 
 export interface Project {
