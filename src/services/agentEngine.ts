@@ -230,6 +230,33 @@ export const WORKSPACE_TOOLS_SPEC = [
     },
   },
   {
+    name: 'run_mobile_preview_flow',
+    description: '对当前手机 390×780 真实预览执行一组连续 UI 测试步骤，并在每一步后截图留证。用于验证按钮、输入框、提交、滚动、返回、等待以及键盘遮挡等关键路径；最多 8 步，不检查 Network、电脑或平板。失败时返回完整动作与截图证据，供 Agent 修复后重新执行。',
+    parameters: {
+      type: 'object',
+      properties: {
+        steps: {
+          type: 'array',
+          maxItems: 8,
+          description: '按顺序执行的手机交互步骤。每项包含 action，以及可选 target/value/x/y。',
+          items: {
+            type: 'object',
+            properties: {
+              action: { type: 'string', enum: ['tap', 'type', 'scroll', 'back', 'wait'] },
+              target: { type: 'string' },
+              value: { type: 'string' },
+              x: { type: 'number' },
+              y: { type: 'number' },
+            },
+            required: ['action'],
+          },
+        },
+        screenshotEveryStep: { type: 'boolean', description: '默认 true；每一步完成后截取真实手机预览截图。' },
+      },
+      required: ['steps'],
+    },
+  },
+  {
     name: 'run_python',
     description: '执行 Python 源代码。直接传入 Python 代码即可，不需要写 python -c；统一 Agent Runtime 自动选择当前可用的 Python 实现。AI 不需要知道底层平台。此工具在“运行脚本与命令”权限开启时可用。',
     parameters: {
@@ -310,6 +337,15 @@ ${getWorkspaceDirectoryTree(workspace).slice(0, 1500)}${Object.keys(workspace.fi
   const chatPrivateMemory = formatChatContextPrompt(chatContext);
 
   const diagnosisProtocol = `
+## 📱 手机 UI 自动验证协议（仅 390×780）:
+当用户要求检查手机项目的按钮、输入框、表单、菜单、弹窗、滚动、返回或键盘遮挡时：
+1. 先确保真实项目已启动并健康，再执行 run_mobile_preview_flow；不要只凭静态代码声称交互正常。
+2. 优先 selector，live iframe 无法跨域访问时允许使用 390×780 坐标点击；必须诚实记录 selector 是否实际命中。
+3. 一条流程最多 8 步：baseline 截图 → 点击/输入/滚动/返回/等待 → 每步截图 → 综合判断。
+4. 重点检查：底部输入框是否被 Android 键盘遮挡、固定头尾是否覆盖内容、横向溢出、按钮是否在可视区域、弹窗是否超出屏幕、滚动容器是否真的滚动、提交后状态是否变化。
+5. 发现明确问题时，直接修改代码并重新运行；最多 2 轮修复/复验。每轮都必须有新的截图证据。
+6. 不检查 Network，不生成电脑端或平板端测试；本协议只服务手机端项目。
+
 ## 🩺 代码诊断工作协议 (Code Diagnosis Protocol - 必须严格按 10 步法执行):
 当用户提出代码诊断、排查、找 Bug、审查或怀疑某处有问题时：
 你必须通过调用只读工具对工作区代码进行系统性、有据可查的静态代码诊断，绝不能未经工具调查凭空臆测，绝不能假装检查，并严格遵循以下 10 步流程：
@@ -1438,6 +1474,108 @@ export async function executeWorkspaceTool(
         return { result, updatedWorkspace: ws, errorMessage: interaction.error || '手机预览交互失败', stepIcon: 'lightning', stepTitle: '手机预览交互失败' };
       }
       return { result, updatedWorkspace: ws, stepIcon: 'code', stepTitle: '手机预览交互成功 · ' + action };
+    }
+
+    case 'run_mobile_preview_flow': {
+      const rawSteps = Array.isArray(args.steps) ? args.steps : [];
+      const steps = rawSteps.slice(0, 8).map((step: any) => ({
+        action: String(step?.action || '').trim(),
+        target: typeof step?.target === 'string' ? step.target : undefined,
+        value: typeof step?.value === 'string' ? step.value : undefined,
+        x: typeof step?.x === 'number' ? step.x : undefined,
+        y: typeof step?.y === 'number' ? step.y : undefined,
+      }));
+      if (!steps.length) {
+        return {
+          result: { success: false, reason: 'steps 为空', viewport: 'mobile-390x780' },
+          updatedWorkspace: ws,
+          errorMessage: '手机 UI 测试流程没有步骤。',
+          stepIcon: 'lightning',
+          stepTitle: '手机 UI 测试流程参数无效',
+        };
+      }
+      const allowed = new Set(['tap', 'type', 'scroll', 'back', 'wait']);
+      const invalid = steps.find((step: any) => !allowed.has(step.action));
+      if (invalid) {
+        return {
+          result: { success: false, invalidAction: invalid.action, viewport: 'mobile-390x780' },
+          updatedWorkspace: ws,
+          errorMessage: '手机 UI 测试包含不支持的交互动作。',
+          stepIcon: 'lightning',
+          stepTitle: '手机 UI 测试动作无效',
+        };
+      }
+
+      const screenshotEveryStep = args.screenshotEveryStep !== false;
+      const evidence: Array<Record<string, any>> = [];
+      let failedAt = -1;
+      let failure: string | undefined;
+
+      const baseline = captureProjectRuntimeScreenshot(ws.id, 72, 'mobile');
+      evidence.push({
+        index: 0,
+        phase: 'baseline',
+        screenshot: baseline.success ? {
+          width: baseline.width,
+          height: baseline.height,
+          dataUrl: baseline.dataUrl,
+        } : null,
+        screenshotError: baseline.success ? undefined : baseline.error,
+      });
+
+      for (let i = 0; i < steps.length; i += 1) {
+        const step = steps[i];
+        const interaction = interactProjectPreview(ws.id, step.action as any, {
+          target: step.target,
+          value: step.value,
+          x: step.x,
+          y: step.y,
+        });
+        const item: Record<string, any> = {
+          index: i + 1,
+          action: step,
+          interaction,
+          viewport: 'mobile-390x780',
+        };
+        if (screenshotEveryStep || !interaction.success) {
+          const shot = captureProjectRuntimeScreenshot(ws.id, 72, 'mobile');
+          item.screenshot = shot.success ? {
+            width: shot.width,
+            height: shot.height,
+            dataUrl: shot.dataUrl,
+          } : null;
+          item.screenshotError = shot.success ? undefined : shot.error;
+        }
+        evidence.push(item);
+        if (!interaction.success) {
+          failedAt = i + 1;
+          failure = interaction.error || '手机预览交互失败';
+          break;
+        }
+      }
+
+      const result = {
+        success: failedAt === -1,
+        viewport: 'mobile-390x780',
+        stepCount: steps.length,
+        completedSteps: failedAt === -1 ? steps.length : failedAt - 1,
+        failedAt: failedAt === -1 ? null : failedAt,
+        failure: failure || null,
+        evidence,
+        repairHint: failedAt === -1
+          ? '动作链执行完成。请结合最后一张截图判断按钮状态、输入结果、滚动位置、键盘遮挡、溢出与空白区域；若发现明确 UI 问题，直接修复后重新执行同一流程。'
+          : '先根据失败动作与对应截图定位问题。修复代码后重新启动/检查项目，再重新执行流程验证；不要把 selector 跨域失败误判成业务按钮不存在。',
+      };
+      if (result.success) {
+        return { result, updatedWorkspace: ws, stepIcon: 'code', stepTitle: `手机 UI 测试流程完成 · ${steps.length} 步` };
+      }
+      return {
+        result,
+        updatedWorkspace: ws,
+        errorMessage: failure || '手机 UI 测试流程失败',
+        stepIcon: 'lightning',
+        stepTitle: `手机 UI 测试在第 ${failedAt} 步失败`,
+      };
     }
 
     case 'run_python': {
