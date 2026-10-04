@@ -32,8 +32,8 @@ export function inspectProjectRuntime(workspace: Workspace): ProjectRuntimeInfo 
         entrypoints: [],
         signals: ['检测到 package.json，但 JSON 解析失败'],
         checkCommands: [],
-        checkStrategy: 'shell',
-        dependencyInstallCommand: 'npm install',
+        checkStrategy: 'unsupported',
+        dependencyInstallCommand: undefined,
       };
     }
 
@@ -62,7 +62,7 @@ export function inspectProjectRuntime(workspace: Workspace): ProjectRuntimeInfo 
       entrypoints: ['package.json', ...paths.filter(p => /^(src\\/)?(main|index|App)\\.(tsx?|jsx?)$/.test(p)).slice(0, 10)],
       dependencyInstallCommand,
       checkCommands,
-      checkStrategy: 'shell',
+      checkStrategy: packageManager === 'npm' ? 'shell' : 'unsupported',
       signals: [
         '检测到 package.json',
         packageManager === 'npm'
