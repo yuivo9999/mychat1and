@@ -1043,7 +1043,8 @@ export default function App() {
       const isDiagnosisMode = workspaceContextEnabled && (diagIntent.isDiagnosis || workspaceIntent.type === 'inspect');
 
       // 3. System Prompt: ONLY inject Workspace Summary, Tools Protocol & Diagnosis Protocol when Workspace Agent is explicitly enabled!
-      if (workspaceAgentEnabled) {
+      const historySearchEnabled = settings.enableHistorySearch ?? false;
+      if (workspaceAgentEnabled || historySearchEnabled) {
         effectiveSystemPrompt = buildAgentSystemPrompt(
           wsToOperate,
           targetConv.chatContext,
@@ -1196,7 +1197,6 @@ export default function App() {
 
       let turn = 0;
       // Provide ample turns (up to 12 turns) for multi-file inspection, plan formulation, and multi-file modification
-      const historySearchEnabled = settings.enableHistorySearch ?? false;
       const maxAgentTurns = workspaceAgentEnabled ? 12 : historySearchEnabled ? 4 : 1;
       let finalFullText = '';
       let cumulativeAssistantNarrative = '';
