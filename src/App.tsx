@@ -1201,7 +1201,7 @@ export default function App() {
 
       let turn = 0;
       // Provide ample turns (up to 12 turns) for multi-file inspection, plan formulation, and multi-file modification
-      const maxAgentTurns = workspaceAgentEnabled ? 12 : historySearchEnabled ? 4 : 1;
+      const maxAgentTurns = workspaceAgentEnabled ? 12 : historySearchEnabled ? 6 : 1;
       let finalFullText = '';
       let cumulativeAssistantNarrative = '';
       let validationFailureCount = 0;
