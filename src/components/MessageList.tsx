@@ -18,6 +18,7 @@ interface MessageListProps {
   onDownloadWorkspaceZip?: () => void;
   currentWorkspace?: any;
   onSaveWorkspace?: (workspace: any) => void;
+  onOpenWorkspace?: () => void;
 }
 
 export const MessageList: React.FC<MessageListProps> = ({
@@ -35,6 +36,7 @@ export const MessageList: React.FC<MessageListProps> = ({
   onDownloadWorkspaceZip,
   currentWorkspace,
   onSaveWorkspace,
+  onOpenWorkspace,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -96,6 +98,7 @@ export const MessageList: React.FC<MessageListProps> = ({
               onDownloadWorkspaceZip={onDownloadWorkspaceZip}
               currentWorkspace={currentWorkspace}
               onSaveWorkspace={onSaveWorkspace}
+              onOpenWorkspace={onOpenWorkspace}
             />
           ))}
           <div ref={bottomRef} className="h-4" />
