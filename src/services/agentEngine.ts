@@ -14,7 +14,7 @@ import { formatChatContextPrompt, detectWorkspaceIntent, WorkspaceIntent } from 
 import { ChatContext } from '../types/workspace';
 import { looksLikePythonSource, getWorkspaceNodeRuntimeState, markWorkspaceDependenciesInstalled, readWorkspaceFile } from './codeExecutionAdapter';
 import { executeAgentRuntime, getAgentRuntimeCapabilities, installAgentDependencies } from './agentRuntime';
-import { buildProjectRuntimeReport, inspectProjectRuntime, getProjectRuntimeDiagnostics, startProjectRuntime, stopProjectRuntime, captureProjectRuntimeScreenshot, interactProjectPreview } from './projectRuntimeService';
+import { buildProjectRuntimeReport, inspectProjectRuntime, getProjectRuntimeDiagnostics, startProjectRuntime, stopProjectRuntime, captureProjectRuntimeScreenshot, interactProjectPreview, discoverProjectPreviewElements } from './projectRuntimeService';
 
 export { detectWorkspaceIntent, type WorkspaceIntent };
 
@@ -230,6 +230,11 @@ export const WORKSPACE_TOOLS_SPEC = [
     },
   },
   {
+    name: 'discover_mobile_preview',
+    description: '扫描当前 390×780 手机真实预览中的可交互元素（按钮、链接、输入框、选择框、ARIA 控件），返回文本、位置、尺寸、disabled 与可用 selector，供 Agent 自动规划测试路径。若 live iframe 跨域无法读取 DOM，会明确返回 crossOrigin，不伪造元素。',
+    parameters: { type: 'object', properties: {} },
+  },
+  {
     name: 'run_mobile_preview_flow',
     description: '对当前手机 390×780 真实预览执行一组连续 UI 测试步骤，并在每一步后截图留证。用于验证按钮、输入框、提交、滚动、返回、等待以及键盘遮挡等关键路径；最多 8 步，不检查 Network、电脑或平板。失败时返回完整动作与截图证据，供 Agent 修复后重新执行。',
     parameters: {
@@ -337,6 +342,15 @@ ${getWorkspaceDirectoryTree(workspace).slice(0, 1500)}${Object.keys(workspace.fi
   const chatPrivateMemory = formatChatContextPrompt(chatContext);
 
   const diagnosisProtocol = `
+## 🤖 手机 UI 自动规划协议:
+当需要验证一个尚未明确测试路径的手机项目时：
+1. 先调用 discover_mobile_preview 获取真实交互元素与 baseline 截图。
+2. DOM 可访问时，优先使用 selector 规划 2~8 步关键路径；DOM 跨域时不要伪造 selector，改用截图视觉判断 + 390×780 坐标。
+3. 流程应优先覆盖页面最主要的按钮/链接、输入框/表单和提交后状态；页面有明显长内容时增加一次滚动。
+4. 自动规划后调用 run_mobile_preview_flow 执行，并逐步截图；完成后结合截图判断“点击是否产生状态变化”，而不是只看动作 API 返回成功。
+5. 发现明确 UI 问题才修改代码；修改后重新发现元素并重新跑流程，最多 2 轮。
+6. 只测手机 390×780，不扩展电脑、平板或 Network。
+ 
 ## 📱 手机 UI 自动验证协议（仅 390×780）:
 当用户要求检查手机项目的按钮、输入框、表单、菜单、弹窗、滚动、返回或键盘遮挡时：
 1. 先确保真实项目已启动并健康，再执行 run_mobile_preview_flow；不要只凭静态代码声称交互正常。
@@ -1474,6 +1488,30 @@ export async function executeWorkspaceTool(
         return { result, updatedWorkspace: ws, errorMessage: interaction.error || '手机预览交互失败', stepIcon: 'lightning', stepTitle: '手机预览交互失败' };
       }
       return { result, updatedWorkspace: ws, stepIcon: 'code', stepTitle: '手机预览交互成功 · ' + action };
+    }
+
+    case 'discover_mobile_preview': {
+      const discovery = discoverProjectPreviewElements(ws.id);
+      const screenshot = captureProjectRuntimeScreenshot(ws.id, 72, 'mobile');
+      const result = {
+        ...discovery,
+        viewport: 'mobile-390x780',
+        screenshot: screenshot.success ? {
+          width: screenshot.width,
+          height: screenshot.height,
+          dataUrl: screenshot.dataUrl,
+        } : null,
+        screenshotError: screenshot.success ? undefined : screenshot.error,
+        planningHint: discovery.success
+          ? '优先选择一个主要按钮/链接和一个可输入控件，规划不超过 8 步的点击→输入→提交→等待→截图流程；若页面存在滚动内容，再加入一次滚动。'
+          : discovery.crossOrigin
+            ? 'iframe 跨域，不能伪造 DOM 元素。请使用返回的真实截图进行视觉判断，并用 390×780 坐标执行关键路径；坐标点击后必须截图验证。'
+            : '元素发现失败。先检查项目运行状态，再决定是否使用截图+坐标进行手机验证。',
+      };
+      if (!discovery.success && !screenshot.success) {
+        return { result, updatedWorkspace: ws, errorMessage: discovery.error || screenshot.error || '手机预览发现失败', stepIcon: 'lightning', stepTitle: '手机预览元素发现失败' };
+      }
+      return { result, updatedWorkspace: ws, stepIcon: 'code', stepTitle: discovery.success ? `发现 ${discovery.count || 0} 个手机可交互元素` : '手机预览为跨域模式，已返回真实截图供视觉规划' };
     }
 
     case 'run_mobile_preview_flow': {
