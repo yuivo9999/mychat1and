@@ -79,7 +79,7 @@ export function buildAgentTaskPlanPrompt(goal: string): string {
 }
 
 export function parseAgentTaskPlan(text: string, fallbackGoal: string): AgentTaskPlan | null {
-  const match = text.match(/<agent_plan>\\s*([\\s\\S]*?)\\s*<\\/agent_plan>/i);
+  const match = text.match(/<agent_plan>\s*([\s\S]*?)\s*<\/agent_plan>/i);
   if (!match) return null;
   try {
     const raw = JSON.parse(match[1]);
@@ -111,7 +111,7 @@ export function parseAgentTaskPlan(text: string, fallbackGoal: string): AgentTas
 }
 
 export function stripAgentPlanBlock(text: string): string {
-  return text.replace(/<agent_plan>\\s*[\\s\\S]*?\\s*<\\/agent_plan>/gi, '').trim();
+  return text.replace(/<agent_plan>\s*[\s\S]*?\s*<\/agent_plan>/gi, '').trim();
 }
 
 export function applyAgentTaskProgress(plan: AgentTaskPlan, text: string): AgentTaskPlan {
