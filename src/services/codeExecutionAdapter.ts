@@ -15,6 +15,8 @@ export interface CodeExecutionRequest {
   language: CodeLanguage;
   code: string;
   timeoutMs?: number;
+  /** Optional bound workspace. Android runs Python with this directory as cwd. */
+  workspaceId?: string;
 }
 
 export interface CodeExecutionResult {
@@ -27,7 +29,7 @@ export interface CodeExecutionResult {
 }
 
 interface AndroidExecutionBridge {
-  executePython?: (code: string, timeoutMs?: number) => Promise<unknown> | unknown;
+  executePython?: (code: string, timeoutMs?: number, workspaceId?: string) => Promise<unknown> | unknown;
 }
 
 declare global {
@@ -65,7 +67,8 @@ export async function executeCode(request: CodeExecutionRequest): Promise<CodeEx
     try {
       const raw = await window.MyChatAndroid!.executePython!(
         request.code,
-        request.timeoutMs ?? 20_000
+        request.timeoutMs ?? 20_000,
+        request.workspaceId
       );
       return normalizeAndroidResult(raw);
     } catch (error: any) {
