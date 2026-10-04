@@ -1615,7 +1615,18 @@ export async function executeWorkspaceTool(
       for (let i = 0; i < steps.length; i += 1) {
         const step = steps[i];
         const interaction = interactProjectPreview(ws.id, step.action as any, { target: step.target, value: step.value, x: step.x, y: step.y });
-        const item: Record<string, any> = { index: i + 1, action: step, interaction, viewport: 'mobile-390x780' };
+        const item: Record<string, any> = {
+          index: i + 1,
+          action: step,
+          interaction,
+          viewport: 'mobile-390x780',
+          diagnosis: {
+            target: step.target || (typeof step.x === 'number' && typeof step.y === 'number' ? { x: step.x, y: step.y } : null),
+            selectorUsed: Boolean(step.target),
+            coordinateFallback: !step.target && typeof step.x === 'number' && typeof step.y === 'number',
+            interactionSucceeded: interaction.success === true,
+          },
+        };
         const shot = captureProjectRuntimeScreenshot(ws.id, 72, 'mobile');
         item.screenshot = shot.success ? { width: shot.width, height: shot.height, dataUrl: shot.dataUrl } : null;
         item.screenshotError = shot.success ? undefined : shot.error;
@@ -1636,6 +1647,18 @@ export async function executeWorkspaceTool(
             : '截图指纹未见明显差异；若该动作理论上应改变页面状态，应重点检查点击是否命中、事件是否触发或 UI 是否无响应。';
         } else {
           item.visualDelta = { changed: null, reason: '缺少可比较的前一张截图。' };
+        }
+        item.diagnosis.visualStateChanged = item.visualDelta?.changed ?? null;
+        if (interaction.success !== true) {
+          item.diagnosis.failureClass = step.target && /跨域|DOM|iframe/i.test(String(interaction.error || ''))
+            ? 'selector-cross-origin'
+            : 'interaction-failed';
+        } else if (item.visualDelta?.changed === false && ['tap', 'type', 'back'].includes(step.action)) {
+          item.diagnosis.failureClass = 'possible-no-op';
+        } else if (item.visualDelta?.changed === true) {
+          item.diagnosis.failureClass = 'state-change-observed';
+        } else {
+          item.diagnosis.failureClass = 'inconclusive';
         }
         evidence.push(item);
         if (!interaction.success) { failedAt = i + 1; failure = interaction.error || '手机预览交互失败'; break; }
