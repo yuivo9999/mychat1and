@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowDown } from 'lucide-react';
-import { Message, ModelItem, UserSettings } from '../types';
+import { AgentTaskState, Message, ModelItem, UserSettings } from '../types';
 import { ChatMessage } from './ChatMessage';
 import { AgentProgressCard } from './AgentProgressCard';
 
@@ -20,6 +20,7 @@ interface MessageListProps {
   currentWorkspace?: any;
   onSaveWorkspace?: (workspace: any) => void;
   onOpenWorkspace?: () => void;
+  agentTaskState?: AgentTaskState | null;
 }
 
 export const MessageList: React.FC<MessageListProps> = ({
@@ -38,6 +39,7 @@ export const MessageList: React.FC<MessageListProps> = ({
   currentWorkspace,
   onSaveWorkspace,
   onOpenWorkspace,
+  agentTaskState,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -87,7 +89,7 @@ export const MessageList: React.FC<MessageListProps> = ({
           {messages.map((msg, index) => (
             <React.Fragment key={msg.id}>
               {!msg.role || (msg.role === 'assistant' && index === messages.length - 1) ? (
-                <AgentProgressCard message={msg} compact />
+                <AgentProgressCard message={msg} compact taskState={agentTaskState} />
               ) : null}
             <ChatMessage
               key={msg.id}
