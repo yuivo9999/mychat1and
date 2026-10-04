@@ -78,11 +78,10 @@ import {
 import { formatProjectMemoryPrompt, updateProjectCollectiveMemory, getProjectMemoryRecords, createProjectMemoryRecord, updateProjectMemoryRecord, archiveProjectMemoryRecord } from './services/projectMemoryService';
 import { getAdapterForProvider } from './services/adapters';
 import { safeExtractText } from './services/adapters/base';
-import { performResearch } from './services/researchAgent';
 import { buildWebSearchContext } from './services/webSearch';
-import { isModelWebSearchSupported, isModelVisionCapable, isModelFileCapable, isModelReasoningSupported } from './services/modelUtils';
+import { buildUnifiedKnowledgeGrounding, runKnowledgeResearch } from './services/knowledgeResearchService';
+import { isModelVisionCapable, isModelFileCapable, isModelReasoningSupported } from './services/modelUtils';
 import { optimizePrompt } from './services/promptPerfectService';
-import { formatContext7Grounding, searchContext7 } from './services/context7Service';
 import { UI_UX_DESIGN_SKILL_PROMPT } from './services/uiUxSkill';
 import { isAttachmentTextReadable, formatFilesPromptForAi } from './services/fileParser';
 import { applyAppFont, initCustomFonts } from './services/fontService';
@@ -887,147 +886,102 @@ export default function App() {
     const adapter = getAdapterForProvider(currentModel.providerId);
     let accumulatedText = '';
 
-    // Web Search Grounding (if 访问网络 is enabled)
+    // Unified Knowledge Research: Web/GitHub is the primary source; Context7 is optional technical documentation support.
     let webResults: WebSearchResultItem[] = [];
     let webContext = '';
     let webSearchNotice = '';
 
-    if (webAccessEnabled) {
-      const searchSupport = isModelWebSearchSupported(currentModel, currentModel.providerId);
+    if (webAccessEnabled || isContext7Enabled) {
+      setStatusMessage(webAccessEnabled ? '正在联网检索网页与 GitHub 资料...' : '正在准备官方技术资料...');
+      try {
+        const knowledgeResult = await runKnowledgeResearch(
+          text,
+          webAccessEnabled,
+          isContext7Enabled,
+          settings.context7ApiKey,
+          settings.searchEngines,
+          settings.activeSearchEngineId,
+        );
 
-      if (!searchSupport.supported) {
-        // Model does NOT support web search: Inform user honestly, NEVER fake that it searched!
-        const reasonText = searchSupport.reason || '当前模型不支持接入网络搜索';
-        webSearchNotice = `> ⚠️ **联网搜索提示**：当前选择的模型【${currentModel.name || currentModel.id}】不支持实时网络搜索功能（${reasonText}）。本次回答仅基于该模型的离线训练知识库，未联网检索最新数据。如需获取最新实时网络信息，请在顶栏切换为支持联网的模型（如 Gemini 3.8 Flash、DeepSeek、GPT-4o 等）。\n\n`;
+        if (knowledgeResult.web) {
+          webResults = knowledgeResult.web.results;
+          webContext = buildUnifiedKnowledgeGrounding(knowledgeResult);
+        } else if (knowledgeResult.context7Grounding) {
+          webContext = buildUnifiedKnowledgeGrounding(knowledgeResult);
+        }
 
         const updatedSteps: ThinkingStep[] = currentThinkingSteps.map(s => {
           if (s.id.startsWith('step_search_')) {
             return {
               ...s,
-              icon: 'search',
-              title: `当前模型不支持联网搜索（${reasonText}），已转为离线回答`,
+              icon: 'lightning',
+              title: webAccessEnabled
+                ? `联网研究完成：${webResults.length} 条网页/GitHub 资料，${knowledgeResult.web?.rounds.length || 0} 轮检索`
+                : '联网检索未开启，跳过网页/GitHub搜索',
               status: 'completed',
             };
           }
           return s;
         });
-        currentThinkingSteps = updatedSteps;
-        setConversations(prev => prev.map(c => {
-          if (c.id !== updatedConv.id) return c;
-          return {
-            ...c,
-            messages: c.messages.map(m => m.id === assistantMsgId ? { ...m, thinkingSteps: updatedSteps } : m),
-          };
-        }));
-      } else {
-        // Model supports web search: Perform real-time search
-        setStatusMessage('正在联网检索最新网页与资料...');
-        try {
-          const searchRes = await performResearch(text, settings.searchEngines, settings.activeSearchEngineId);
-          if (searchRes.results.length > 0 || searchRes.pageContents.length > 0) {
-            webResults = searchRes.results;
-            webContext = buildWebSearchContext(searchRes);
 
-            const updatedSteps: ThinkingStep[] = currentThinkingSteps.map(s => {
-              if (s.id.startsWith('step_search_')) {
-                return {
-                  ...s,
-                  icon: 'lightning',
-                  title: `联网研究完成：${webResults.length} 条资料，${searchRes.rounds.length} 轮检索`,
-                  status: 'completed',
-                };
-              }
-              return s;
-            });
-
-            if (searchRes.rounds.length > 1) {
-              updatedSteps.push({
-                id: `step_research_${Date.now()}`,
-                icon: 'search',
-                title: `研究 Agent 自动补充了 ${searchRes.rounds.length - 1} 轮检索并进行交叉覆盖`,
-                status: 'completed',
-              });
-            }
-            if (searchRes.conflictHints.length > 0) {
-              updatedSteps.push({
-                id: `step_research_conflict_${Date.now()}`,
-                icon: 'search',
-                title: `检测到 ${searchRes.conflictHints.length} 项来源冲突提示，回答时要求交叉核实`,
-                status: 'completed',
-              });
-            }
-
-            if (searchRes.pageContents.length > 0) {
-              updatedSteps.push({
-                id: `step_page_${Date.now()}`,
-                icon: 'search',
-                title: `审查并读取 ${searchRes.pageContents.length} 个目标网页正文`,
-                status: 'completed',
-              });
-            }
-
-            updatedSteps.push({
-              id: `step_engine_${Date.now()}`,
-              icon: 'github',
-              title: `结合网络资料调用 ${currentModel.name} 组织回答`,
-              status: 'running',
-            });
-
-            currentThinkingSteps = updatedSteps;
-
-            setConversations(prev => prev.map(c => {
-              if (c.id !== updatedConv.id) return c;
-              return {
-                ...c,
-                messages: c.messages.map(m => m.id === assistantMsgId ? { ...m, thinkingSteps: updatedSteps } : m),
-              };
-            }));
-          } else {
-            // Search returned 0 results: Honest notification, do not pretend!
-            webSearchNotice = `> ℹ️ **联网检索提示**：网络搜索服务未检索到与本次提问直接相关的公开网页数据，AI 已转为基于基础知识库为您作答。\n\n`;
-            const updatedSteps: ThinkingStep[] = currentThinkingSteps.map(s => {
-              if (s.id.startsWith('step_search_')) {
-                return {
-                  ...s,
-                  icon: 'search',
-                  title: '未检索到相关公开网页数据，已转为基于基础知识库回答',
-                  status: 'completed',
-                };
-              }
-              return s;
-            });
-            updatedSteps.push({
-              id: `step_engine_${Date.now()}`,
-              icon: 'github',
-              title: `调用 ${currentModel.name} 基础知识库组织回答`,
-              status: 'running',
-            });
-            currentThinkingSteps = updatedSteps;
-
-            setConversations(prev => prev.map(c => {
-              if (c.id !== updatedConv.id) return c;
-              return {
-                ...c,
-                messages: c.messages.map(m => m.id === assistantMsgId ? { ...m, thinkingSteps: updatedSteps } : m),
-              };
-            }));
-          }
-        } catch (searchErr) {
-          console.warn('Web search error:', searchErr);
-          webSearchNotice = `> ⚠️ **联网检索提示**：实时网络检索服务连接异常，已自动降级为离线模型知识库为您作答。\n\n`;
-          const updatedSteps: ThinkingStep[] = currentThinkingSteps.map(s => {
-            if (s.id.startsWith('step_search_')) {
-              return {
-                ...s,
-                icon: 'search',
-                title: '网络检索服务连接异常，已降级为模型基础知识库直接回答',
-                status: 'completed',
-              };
-            }
-            return s;
+        if (webAccessEnabled && knowledgeResult.web && knowledgeResult.web.rounds.length > 1) {
+          updatedSteps.push({
+            id: `step_research_${Date.now()}`,
+            icon: 'github',
+            title: `Research Agent 自动补充 ${knowledgeResult.web.rounds.length - 1} 轮检索，并优先覆盖 GitHub/权威来源`,
+            status: 'completed',
           });
-          currentThinkingSteps = updatedSteps;
         }
+        if (knowledgeResult.web && knowledgeResult.web.conflictHints.length > 0) {
+          updatedSteps.push({
+            id: `step_research_conflict_${Date.now()}`,
+            icon: 'search',
+            title: `检测到 ${knowledgeResult.web.conflictHints.length} 项来源冲突提示，回答时要求交叉核实`,
+            status: 'completed',
+          });
+        }
+        if (isContext7Enabled && knowledgeResult.context7Grounding) {
+          updatedSteps.push({
+            id: `step_context7_done_${Date.now()}`,
+            icon: 'database',
+            title: 'Context7 作为补充文档源已合并，不作为主要检索来源',
+            status: 'completed',
+          });
+        }
+        if (webContext) {
+          updatedSteps.push({
+            id: `step_knowledge_merge_${Date.now()}`,
+            icon: 'github',
+            title: '网页 + GitHub + 可选官方文档资料已统一交给模型交叉分析',
+            status: 'completed',
+          });
+        }
+        updatedSteps.push({
+          id: `step_engine_${Date.now()}`,
+          icon: 'github',
+          title: `结合联网/GitHub资料调用 ${currentModel.name} 组织回答`,
+          status: 'running',
+        });
+        currentThinkingSteps = updatedSteps;
+        setConversations(prev => prev.map(c => c.id !== updatedConv.id ? c : {
+          ...c,
+          messages: c.messages.map(m => m.id === assistantMsgId ? { ...m, thinkingSteps: updatedSteps } : m),
+        }));
+
+        if (webAccessEnabled && webResults.length === 0) {
+          webSearchNotice = '> ℹ️ **联网检索提示**：未检索到足够相关的公开网页/GitHub资料，已自动使用模型基础知识继续回答。\\n\\n';
+        }
+      } catch (researchErr) {
+        console.warn('Knowledge research error:', researchErr);
+        webSearchNotice = '> ⚠️ **联网检索提示**：网页/GitHub研究服务暂时异常，已自动降级为模型基础知识回答。\\n\\n';
+        const updatedSteps = currentThinkingSteps.map(s => s.id.startsWith('step_search_')
+          ? { ...s, icon: 'search' as const, title: '网页/GitHub研究服务异常，已降级为模型基础知识回答', status: 'completed' as const }
+          : s);
+        currentThinkingSteps = updatedSteps;
+        setConversations(prev => prev.map(c => c.id !== updatedConv.id ? c : {
+          ...c,
+          messages: c.messages.map(m => m.id === assistantMsgId ? { ...m, thinkingSteps: updatedSteps } : m),
+        }));
       }
     }
 
