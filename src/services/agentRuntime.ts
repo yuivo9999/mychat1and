@@ -43,6 +43,7 @@ interface AndroidAgentBridge {
   executePython?: (code: string, timeoutMs?: number, workspaceId?: string) => Promise<unknown> | unknown;
   executeNode?: (command: string, timeoutMs?: number, workspaceId?: string) => Promise<unknown> | unknown;
   executeCommand?: (command: string, timeoutMs?: number, workspaceId?: string) => Promise<unknown> | unknown;
+  readWorkspaceFile?: (workspaceId: string, relativePath: string) => Promise<unknown> | unknown;
   installWorkspaceDependencies?: (workspaceId: string, timeoutMs?: number) => Promise<unknown> | unknown;
   getWorkspaceNodeRuntimeState?: (workspaceId: string) => Promise<unknown> | unknown;
 }
@@ -149,23 +150,82 @@ export async function executeAgentRuntime(request: AgentRuntimeRequest): Promise
       }
 
       if (request.language === 'node' && typeof b.executeNode === 'function') {
+        const command = `node -e ${JSON.stringify(code)}`;
         return normalize(
-          await b.executeNode(code, timeoutMs, request.workspaceId),
+          await b.executeNode(command, timeoutMs, request.workspaceId),
           'android',
-          code
+          command
         );
       }
 
       if (request.language === 'shell' && typeof b.executeCommand === 'function') {
-        // The native runtime owns the shell and all PATH/runtime adaptation.
-        // Node/npm commands are routed through the native Node bridge when available.
-        if (isNodeCommand(code) && typeof b.executeNode === 'function') {
+        // Normalize common model-generated interpreter commands before they reach
+        // Android's /system/bin/sh. Android intentionally does not expose a
+        // python3 executable; Python is embedded and Node is bundled separately.
+        const trimmed = code.trim();
+
+        if (/^(?:python3?|py)(?:\\s|$)/i.test(trimmed) && typeof b.executePython === 'function') {
+          const pythonCommand = trimmed.replace(/^(?:python3?|py)\\s*/i, '');
+          if (!pythonCommand) {
+            return {
+              success: false,
+              stdout: '',
+              stderr: 'Python runtime is available through the Agent Runtime; provide Python source instead of an interactive shell.',
+              exitCode: -1,
+              error: 'Interactive Python shell is not exposed by the Agent Runtime.',
+              runtime: 'android',
+              command: code,
+            };
+          }
+
+          let pythonSource: string | null = null;
+          if (/^-c(?:\\s|$)/i.test(pythonCommand)) {
+            const expression = pythonCommand.replace(/^-c\\s*/i, '').trim();
+            try {
+              pythonSource = JSON.parse(expression);
+            } catch {
+              pythonSource = (expression.startsWith("'") && expression.endsWith("'"))
+                || (expression.startsWith('"') && expression.endsWith('"'))
+                ? expression.slice(1, -1).replace(/\\n/g, '\\n').replace(/\\(['"])/g, '$1')
+                : expression;
+            }
+          } else if (/^(?:-u\\s+)?[^\\s]+\\.py(?:\\s|$)/i.test(pythonCommand) && b.readWorkspaceFile) {
+            const scriptPath = pythonCommand.replace(/^-u\\s+/i, '').split(/\\s+/)[0];
+            const raw = await b.readWorkspaceFile(request.workspaceId || '', scriptPath);
+            const file = typeof raw === 'string' ? JSON.parse(raw) : (raw as any);
+            if (!file?.exists || typeof file.content !== 'string') {
+              return {
+                success: false,
+                stdout: '',
+                stderr: file?.error || `Python script not found: ${scriptPath}`,
+                exitCode: -1,
+                error: file?.error || `Python script not found: ${scriptPath}`,
+                runtime: 'android',
+                command: code,
+              };
+            }
+            pythonSource = file.content;
+          }
+
+          if (pythonSource !== null) {
+            return normalize(
+              await b.executePython(pythonSource, timeoutMs, request.workspaceId),
+              'android',
+              code
+            );
+          }
+        }
+
+        // Node/npm/npx lifecycle commands are owned by the Node runtime rather
+        // than Android's system shell.
+        if (isNodeCommand(trimmed) && typeof b.executeNode === 'function') {
           return normalize(
-            await b.executeNode(code, timeoutMs, request.workspaceId),
+            await b.executeNode(trimmed, timeoutMs, request.workspaceId),
             'android',
-            code
+            trimmed
           );
         }
+
         return normalize(
           await b.executeCommand(code, timeoutMs, request.workspaceId),
           'android',
