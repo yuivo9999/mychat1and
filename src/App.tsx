@@ -100,7 +100,7 @@ import { ArchiveProjectModal } from './components/ArchiveProjectModal';
 import { WorkspacePreviewModal } from './components/WorkspacePreviewModal';
 import { AiFileAuditModal } from './components/AiFileAuditModal';
 import { recordAiFileModifications, backfillAuditRecordsFromConversations } from './services/aiFileAuditService';
-import { createAgentLoopState, advanceAgentLoopState, classifyAgentProgress, getAgentPhaseLabel, getAgentPhaseInstruction, getAgentPauseDelayMs, shouldProtectAgainstNoProgress, buildAgentLoopFeedback, buildAgentTaskPlanPrompt, parseAgentTaskPlan, applyAgentTaskProgress, areAgentTaskRequirementsMet, stripAgentPlanBlock, stripAgentProgressBlock, createAgentTaskPlan, updateAgentTaskChecklist, getAgentTaskStepText, type AgentLoopState } from './services/agentOrchestrator';
+import { createAgentLoopState, advanceAgentLoopState, classifyAgentProgress, getAgentPhaseLabel, getAgentPhaseInstruction, getAgentPauseDelayMs, shouldProtectAgainstNoProgress, buildAgentLoopFeedback, buildAgentTaskPlanPrompt, parseAgentTaskPlan, parseAgentTaskReplan, applyAgentTaskProgress, areAgentTaskRequirementsMet, stripAgentPlanBlock, stripAgentProgressBlock, stripAgentReplanBlock, createAgentTaskPlan, updateAgentTaskChecklist, getAgentTaskStepText, type AgentLoopState } from './services/agentOrchestrator';
 
 const DEFAULT_PARAMETERS: ModelParameters = {
   enableReasoning: false,
@@ -1295,7 +1295,7 @@ export default function App() {
               const textChunk = safeExtractText(chunk);
               if (!textChunk) return;
               turnAccumulatedText += textChunk;
-              const cleanTurnText = cleanResponseText(stripAgentProgressBlock(stripAgentPlanBlock(turnAccumulatedText)));
+              const cleanTurnText = cleanResponseText(stripAgentReplanBlock(stripAgentProgressBlock(stripAgentPlanBlock(turnAccumulatedText))));
               const fullNarrativeSoFar = cumulativeAssistantNarrative
                 ? (cleanTurnText ? `${cumulativeAssistantNarrative}\n\n${cleanTurnText}` : cumulativeAssistantNarrative)
                 : cleanTurnText;
@@ -1347,6 +1347,15 @@ export default function App() {
           const parsedPlan = parseAgentTaskPlan(turnAccumulatedText, text);
           if (parsedPlan) {
             agentTaskPlan = parsedPlan;
+          }
+        }
+
+        // The model may revise the plan when new evidence invalidates the original execution graph.
+        // Existing completed work is preserved only when the replan keeps the same task ID and title.
+        if (workspaceAgentEnabled) {
+          const replanned = parseAgentTaskReplan(turnAccumulatedText, agentTaskPlan);
+          if (replanned) {
+            agentTaskPlan = replanned;
           }
         }
         if (cleanedThisTurn && !currentTurnIsMemoryAudit) {
