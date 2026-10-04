@@ -78,7 +78,8 @@ import {
 import { formatProjectMemoryPrompt, updateProjectCollectiveMemory, getProjectMemoryRecords, createProjectMemoryRecord, updateProjectMemoryRecord, archiveProjectMemoryRecord } from './services/projectMemoryService';
 import { getAdapterForProvider } from './services/adapters';
 import { safeExtractText } from './services/adapters/base';
-import { performWebSearch, buildWebSearchContext } from './services/webSearch';
+import { performResearch } from './services/researchAgent';
+import { buildWebSearchContext } from './services/webSearch';
 import { isModelWebSearchSupported, isModelVisionCapable, isModelFileCapable, isModelReasoningSupported } from './services/modelUtils';
 import { optimizePrompt } from './services/promptPerfectService';
 import { formatContext7Grounding, searchContext7 } from './services/context7Service';
@@ -922,7 +923,7 @@ export default function App() {
         // Model supports web search: Perform real-time search
         setStatusMessage('正在联网检索最新网页与资料...');
         try {
-          const searchRes = await performWebSearch(text, settings.searchEngines, settings.activeSearchEngineId);
+          const searchRes = await performResearch(text, settings.searchEngines, settings.activeSearchEngineId);
           if (searchRes.results.length > 0 || searchRes.pageContents.length > 0) {
             webResults = searchRes.results;
             webContext = buildWebSearchContext(searchRes);
@@ -932,12 +933,29 @@ export default function App() {
                 return {
                   ...s,
                   icon: 'lightning',
-                  title: `已搜索到 ${webResults.length} 条实时网络参考资料`,
+                  title: `联网研究完成：${webResults.length} 条资料，${searchRes.rounds.length} 轮检索`,
                   status: 'completed',
                 };
               }
               return s;
             });
+
+            if (searchRes.rounds.length > 1) {
+              updatedSteps.push({
+                id: `step_research_${Date.now()}`,
+                icon: 'search',
+                title: `研究 Agent 自动补充了 ${searchRes.rounds.length - 1} 轮检索并进行交叉覆盖`,
+                status: 'completed',
+              });
+            }
+            if (searchRes.conflictHints.length > 0) {
+              updatedSteps.push({
+                id: `step_research_conflict_${Date.now()}`,
+                icon: 'search',
+                title: `检测到 ${searchRes.conflictHints.length} 项来源冲突提示，回答时要求交叉核实`,
+                status: 'completed',
+              });
+            }
 
             if (searchRes.pageContents.length > 0) {
               updatedSteps.push({
