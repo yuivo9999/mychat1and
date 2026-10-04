@@ -1,12 +1,19 @@
-import { performResearch } from './researchAgent';
+import { performResearch, ResearchResponse } from './researchAgent';
 import { SearchEngineItem } from '../types';
 import { searchContext7, formatContext7Grounding } from './context7Service';
+import { performGitHubResearch } from './githubResearchService';
 
 const TECHNICAL_TERMS = ['api','sdk','npm','node','react','android','python','typescript','javascript','kotlin','java','gradle','github','error','exception','package','library','framework','version','代码','编程','开发','报错','依赖','接口','安卓','构建','编译'];
 
 export function isTechnicalKnowledgeQuery(query: string): boolean {
   const normalized = query.toLowerCase();
   return TECHNICAL_TERMS.some(term => normalized.includes(term));
+}
+
+export interface UnifiedKnowledgeResearchResult {
+  web?: ResearchResponse;
+  github?: Awaited<ReturnType<typeof performGitHubResearch>>;
+  context7Grounding: string;
 }
 
 export async function runKnowledgeResearch(
@@ -16,25 +23,89 @@ export async function runKnowledgeResearch(
   apiKey?: string,
   searchEngines?: SearchEngineItem[],
   activeSearchEngineId?: string,
-) {
+): Promise<UnifiedKnowledgeResearchResult> {
   const technicalQuery = context7Enabled && isTechnicalKnowledgeQuery(query);
-  const [web, docs] = await Promise.all([
+
+  const [web, github, docs] = await Promise.all([
     webEnabled ? performResearch(query, searchEngines, activeSearchEngineId) : Promise.resolve(undefined),
+    webEnabled ? performGitHubResearch(query) : Promise.resolve(undefined),
     technicalQuery ? searchContext7(query, undefined, undefined, undefined, apiKey) : Promise.resolve(undefined),
   ]);
+
   const context7Grounding = docs && docs.success ? formatContext7Grounding(docs.data) : '';
-  return { web, context7Grounding };
+  return { web, github, context7Grounding };
 }
 
-export function buildUnifiedKnowledgeGrounding(result: Awaited<ReturnType<typeof runKnowledgeResearch>>): string {
+function buildGitHubGrounding(github: UnifiedKnowledgeResearchResult['github']): string {
+  if (!github || (github.results.length === 0 && github.pageContents.length === 0)) return '';
+
   const sections: string[] = [];
-  if (result.web && result.web.results.length) {
-    sections.push('【联网研究｜主力来源：网页 + GitHub】\n' + result.web.results.map((item, index) =>
-      '[' + (index + 1) + '] ' + item.title + '\n' + item.snippet + '\n' + item.url
+  sections.push('【GitHub 专项研究｜主力来源】');
+  if (github.repositories.length) {
+    sections.push('重点仓库：' + github.repositories.slice(0, 5).join('、'));
+  }
+  if (github.results.length) {
+    sections.push(github.results.map((item, index) =>
+      `[GitHub ${index + 1}] ${item.title}\n${item.snippet}\n${item.url}`
     ).join('\n\n'));
   }
-  if (result.context7Grounding.trim()) {
-    sections.push('【补充技术文档｜Context7】\n' + result.context7Grounding.trim());
+  if (github.pageContents.length) {
+    sections.push('--- GitHub README / 页面正文 ---');
+    github.pageContents.forEach((page, index) => {
+      sections.push(`[GitHub 页面 ${index + 1}] ${page.title}\n网址: ${page.url}\n${page.content.slice(0, 5000)}`);
+    });
   }
-  return sections.length ? '## MyChat 统一知识检索结果\n' + sections.join('\n\n') : '';
+  sections.push(
+    `GitHub 专项统计：${github.repositories.length} 个仓库，${github.issues} 个 Issue，${github.pullRequests} 个 Pull Request。`
+  );
+  return sections.join('\n');
+}
+
+function buildWebGrounding(web: ResearchResponse): string {
+  if (!web.results.length && !web.pageContents.length) return '';
+
+  const sections: string[] = [];
+  sections.push('【联网研究｜主力来源：普通网页 + 官方网站】');
+  if (web.pageContents.length) {
+    sections.push('--- 高价值网页正文 ---');
+    web.pageContents.forEach((page, index) => {
+      sections.push(`[网页 ${index + 1}] ${page.title}\n网址: ${page.url}\n${page.content.slice(0, 4000)}`);
+    });
+  }
+  if (web.results.length) {
+    sections.push('--- 搜索结果 ---');
+    sections.push(web.results.map((item, index) =>
+      `[网页 ${index + 1}] ${item.title}\n${item.snippet}\n${item.url}`
+    ).join('\n\n'));
+  }
+  if (web.conflictHints.length) {
+    sections.push('--- 来源冲突提示 ---\n' + web.conflictHints.join('\n'));
+  }
+  sections.push(`联网研究完成：${web.rounds.length} 轮，研究充分度：${web.sufficient ? '足够' : '有限'}。`);
+  return sections.join('\n');
+}
+
+export function buildUnifiedKnowledgeGrounding(result: UnifiedKnowledgeResearchResult): string {
+  const sections: string[] = [];
+
+  const githubGrounding = buildGitHubGrounding(result.github);
+  if (githubGrounding) sections.push(githubGrounding);
+
+  if (result.web) {
+    const webGrounding = buildWebGrounding(result.web);
+    if (webGrounding) sections.push(webGrounding);
+  }
+
+  if (result.context7Grounding.trim()) {
+    sections.push('【补充技术文档｜Context7｜非主力来源】\n' + result.context7Grounding.trim());
+  }
+
+  if (!sections.length) return '';
+
+  return [
+    '## MyChat 统一知识检索结果',
+    '来源优先级：GitHub / 官方网页 ＞ 普通联网网页 ＞ Context7 补充文档。',
+    '以下资料用于交叉验证与辅助推理；不要把搜索摘要直接当成已验证事实。',
+    sections.join('\n\n'),
+  ].join('\n');
 }
