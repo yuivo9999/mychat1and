@@ -121,6 +121,19 @@ export interface ModelParameters {
 
 export type ProjectMemoryMode = 'default' | 'isolated';
 
+export type ProjectMemoryRecordStatus = 'active' | 'superseded' | 'archived';
+
+export interface ProjectMemoryRecord {
+  id: string;
+  content: string;
+  status: ProjectMemoryRecordStatus;
+  createdAt: number;
+  updatedAt: number;
+  sourceConversationId?: string;
+  sourceConversationUpdatedAt?: number;
+  supersededById?: string;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -132,6 +145,7 @@ export interface Project {
   sharedMemory?: {
     summary?: string;
     keyPoints?: string[];
+    records?: ProjectMemoryRecord[];
   };
 }
 
