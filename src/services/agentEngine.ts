@@ -1619,6 +1619,24 @@ export async function executeWorkspaceTool(
         const shot = captureProjectRuntimeScreenshot(ws.id, 72, 'mobile');
         item.screenshot = shot.success ? { width: shot.width, height: shot.height, dataUrl: shot.dataUrl } : null;
         item.screenshotError = shot.success ? undefined : shot.error;
+        // 截图变化只作为“是否值得进一步判断”的证据，不把像素差直接当成业务成功。
+        // 同一截图可用 dataURL 长度做廉价指纹，避免引入图像库；真正的视觉结论仍交给 Agent。
+        const previousShot = evidence[evidence.length - 1]?.screenshot;
+        if (shot.success && previousShot?.dataUrl) {
+          const previousUrl = String(previousShot.dataUrl);
+          const currentUrl = String(shot.dataUrl);
+          const sample = (url: string) => url.length > 160 ? url.slice(0, 80) + url.slice(-80) : url;
+          item.visualDelta = {
+            changed: sample(previousUrl) !== sample(currentUrl) || previousUrl.length !== currentUrl.length,
+            previousBytesApprox: previousUrl.length,
+            currentBytesApprox: currentUrl.length,
+          };
+          item.visualVerificationHint = item.visualDelta.changed
+            ? '截图存在可检测差异；请结合页面语义判断这是预期状态变化还是布局/渲染异常。'
+            : '截图指纹未见明显差异；若该动作理论上应改变页面状态，应重点检查点击是否命中、事件是否触发或 UI 是否无响应。';
+        } else {
+          item.visualDelta = { changed: null, reason: '缺少可比较的前一张截图。' };
+        }
         evidence.push(item);
         if (!interaction.success) { failedAt = i + 1; failure = interaction.error || '手机预览交互失败'; break; }
       }
