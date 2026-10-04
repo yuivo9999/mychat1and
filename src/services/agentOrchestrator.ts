@@ -235,7 +235,7 @@ export function parseAgentTaskReplan(text: string, currentPlan: AgentTaskPlan): 
 }
 
 export function stripAgentReplanBlock(text: string): string {
-  return text.replace(/<agent_replan>\\s*[\\s\\S]*?\\s*<\\/agent_replan>/gi, '').trim();
+  return text.replace(new RegExp('<agent_replan>\\\\s*[\\\\s\\\\S]*?\\\\s*<\\\\/agent_replan>', 'gi'), '').trim();
 }
 
 export function stripAgentPlanBlock(text: string): string {
