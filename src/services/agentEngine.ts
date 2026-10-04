@@ -1655,6 +1655,8 @@ export async function executeWorkspaceTool(
           scrollChanged: before.scrollTop !== after.scrollTop,
           activeChanged: before.activeTag !== after.activeTag || before.activeText !== after.activeText,
           changedValues: changedValues.slice(0, 12),
+          appeared: after.visibleElements.filter((e: any) => !before.visibleElements.some((b: any) => b.tag === e.tag && b.role === e.role && b.type === e.type && b.text === e.text && b.aria === e.aria)).slice(0, 12),
+          disappeared: before.visibleElements.filter((e: any) => !after.visibleElements.some((a: any) => a.tag === e.tag && a.role === e.role && a.type === e.type && a.text === e.text && a.aria === e.aria)).slice(0, 12),
           visibleElementCountBefore: before.count ?? 0,
           visibleElementCountAfter: after.count ?? 0,
         };
@@ -1665,14 +1667,23 @@ export async function executeWorkspaceTool(
         const expectsInput = action === 'type';
         const expectsScroll = action === 'scroll';
         const expectsStateChange = ['tap', 'type', 'back', 'scroll'].includes(action);
+        const semantic = {
+          primaryAction: /(submit|send|save|login|register|confirm|next|start|search|提交|发送|保存|登录|注册|确定|下一步|开始|搜索)/i.test(text),
+          overlay: /(dialog|modal|popup|弹窗|对话框)/i.test(text),
+        };
         return {
           expectsInput,
           expectsScroll,
           expectsStateChange,
+          semantic,
           target: text || null,
           baselineScrollTop: before?.scrollTop ?? null,
           baselineElementCount: before?.count ?? null,
-          rule: expectsInput
+          rule: semantic.overlay
+            ? '弹窗类操作后应出现或消失相关结构'
+            : semantic.primaryAction
+              ? '主要操作后应出现内容、结构、焦点或值变化'
+              : expectsInput
             ? '输入后应观察到焦点或输入值变化'
             : expectsScroll
               ? '滚动后应观察到 scrollTop 变化，若已到边界允许无变化'
@@ -1695,8 +1706,19 @@ export async function executeWorkspaceTool(
             ? { status: 'passed', reason: '检测到 scrollTop 变化' }
             : { status: 'inconclusive', reason: (after?.scrollHeight ?? 0) <= (after?.clientHeight ?? 0) ? '页面没有可滚动高度，滚动无变化可接受' : '存在可滚动内容但 scrollTop 未变化' };
         }
-        return delta.elementCountChanged || delta.activeChanged || (delta.changedValues?.length > 0)
-          ? { status: 'passed', reason: '检测到元素数量、焦点或值发生变化' }
+        const structuralChange = delta.elementCountChanged || delta.activeChanged || (delta.changedValues?.length > 0) || (delta.appeared?.length > 0) || (delta.disappeared?.length > 0);
+        if (expectation.semantic.overlay) {
+          return delta.appeared?.length > 0 || delta.disappeared?.length > 0
+            ? { status: 'passed', reason: '检测到弹窗相关结构出现或消失' }
+            : { status: 'failed', reason: '预期弹窗状态变化，但未检测到结构变化' };
+        }
+        if (expectation.semantic.primaryAction) {
+          return structuralChange
+            ? { status: 'passed', reason: '检测到主要操作后的结构、焦点或值变化' }
+            : { status: 'failed', reason: '主要操作成功但未检测到状态/内容/结构变化' };
+        }
+        return structuralChange
+          ? { status: 'passed', reason: '检测到元素数量、焦点、值或元素出现/消失变化' }
           : { status: 'failed', reason: '交互成功但未检测到结构化状态变化；可能点击未生效' };
       };
       const evidence: Array<Record<string, any>> = [];
