@@ -701,6 +701,23 @@ export async function deleteWorkspace(id: string): Promise<void> {
 }
 
 // Conversation Operations
+const conversationChangeListeners = new Set<(conversation: Conversation) => void>();
+
+export function subscribeConversationChanges(listener: (conversation: Conversation) => void): () => void {
+  conversationChangeListeners.add(listener);
+  return () => conversationChangeListeners.delete(listener);
+}
+
+function notifyConversationChanged(conversation: Conversation): void {
+  conversationChangeListeners.forEach(listener => {
+    try {
+      listener(conversation);
+    } catch {
+      // A UI subscriber must never break persistence.
+    }
+  });
+}
+
 export async function getConversations(): Promise<Conversation[]> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
@@ -727,7 +744,10 @@ export async function saveConversation(conversation: Conversation): Promise<void
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const request = db.transaction('conversations', 'readwrite').objectStore('conversations').put(conversation);
-    request.onsuccess = () => resolve();
+    request.onsuccess = () => {
+      notifyConversationChanged(conversation);
+      resolve();
+    };
     request.onerror = () => reject(request.error);
   });
 }
