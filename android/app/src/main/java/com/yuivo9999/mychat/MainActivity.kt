@@ -104,11 +104,23 @@ class MainActivity : Activity() {
     }
 }
 
+private data class RunningProject(
+    val workspaceId: String,
+    val process: Process,
+    val command: String,
+    var port: Int? = null,
+    var status: String = "starting",
+    var stdout: String = "",
+    var stderr: String = "",
+    val startedAt: Long = System.currentTimeMillis(),
+)
+
 class AndroidBridge(
     private val activity: Activity,
     private val webView: WebView,
 ) {
     private val executor = Executors.newCachedThreadPool()
+    private val runningProjects = java.util.concurrent.ConcurrentHashMap<String, RunningProject>()
 
     @JavascriptInterface
     fun getRuntimeInfo(): String {
@@ -621,6 +633,85 @@ class AndroidBridge(
         }
     }
 
+
+    @JavascriptInterface
+    fun startWorkspaceProject(workspaceId: String, command: String, timeoutMs: Int = 8000): String {
+        return try {
+            stopWorkspaceProject(workspaceId)
+            val root = workspaceRoot(workspaceId)
+            require(File(root, "package.json").isFile) { "当前工作区没有 package.json" }
+            val nodeBinary = File(activity.applicationInfo.nativeLibraryDir, "libnode.so")
+            require(nodeBinary.isFile) { "Android Node.js runtime is not bundled" }
+            val npmCli = if (command.trim().startsWith("npm ") || command.trim() == "npm" || command.trim().startsWith("npx ") || command.trim() == "npx") ensureNpmRuntime() else null
+            val trimmed = command.trim()
+            val processBuilder = if (npmCli != null) {
+                val isNpx = trimmed == "npx" || trimmed.startsWith("npx ")
+                val rawArgs = if (isNpx) trimmed.removePrefix("npx").trim() else trimmed.removePrefix("npm").trim()
+                val parsedArgs = splitCommandArgs(rawArgs)
+                val args = if (isNpx) listOf("exec", "--") + parsedArgs else parsedArgs
+                ProcessBuilder(listOf(nodeBinary.absolutePath, npmCli.absolutePath) + args)
+            } else if (trimmed.startsWith("node -e ")) {
+                val encoded = trimmed.removePrefix("node -e ").trim()
+                val code = org.json.JSONTokener(encoded).nextValue() as? String ?: throw IllegalArgumentException("node -e 参数不是有效 JSON 字符串")
+                ProcessBuilder(nodeBinary.absolutePath, "-e", code)
+            } else {
+                ProcessBuilder("sh", "-c", trimmed)
+            }
+            configureNodeEnvironment(processBuilder, nodeBinary, npmCli)
+            val process = processBuilder.directory(root).redirectErrorStream(false).start()
+            val runtime = RunningProject(workspaceId, process, command)
+            runningProjects[workspaceId] = runtime
+            executor.submit {
+                try {
+                    process.inputStream.bufferedReader(Charsets.UTF_8).forEachLine { line ->
+                        runtime.stdout = (runtime.stdout + line + "\\n").takeLast(20000)
+                        val match = Regex("""(?:localhost|127\\.0\\.0\\.1|0\\.0\\.0\\.0):([0-9]{2,5})""").find(line)
+                        if (match != null) runtime.port = match.groupValues[1].toIntOrNull()
+                    }
+                } catch (_: Throwable) {}
+            }
+            executor.submit {
+                try {
+                    process.errorStream.bufferedReader(Charsets.UTF_8).forEachLine { line -> runtime.stderr = (runtime.stderr + line + "\\n").takeLast(20000) }
+                } catch (_: Throwable) {}
+            }
+            executor.submit {
+                try {
+                    val code = process.waitFor()
+                    runtime.status = if (code == 0) "stopped" else "error"
+                } catch (_: Throwable) { runtime.status = "error" }
+            }
+            val deadline = System.currentTimeMillis() + timeoutMs.coerceIn(1000, 15000)
+            while (runtime.port == null && runtime.status == "starting" && System.currentTimeMillis() < deadline) Thread.sleep(100)
+            JSONObject().put("success", true).put("workspaceId", workspaceId).put("status", runtime.status)
+                .put("port", runtime.port ?: JSONObject.NULL).put("command", command).put("pid", process.pid()).toString()
+        } catch (e: Throwable) {
+            JSONObject().put("success", false).put("error", e.message ?: e.javaClass.simpleName).toString()
+        }
+    }
+
+    @JavascriptInterface
+    fun getWorkspaceProjectRuntimeState(workspaceId: String): String {
+        val runtime = runningProjects[workspaceId] ?: return JSONObject().put("ok", true).put("running", false).toString()
+        if (!runtime.process.isAlive && runtime.status == "starting") runtime.status = "error"
+        return JSONObject().put("ok", true).put("running", runtime.process.isAlive)
+            .put("status", runtime.status).put("port", runtime.port ?: JSONObject.NULL)
+            .put("command", runtime.command).put("pid", runtime.process.pid())
+            .put("stdout", runtime.stdout.takeLast(12000)).put("stderr", runtime.stderr.takeLast(12000))
+            .put("startedAt", runtime.startedAt).toString()
+    }
+
+    @JavascriptInterface
+    fun stopWorkspaceProject(workspaceId: String): String {
+        val runtime = runningProjects.remove(workspaceId) ?: return JSONObject().put("success", true).put("running", false).toString()
+        return try {
+            runtime.process.destroy()
+            if (!runtime.process.waitFor(1500, TimeUnit.MILLISECONDS)) runtime.process.destroyForcibly()
+            JSONObject().put("success", true).put("running", false).toString()
+        } catch (e: Throwable) {
+            JSONObject().put("success", false).put("error", e.message ?: e.javaClass.simpleName).toString()
+        }
+    }
 
     @JavascriptInterface
     fun executeNode(command: String, timeoutMs: Int, workspaceId: String = ""): String {
