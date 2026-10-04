@@ -100,6 +100,7 @@ import { ArchiveProjectModal } from './components/ArchiveProjectModal';
 import { WorkspacePreviewModal } from './components/WorkspacePreviewModal';
 import { AiFileAuditModal } from './components/AiFileAuditModal';
 import { recordAiFileModifications, backfillAuditRecordsFromConversations } from './services/aiFileAuditService';
+import { createAgentLoopState, advanceAgentLoopState, classifyAgentProgress, getAgentPhaseLabel, getAgentPhaseInstruction, getAgentPauseDelayMs, shouldProtectAgainstNoProgress, buildAgentLoopFeedback, createAgentTaskPlan, updateAgentTaskChecklist, getAgentTaskStepText, type AgentLoopState, type AgentProgressKind } from './services/agentOrchestrator';
 
 const DEFAULT_PARAMETERS: ModelParameters = {
   enableReasoning: false,
@@ -1238,6 +1239,7 @@ export default function App() {
           ? 6
           : 1;
       let agentLoopState: AgentLoopState = createAgentLoopState(maxAgentTurns);
+      let agentTaskPlan = createAgentTaskPlan(text);
       const agentTaskId = workspaceAgentEnabled ? `agent_${Date.now()}_${Math.random().toString(36).slice(2, 8)}` : null;
       agentTaskIdRef.current = agentTaskId;
       if (agentTaskId) {
@@ -1247,6 +1249,8 @@ export default function App() {
           phase: agentLoopState.phase,
           round: 0,
           maxRounds: maxAgentTurns,
+          ...agentTaskPlan,
+          ...getAgentTaskStepText(agentLoopState),
           progressSummary: 'Agent 任务已启动',
           updatedAt: Date.now(),
         };
@@ -1510,6 +1514,11 @@ export default function App() {
                 modifiedPaths.size > 0
               );
             agentLoopState = advanceAgentLoopState(agentLoopState, progressKind, hasMeaningfulProgress);
+            agentTaskPlan = updateAgentTaskChecklist(
+              agentTaskPlan,
+              agentLoopState,
+              toolResultsForPrompt.length > 0 ? toolResultsForPrompt[toolResultsForPrompt.length - 1].slice(0, 500) : undefined,
+            );
 
             if (agentTaskId) {
               await persistAgentTaskState(targetConv.id, {
@@ -1518,6 +1527,8 @@ export default function App() {
                 phase: agentLoopState.phase,
                 round: agentLoopState.round,
                 maxRounds: maxAgentTurns,
+                ...agentTaskPlan,
+                ...getAgentTaskStepText(agentLoopState),
                 progressSummary: getAgentPhaseLabel(agentLoopState.phase),
                 updatedAt: Date.now(),
               });
@@ -1747,6 +1758,8 @@ export default function App() {
           phase: needsUser ? agentLoopState.phase : 'completed',
           round: agentLoopState.round,
           maxRounds: maxAgentTurns,
+          ...agentTaskPlan,
+          ...getAgentTaskStepText(needsUser ? agentLoopState : { ...agentLoopState, phase: 'completed' }),
           progressSummary: needsUser ? '等待新的用户指示' : 'Agent 任务完成',
           pauseReason: needsUser ? '自动循环已安全停止，需要新的证据、决策或用户指示' : undefined,
           updatedAt: Date.now(),
