@@ -1385,7 +1385,7 @@ export default function App() {
       // Clean final answer
       let cleanedFinalAnswer = (systemNotices ? systemNotices : '') + (cumulativeAssistantNarrative || cleanResponseText(finalFullText));
       if (modifiedPaths.size > 0) {
-        cleanedFinalAnswer += `\n\n> 📦 **项目工作区已更新**：AI 已协同修改工作区文件 \`${Array.from(modifiedPaths).join('`, `')}\`。\n> ⚠️ **运行与测试提示**：AI 仅负责分析与修改代码，未在云端运行任何代码或执行测试。请您在本地运行并测试代码；若遇到报错，请将错误信息贴回本聊天中，AI 将继续为您排查修复。`;
+        cleanedFinalAnswer += `\n\n> 📦 **项目工作区已更新**：AI 已协同修改工作区文件 \`${Array.from(modifiedPaths).join('`, `')}\`。\n> 🧪 **运行与测试提示**：若“运行脚本与命令”权限已开启，AI 可在当前 MyChat 运行时中执行依赖安装、项目检查与脚本验证，并根据真实 stdout/stderr 进入有限次数的“失败 → 定位 → 修改 → 再验证”闭环；若运行时不支持目标工具链，则会明确报告环境限制。`;
       }
 
       // Update THIS chat's isolated private context memory
