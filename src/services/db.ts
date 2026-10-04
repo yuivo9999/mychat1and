@@ -9,6 +9,7 @@ import {
 } from '../types';
 import { getRawModelId, buildUniqueModelId } from './modelUtils';
 import { abortActiveRequestControllers } from './adapters/base';
+import { requestAgentStop } from './agentOrchestrator';
 
 const DB_NAME = 'OmniChatLocalDB';
 const DB_VERSION = 4;
@@ -764,6 +765,7 @@ export async function stopAgentTaskByMessageId(messageId: string, reason = '用�
 export async function stopAgentTask(conversationId: string, reason = '用户手动停止 Agent 任务'): Promise<boolean> {
   abortActiveRequestControllers();
   const conversation = await getConversation(conversationId);
+  if (conversation?.agentTask?.taskId) requestAgentStop(conversation.agentTask.taskId);
   if (!conversation?.agentTask) return false;
   const now = Date.now();
   conversation.agentTask = {
