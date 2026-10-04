@@ -752,6 +752,14 @@ export async function saveConversation(conversation: Conversation): Promise<void
   });
 }
 
+export async function stopAgentTaskByMessageId(messageId: string, reason = '用户手动停止 Agent 任务'): Promise<boolean> {
+  const conversations = await getConversations();
+  const owner = conversations.find(conversation =>
+    conversation.messages?.some(message => message.id === messageId)
+  );
+  return owner ? stopAgentTask(owner.id, reason) : false;
+}
+
 export async function stopAgentTask(conversationId: string, reason = '用户手动停止 Agent 任务'): Promise<boolean> {
   const conversation = await getConversation(conversationId);
   if (!conversation?.agentTask) return false;
