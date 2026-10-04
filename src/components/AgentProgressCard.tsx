@@ -207,11 +207,11 @@ export const AgentProgressCard: React.FC<AgentProgressCardProps> = ({ message, c
             </div>
           );
         })}
-        {(payload.status === 'waiting_user' || payload.status === 'paused') && (
+        {payload.status !== 'completed' && payload.status !== 'stopped' && (
           <div className="mt-2 flex items-center justify-end gap-2 pt-2 border-t border-neutral-100 dark:border-neutral-800">
             {pauseReason && <span className="mr-auto text-[10px] text-neutral-500 dark:text-neutral-400">需要你的指示才能继续</span>}
             {onStop && <button type="button" onClick={() => onStop(message.id)} className="inline-flex items-center rounded-full px-3 py-1.5 text-[10px] font-medium border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300">结束任务</button>}
-            {onContinue && (
+            {(payload.status === 'waiting_user' || payload.status === 'paused') && onContinue && (
               <button
                 type="button"
                 onClick={() => onContinue(message.id)}
