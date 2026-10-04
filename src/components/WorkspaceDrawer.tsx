@@ -25,7 +25,10 @@ import {
   FolderPlus,
   FilePlus,
   Layers,
-  FileSpreadsheet,
+  FileSpreadsheet, 
+  Play, 
+  Loader2, 
+  Send, 
   ChevronDown as DropdownIcon
 } from 'lucide-react';
 import { Workspace, WorkspaceFile } from '../types/workspace';
@@ -42,6 +45,8 @@ import {
   renameFolderInWorkspace
 } from '../services/workspaceService';
 import { downloadWorkspaceFile, decodeTextFile } from '../services/fileParser';
+import { executeCode, installWorkspaceDependencies, getWorkspaceNodeRuntimeState } from '../services/codeExecutionAdapter';
+import { inspectProjectRuntime, ProjectRuntimeInfo } from '../services/projectRuntimeService';
 
 interface WorkspaceDrawerProps {
   isOpen: boolean;
@@ -234,6 +239,9 @@ export const WorkspaceDrawer: React.FC<WorkspaceDrawerProps> = ({
   const [movingFile, setMovingFile] = useState<WorkspaceFile | null>(null);
   const [selectedTargetFolder, setSelectedTargetFolder] = useState<string>('');
   const [customNewFolder, setCustomNewFolder] = useState<string>('');
+  const [runtimeInfo, setRuntimeInfo] = useState<ProjectRuntimeInfo | null>(null);
+  const [runtimeRunning, setRuntimeRunning] = useState(false);
+  const [runtimeResult, setRuntimeResult] = useState<{ success: boolean; stdout: string; stderr: string; exitCode: number; error?: string | null; runtime?: string; command?: string } | null>(null);
 
   // Editable File Modal State
   const [editingFile, setEditingFile] = useState<WorkspaceFile | null>(null);
@@ -590,6 +598,51 @@ export const WorkspaceDrawer: React.FC<WorkspaceDrawerProps> = ({
     onSaveWorkspace(res.updatedWorkspace);
     setPendingUploadFiles(null);
     setConflictFilesList([]);
+  };
+
+  const handleProjectCheck = async () => {
+    if (!currentWorkspace || runtimeRunning) return;
+    const info = inspectProjectRuntime(currentWorkspace);
+    setRuntimeInfo(info); setRuntimeRunning(true); setRuntimeResult(null);
+    try {
+      if (info.checkStrategy === 'unsupported' || info.checkCommands.length === 0) {
+        setRuntimeResult({ success: false, stdout: '', stderr: info.signals.join('\\n'), exitCode: -1, error: '当前项目类型没有可用的运行时检查策略。' }); return;
+      }
+      if (info.kind === 'node' && info.packageManager === 'npm') {
+        const nodeState = await getWorkspaceNodeRuntimeState(currentWorkspace.id);
+        if (nodeState && nodeState.packageJsonExists && nodeState.dependenciesInSync === false) {
+          const installResult = await installWorkspaceDependencies(currentWorkspace.id, 120000);
+          if (!installResult.success) { setRuntimeResult(installResult); return; }
+        }
+      }
+      if (info.checkStrategy === 'python_source') {
+        const result = await executeCode({ language: 'python', workspaceId: currentWorkspace.id, timeoutMs: 60000,
+          code: "import compileall\\nok = compileall.compile_dir('.', quiet=1)\\nprint('Python compile check:', 'PASS' if ok else 'FAIL')\\nraise SystemExit(0 if ok else 1)" });
+        setRuntimeResult(result); return;
+      }
+      const command = info.checkCommands[0];
+      const result = await executeCode({ language: 'shell', code: command, workspaceId: currentWorkspace.id, timeoutMs: 120000 });
+      setRuntimeResult({ ...result, command });
+    } catch (error: any) {
+      setRuntimeResult({ success: false, stdout: '', stderr: '', exitCode: -1, error: error?.message || String(error) });
+    } finally { setRuntimeRunning(false); }
+  };
+
+  const handleSendRuntimeResultToAi = () => {
+    if (!currentWorkspace || !runtimeResult || !onSendAiMessage) return;
+    const info = runtimeInfo || inspectProjectRuntime(currentWorkspace);
+    const report = [
+      '请继续处理工作区「' + currentWorkspace.name + '」的项目检查结果。',
+      '项目类型: ' + info.kind, '检查策略: ' + info.checkStrategy,
+      '退出码: ' + runtimeResult.exitCode, '运行时: ' + (runtimeResult.runtime || 'unknown'),
+      runtimeResult.command ? '命令: ' + runtimeResult.command : '',
+      '成功: ' + (runtimeResult.success ? '是' : '否'),
+      'stdout:\\n' + (runtimeResult.stdout || '(空)'),
+      'stderr:\\n' + (runtimeResult.stderr || '(空)'),
+      '错误: ' + (runtimeResult.error || '无'),
+      '请基于这个真实运行结果定位问题；如需修改代码，请直接在当前工作区继续修改，然后再次执行检查。'
+    ].filter(Boolean).join('\\n');
+    onSendAiMessage(report);
   };
 
   // 11. Action: 打包下载整工作区 ZIP
@@ -1100,7 +1153,15 @@ export const WorkspaceDrawer: React.FC<WorkspaceDrawerProps> = ({
 
             {/* Right: Actions (Upload with text removed, Download ZIP, Close) */}
             <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-auto w-full sm:w-auto justify-end">
-              {/* Upload Dropdown */}
+                          {/* Project runtime check */}
+            <button type="button" onClick={handleProjectCheck} disabled={runtimeRunning || !currentWorkspace}
+              className="workspace-drawer-header-btn h-9 px-2.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800/90 hover:bg-neutral-100 dark:hover:bg-neutral-750 disabled:opacity-50 text-neutral-800 dark:text-neutral-100 transition cursor-pointer shrink-0 shadow-2xs flex items-center justify-center gap-1.5"
+              title="检查当前项目：执行真实运行时检查">
+              {runtimeRunning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />}
+              <span className="hidden sm:inline text-[11px] font-semibold">{runtimeRunning ? '检查中' : '执行检查'}</span>
+            </button>
+
+            {/* Upload Dropdown */}
               <div className="relative upload-dropdown shrink-0">
                 <button
                   type="button"
