@@ -1597,7 +1597,7 @@ export default function App() {
               tc.tool === 'run_project_check' || tc.tool === 'run_command' || tc.tool === 'run_python'
             );
             const executableChange = Array.from(modifiedPaths).some(path =>
-              /(?:\\.(?:ts|tsx|js|jsx|mjs|cjs|py|json|css|html|rs|go)|(?:^|\\/)package-lock\\.json|(?:^|\\/)package\\.json)$/.test(path)
+              /\.(?:ts|tsx|js|jsx|mjs|cjs|py|json|css|html|rs|go)$|(?:^|\/)package-lock\.json$|(?:^|\/)package\.json$/.test(path)
             );
             const autoVerificationSupported = wsToOperate
               ? inspectProjectRuntime(wsToOperate).checkStrategy !== 'unsupported'
