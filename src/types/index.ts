@@ -252,6 +252,7 @@ export interface UserSettings {
   showStreamingCursor?: boolean; // ▋ 流式输出呼吸光标动画
   compactMode?: boolean; // 🔍 紧凑排版模式
   boldHeadings?: boolean; // #️⃣ 加粗标题：加粗纯文本里的结构化标题（#，## 等）
+  conciseReplyMode?: boolean; // 🎯 精简 AI 回复：只突出核心关键内容与可执行操作步骤
   enableChatContextMemory?: boolean; // 🧠 启用单聊专属上下文记忆
   enableProjectMemory?: boolean; // 🗂️ 启用项目共享记忆
   enableHistorySearch?: boolean; // 🔎 允许 AI 主动搜索历史对话
