@@ -6,7 +6,7 @@ plugins {
 import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.Exec
 
-val syncWebAssets = tasks.register<Exec>("syncWebAssets") {
+val prepareNodeRuntime = tasks.register<Exec>("prepareNodeRuntime") {\n    workingDir(project.projectDir)\n    commandLine("node", "tools/prepare-node-runtime.cjs")\n}\n\nval syncWebAssets = tasks.register<Exec>("syncWebAssets") {
     workingDir(project.projectDir.parentFile)
     commandLine(if (System.getProperty("os.name").lowercase().contains("win")) "cmd" else "npm")
     if (System.getProperty("os.name").lowercase().contains("win")) {
