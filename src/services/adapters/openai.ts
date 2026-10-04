@@ -1,4 +1,4 @@
-import { BaseAdapter, AdapterOptions, StreamCallbacks, parseHttpError, executeFetch, safeExtractText, isConciseReplyModeEnabled } from './base';
+import { BaseAdapter, AdapterOptions, StreamCallbacks, parseHttpError, executeFetch, safeExtractText, isConciseReplyModeEnabled, registerActiveRequestController } from './base';
 import { ApiKeyConfig } from '../../types';
 import { extractAttachmentText, formatFilesPromptForAi } from '../fileParser';
 import { sendOpenAIResponses } from './openaiResponses';
@@ -209,6 +209,7 @@ export class OpenAIAdapter implements BaseAdapter {
     // Timeout controller
     const controller = new AbortController();
     const timeout = (timeoutSeconds || 60) * 1000;
+    const unregisterActiveRequest = registerActiveRequestController(controller);
     const timeoutId = setTimeout(() => controller.abort(), timeout);
 
     const onUserAbort = () => controller.abort();
@@ -238,6 +239,7 @@ export class OpenAIAdapter implements BaseAdapter {
       throw err;
     } finally {
       clearTimeout(timeoutId);
+      unregisterActiveRequest();
       if (abortSignal) {
         abortSignal.removeEventListener('abort', onUserAbort);
       }
