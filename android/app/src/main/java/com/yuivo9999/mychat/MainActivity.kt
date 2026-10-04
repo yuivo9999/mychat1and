@@ -188,12 +188,12 @@ class AndroidBridge(
         val launcher = File(binDir, "node")
         val nodeBinary = File(activity.applicationInfo.nativeLibraryDir, "libnode.so")
         val script = "#!/system/bin/sh\nexec \"${nodeBinary.absolutePath}\" \"${'$'}@\"\n"
+        if (!launcher.isFile || launcher.readText() != script) {
             launcher.writeText(script, Charsets.UTF_8)
             check(launcher.setExecutable(true, false)) { "无法创建 Node launcher 可执行权限" }
         }
         return launcher
     }
-
     private fun ensureNpmRuntime(): File {
         val bundledRoot = File(activity.filesDir, "node-runtime")
         val npmCli = File(bundledRoot, "node_modules/npm/bin/npm-cli.js")
