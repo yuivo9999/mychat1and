@@ -152,6 +152,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
         showStreamingCursor: true,
         compactMode: false,
         boldHeadings: true,
+        conciseReplyMode: false,
         enableChatContextMemory: false,
         enableHistorySearch: true,
         uiUxSkill: false,
@@ -923,6 +924,25 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
                     type="checkbox"
                     checked={settings.compactMode ?? false}
                     onChange={() => handleToggleSetting('compactMode')}
+                    className="rounded text-lime-500 h-4 w-4 shrink-0 accent-lime-500 cursor-pointer"
+                  />
+                </label>
+
+                {/* 4. 精简 AI 回复模式 */}
+                <label className="flex items-center justify-between p-2.5 rounded-xl bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 shadow-2xs cursor-pointer hover:border-lime-500/50 transition">
+                  <div className="space-y-0.5 pr-2">
+                    <div className="flex items-center gap-1.5">
+                      <Zap className="param-icon w-3.5 h-3.5 text-lime-600 dark:text-lime-400 shrink-0" />
+                      <span className="param-item-label text-xs font-semibold text-neutral-900 dark:text-neutral-100 block">精简 AI 回复模式</span>
+                    </div>
+                    <span className="param-item-sub text-[11px] text-neutral-500 dark:text-neutral-400 block pl-5">
+                      让 AI 只突出核心关键内容，并按「关键内容 + 操作步骤」分段回答，减少背景铺垫、重复解释和无关内容
+                    </span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={settings.conciseReplyMode ?? false}
+                    onChange={() => handleToggleSetting('conciseReplyMode')}
                     className="rounded text-lime-500 h-4 w-4 shrink-0 accent-lime-500 cursor-pointer"
                   />
                 </label>
