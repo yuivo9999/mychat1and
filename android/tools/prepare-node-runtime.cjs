@@ -45,13 +45,42 @@ function parsePackages(text) {
 }
 
 function extractDeb(deb, work) {
+  if (!deb) fail('找不到对应的 .deb 包');
   fs.mkdirSync(work, { recursive: true });
   if (fs.existsSync(path.join(work, 'data', 'data', 'com.termux', 'files', 'usr'))) return;
-  sh('tar', ['-xf', path.resolve(deb)], work);
-  const data = ['data.tar.xz', 'data.tar.gz', 'data.tar.zst']
-    .map(x => path.join(work, x)).find(fs.existsSync);
-  if (!data) fail(`找不到 data.tar.*: ${deb}`);
-  sh('tar', ['-xf', path.basename(data)], work);
+
+  // Debian packages are ar archives, not tar archives. Extract the data.tar.*
+  // member directly so this works on Linux/macOS/Windows without depending on
+  // the host having an ar utility.
+  const archive = fs.readFileSync(path.resolve(deb));
+  const magic = Buffer.from('!<arch>\\n');
+  if (!archive.subarray(0, magic.length).equals(magic)) {
+    fail(`${deb}: 不是有效的 ar/.deb 文件`);
+  }
+
+  let offset = magic.length;
+  let dataName = null;
+  while (offset + 60 <= archive.length) {
+    const header = archive.subarray(offset, offset + 60);
+    const name = header.toString('utf8', 0, 16).trim().replace(/\\/$/, '');
+    const sizeText = header.toString('ascii', 48, 58).trim();
+    const size = Number(sizeText);
+    if (!Number.isSafeInteger(size) || size < 0) fail(`${deb}: ar 成员大小无效`);
+    const start = offset + 60;
+    const end = start + size;
+    if (end > archive.length) fail(`${deb}: ar 成员越界`);
+
+    if (/^data\\.tar\\.(xz|gz|zst)$/.test(name)) {
+      dataName = name;
+      fs.writeFileSync(path.join(work, name), archive.subarray(start, end));
+      break;
+    }
+
+    offset = end + (size & 1);
+  }
+
+  if (!dataName) fail(`找不到 data.tar.*: ${deb}`);
+  sh('tar', ['-xf', dataName], work);
 }
 
 function parseElf(buf, label) {
