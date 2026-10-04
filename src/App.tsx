@@ -1271,13 +1271,14 @@ export default function App() {
               );
 
               let outcome;
-              if (tc.tool === 'run_command' && !activeParams.executeScript) {
+              const executionTools = new Set(['run_command', 'run_python', 'install_dependencies', 'run_project_check']);
+              if (executionTools.has(tc.tool) && !activeParams.executeScript) {
                 outcome = {
                   result: null,
                   updatedWorkspace: wsToOperate,
-                  errorMessage: "运行脚本与 Shell 命令权限未开启。为了系统与工程安全，请先在顶栏“运行参数”面板中开启“运行脚本与命令”权限开关。",
+                  errorMessage: "运行脚本与命令权限未开启。为了系统与工程安全，请先在顶栏“运行参数”面板中开启“运行脚本与命令”权限开关。",
                   stepIcon: 'lightning' as const,
-                  stepTitle: "终端执行被拒绝 (脚本权限未开启)"
+                  stepTitle: "运行时工具被拒绝 (脚本权限未开启)"
                 };
               } else {
                 outcome = await executeWorkspaceTool(tc.tool, tc.args, wsToOperate);
