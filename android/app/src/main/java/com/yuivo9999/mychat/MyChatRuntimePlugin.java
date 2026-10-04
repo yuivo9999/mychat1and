@@ -19,10 +19,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.UUID;
 
 @CapacitorPlugin(name = "MyChatRuntime")
 public class MyChatRuntimePlugin extends Plugin {
-    private final ExecutorService executor = Executors.newCachedThreadPool();
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private static final long MAX_WORKSPACE_BYTES = 25L * 1024L * 1024L;
 
     @PluginMethod
@@ -53,55 +55,59 @@ public class MyChatRuntimePlugin extends Plugin {
             return;
         }
 
-        executor.execute(() -> {
-            File workspace = new File(getContext().getFilesDir(), "mychat-workspaces/runtime");
-            try {
-                prepareWorkspace(workspace, files);
+        final File workspace = new File(getContext().getFilesDir(), "mychat-workspaces/runtime-" + UUID.randomUUID());
+        try {
+            prepareWorkspace(workspace, files);
 
-                if (!Python.isStarted()) {
-                    call.reject("Python 运行时尚未启动。");
-                    return;
-                }
+            if (!Python.isStarted()) {
+                deleteRecursively(workspace);
+                call.reject("Python 运行时尚未启动。");
+                return;
+            }
 
-                Future<String> future = executor.submit(() -> {
+            Future<String> future = executor.submit(() -> {
+                try {
                     PyObject runner = Python.getInstance().getModule("workspace_runner");
                     return runner.callAttr("run", command, workspace.getAbsolutePath()).toString();
-                });
-
-                final String json;
-                try {
-                    json = future.get(timeoutMs, TimeUnit.MILLISECONDS);
-                } catch (Exception timeout) {
-                    future.cancel(true);
-                    JSObject timeoutResult = new JSObject();
-                    timeoutResult.put("success", false);
-                    timeoutResult.put("stdout", "");
-                    timeoutResult.put("stderr", "");
-                    timeoutResult.put("exitCode", -1);
-                    timeoutResult.put("error", "Python 执行超时，已请求停止。");
-                    timeoutResult.put("changedFiles", new JSArray());
-                    timeoutResult.put("binaryFiles", new JSArray());
-                    call.resolve(timeoutResult);
-                    return;
+                } finally {
+                    // The worker owns cleanup. This prevents a timeout from deleting
+                    // files while Python is still using the workspace.
+                    deleteRecursively(workspace);
                 }
+            });
 
-                JSONObject parsed = new JSONObject(json);
-                JSObject result = new JSObject();
-                result.put("success", parsed.optBoolean("success", false));
-                result.put("stdout", parsed.optString("stdout", ""));
-                result.put("stderr", parsed.optString("stderr", ""));
-                result.put("exitCode", parsed.optInt("exitCode", 1));
-                result.put("error", parsed.optString("error", JSONObject.NULL));
-                result.put("changedFiles", toJsArray(parsed.optJSONArray("changedFiles")));
-                result.put("binaryFiles", toJsArray(parsed.optJSONArray("binaryFiles")));
-                result.put("durationMs", parsed.optLong("durationMs", 0));
-                call.resolve(result);
-            } catch (Exception e) {
-                call.reject("Android Python 执行失败: " + (e.getMessage() == null ? e.toString() : e.getMessage()), e);
-            } finally {
-                deleteRecursively(workspace);
+            final String json;
+            try {
+                json = future.get(timeoutMs, TimeUnit.MILLISECONDS);
+            } catch (TimeoutException timeout) {
+                future.cancel(true);
+                JSObject timeoutResult = new JSObject();
+                timeoutResult.put("success", false);
+                timeoutResult.put("stdout", "");
+                timeoutResult.put("stderr", "");
+                timeoutResult.put("exitCode", -1);
+                timeoutResult.put("error", "Python 执行超时，已请求停止。当前运行会在运行线程结束后清理工作区。");
+                timeoutResult.put("changedFiles", new JSArray());
+                timeoutResult.put("binaryFiles", new JSArray());
+                call.resolve(timeoutResult);
+                return;
             }
-        });
+
+            JSONObject parsed = new JSONObject(json);
+            JSObject result = new JSObject();
+            result.put("success", parsed.optBoolean("success", false));
+            result.put("stdout", parsed.optString("stdout", ""));
+            result.put("stderr", parsed.optString("stderr", ""));
+            result.put("exitCode", parsed.optInt("exitCode", 1));
+            result.put("error", parsed.optString("error", JSONObject.NULL));
+            result.put("changedFiles", toJsArray(parsed.optJSONArray("changedFiles")));
+            result.put("binaryFiles", toJsArray(parsed.optJSONArray("binaryFiles")));
+            result.put("durationMs", parsed.optLong("durationMs", 0));
+            call.resolve(result);
+        } catch (Exception e) {
+            deleteRecursively(workspace);
+            call.reject("Android Python 执行失败: " + (e.getMessage() == null ? e.toString() : e.getMessage()), e);
+        }
     }
 
     private JSArray toJsArray(JSONArray array) throws Exception {
