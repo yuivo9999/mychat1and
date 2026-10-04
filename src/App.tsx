@@ -36,6 +36,7 @@ import {
   formatChatContextPrompt,
   injectTimeGapHints
 } from './services/chatContextService';
+import { searchLocalMemory, formatLocalMemorySearchResult } from './services/localMemorySearchService';
 import { 
   buildAgentSystemPrompt, 
   extractToolCallsFromResponse, 
@@ -1048,7 +1049,8 @@ export default function App() {
           targetConv.chatContext,
           effectiveSystemPrompt,
           isDiagnosisMode,
-          activeParams.executeScript
+          activeParams.executeScript,
+          settings.enableHistorySearch ?? false
         );
       } else {
         // Pure chat mode / Agent OFF: only append chat's own private memory if present AND enabled, ZERO workspace tools protocol or directory trees
@@ -1194,7 +1196,8 @@ export default function App() {
 
       let turn = 0;
       // Provide ample turns (up to 12 turns) for multi-file inspection, plan formulation, and multi-file modification
-      const maxAgentTurns = workspaceAgentEnabled ? 12 : 1;
+      const historySearchEnabled = settings.enableHistorySearch ?? false;
+      const maxAgentTurns = workspaceAgentEnabled ? 12 : historySearchEnabled ? 4 : 1;
       let finalFullText = '';
       let cumulativeAssistantNarrative = '';
       let validationFailureCount = 0;
@@ -1273,7 +1276,7 @@ export default function App() {
         }
 
         // Check if response contains tool calls (Protected by workspaceAgentEnabled)
-        if (workspaceAgentEnabled && wsToOperate) {
+        if ((workspaceAgentEnabled && wsToOperate) || historySearchEnabled) {
           const detectedToolCalls = extractToolCallsFromResponse(turnAccumulatedText);
 
           if (detectedToolCalls.length > 0) {
@@ -1298,6 +1301,29 @@ export default function App() {
                   errorMessage: "运行脚本与命令权限未开启。为了系统与工程安全，请先在顶栏“运行参数”面板中开启“运行脚本与命令”权限开关。",
                   stepIcon: 'lightning' as const,
                   stepTitle: "运行时工具被拒绝 (脚本权限未开启)"
+                };
+              } else if (tc.tool === 'search_local_memory') {
+                const memoryResult = searchLocalMemory(conversations, {
+                  query: String(tc.args.query || ''),
+                  projectId: tc.args.projectId || targetConv.projectId,
+                  conversationId: tc.args.conversationId,
+                  dateFrom: typeof tc.args.dateFrom === 'number' ? tc.args.dateFrom : undefined,
+                  dateTo: typeof tc.args.dateTo === 'number' ? tc.args.dateTo : undefined,
+                  limit: tc.args.limit,
+                });
+                outcome = {
+                  result: memoryResult,
+                  updatedWorkspace: wsToOperate,
+                  stepIcon: 'search' as const,
+                  stepTitle: '历史对话检索完成：' + memoryResult.results.length + ' 条相关片段',
+                };
+              } else if (!workspaceAgentEnabled || !wsToOperate) {
+                outcome = {
+                  result: null,
+                  updatedWorkspace: wsToOperate,
+                  errorMessage: '当前未开启工作区 Agent，工作区工具不可用。',
+                  stepIcon: 'search' as const,
+                  stepTitle: '工作区工具被拒绝（Agent 未开启）'
                 };
               } else {
                 outcome = await executeWorkspaceTool(tc.tool, tc.args, wsToOperate);
@@ -1333,7 +1359,9 @@ export default function App() {
 
               // Format clean markdown code block / structured outcome for AI ingestion
               toolResultsForPrompt.push(
-                formatToolOutcomeForModel(tc.tool, tc.args, outcome)
+                tc.tool === 'search_local_memory'
+                  ? formatLocalMemorySearchResult(outcome.result)
+                  : formatToolOutcomeForModel(tc.tool, tc.args, outcome)
               );
             }
 
