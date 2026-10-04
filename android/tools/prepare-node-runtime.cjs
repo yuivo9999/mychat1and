@@ -31,12 +31,12 @@ async function getBuffer(url) {
 
 function parsePackages(text) {
   const map = new Map();
-  for (const block of text.split(/\\n\\n+/)) {
-    const m = block.match(/^Package:\\s*(\\S+)/m);
+  for (const block of text.split(/\n\n+/)) {
+    const m = block.match(/^Package:\s*(\S+)/m);
     if (!m) continue;
     const rec = {};
-    for (const line of block.split(/\\r?\\n/)) {
-      const k = line.match(/^([A-Za-z-]+):\\s*(.*)$/);
+    for (const line of block.split(/\r?\n/)) {
+      const k = line.match(/^([A-Za-z-]+):\s*(.*)$/);
       if (k) rec[k[1]] = k[2];
     }
     map.set(m[1], rec);
@@ -142,14 +142,14 @@ async function prepareArch(arch, abi) {
     const deb = path.join(dir, safe);
     if (!fs.existsSync(deb) || fs.statSync(deb).size === 0) {
       log(`下载 ${pkg} ${rec.Version}`);
-      fs.writeFileSync(deb, await getBuffer(REPO + '/' + rec.Filename.replace(/^\\//, '')));
+      fs.writeFileSync(deb, await getBuffer(REPO + '/' + rec.Filename.replace(/^\//, '')));
     }
   }
 
   const roots = {};
   for (const pkg of packages) {
     const work = path.join(EXTRACT, arch, pkg);
-    extractDeb(findFile(dir, new RegExp('^' + pkg.replace(/[+]/g, '\\\\+') + '_.*\\\\.deb$')), work);
+    extractDeb(findFile(dir, new RegExp('^' + pkg.replace(/[+]/g, '\\+') + '_.*\\.deb$')), work);
     roots[pkg] = path.join(work, 'data', 'data', 'com.termux', 'files', 'usr');
   }
 
@@ -158,15 +158,15 @@ async function prepareArch(arch, abi) {
   const lib = p => findFile(roots[p.pkg], p.re);
   const files = [
     { pkg:'nodejs-lts', re:/^node$/, out:'libnode.so' },
-    { pkg:'openssl', re:/^libcrypto\\.so\\./, out:'libcrypto3.so' },
-    { pkg:'openssl', re:/^libssl\\.so\\./, out:'libssl3.so' },
-    { pkg:'c-ares', re:/^libcares\\.so$/, out:'libcares.so' },
-    { pkg:'libicu', re:/^libicui18n\\.so\\./, out:'libicui18n.so' },
-    { pkg:'libicu', re:/^libicuuc\\.so\\./, out:'libicuuc.so' },
-    { pkg:'libicu', re:/^libicudata\\.so\\./, out:'libicudata.so' },
-    { pkg:'libsqlite', re:/^libsqlite3\\.so$/, out:'libsqlite3.so' },
-    { pkg:'zlib', re:/^libz\\.so\\./, out:'libz1.so' },
-    { pkg:'libc++', re:/^libc\\+\\+_shared\\.so$/, out:'libc++_shared.so' },
+    { pkg:'openssl', re:/^libcrypto\.so\./, out:'libcrypto3.so' },
+    { pkg:'openssl', re:/^libssl\.so\./, out:'libssl3.so' },
+    { pkg:'c-ares', re:/^libcares\.so$/, out:'libcares.so' },
+    { pkg:'libicu', re:/^libicui18n\.so\./, out:'libicui18n.so' },
+    { pkg:'libicu', re:/^libicuuc\.so\./, out:'libicuuc.so' },
+    { pkg:'libicu', re:/^libicudata\.so\./, out:'libicudata.so' },
+    { pkg:'libsqlite', re:/^libsqlite3\.so$/, out:'libsqlite3.so' },
+    { pkg:'zlib', re:/^libz\.so\./, out:'libz1.so' },
+    { pkg:'libc++', re:/^libc\+\+_shared\.so$/, out:'libc++_shared.so' },
   ];
 
   const renames = {
@@ -175,7 +175,7 @@ async function prepareArch(arch, abi) {
     'libz.so.1':'libz1.so',
   };
   for (const name of ['libicui18n','libicuuc','libicudata']) {
-    const src = findFile(roots['libicu'], new RegExp('^' + name.replace('+','\\+') + '\\.so\\.'));
+    const src = findFile(roots['libicu'], new RegExp('^' + name.replace('+','\+') + '\.so\.'));
     if (src) {
       const base = path.basename(src);
       renames[base] = name + '.so';
