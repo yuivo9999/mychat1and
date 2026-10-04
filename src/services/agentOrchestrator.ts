@@ -55,6 +55,10 @@ export interface AgentTaskChecklistItem {
 
 const MAX_DYNAMIC_CHECKLIST_ITEMS = 8;
 
+export function shouldAgentResearchTask(goal: string): boolean {
+  return goal.length > 180 || /(最新|版本|依赖|报错|重构|架构|构建|迁移|第三方|api|sdk|android|react|typescript|node|npm|python)/i.test(goal);
+}
+
 function normalizePlanString(value: unknown, fallback: string): string {
   return typeof value === 'string' && value.trim() ? value.trim() : fallback;
 }

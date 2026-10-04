@@ -100,7 +100,7 @@ import { ArchiveProjectModal } from './components/ArchiveProjectModal';
 import { WorkspacePreviewModal } from './components/WorkspacePreviewModal';
 import { AiFileAuditModal } from './components/AiFileAuditModal';
 import { recordAiFileModifications, backfillAuditRecordsFromConversations } from './services/aiFileAuditService';
-import { createAgentLoopState, advanceAgentLoopState, classifyAgentProgress, getAgentPhaseLabel, getAgentPhaseInstruction, getAgentPauseDelayMs, shouldProtectAgainstNoProgress, buildAgentLoopFeedback, buildAgentTaskPlanPrompt, parseAgentTaskPlan, parseAgentTaskReplan, applyAgentTaskProgress, areAgentTaskRequirementsMet, stripAgentPlanBlock, stripAgentProgressBlock, stripAgentReplanBlock, createAgentTaskPlan, updateAgentTaskChecklist, getAgentTaskStepText, type AgentLoopState } from './services/agentOrchestrator';
+import { createAgentLoopState, advanceAgentLoopState, classifyAgentProgress, getAgentPhaseLabel, getAgentPhaseInstruction, getAgentPauseDelayMs, shouldProtectAgainstNoProgress, buildAgentLoopFeedback, buildAgentTaskPlanPrompt, shouldAgentResearchTask, parseAgentTaskPlan, parseAgentTaskReplan, applyAgentTaskProgress, areAgentTaskRequirementsMet, stripAgentPlanBlock, stripAgentProgressBlock, stripAgentReplanBlock, createAgentTaskPlan, updateAgentTaskChecklist, getAgentTaskStepText, type AgentLoopState } from './services/agentOrchestrator';
 
 const DEFAULT_PARAMETERS: ModelParameters = {
   enableReasoning: false,
