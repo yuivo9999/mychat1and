@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Check, Circle, Loader2, AlertTriangle, PauseCircle, Bot } from 'lucide-react';
+import { Check, Circle, Loader2, AlertTriangle, PauseCircle, Bot, Play } from 'lucide-react';
 import { AgentTaskState, Message } from '../types';
 
 type ProgressItem = {
@@ -24,6 +24,7 @@ interface AgentProgressCardProps {
   message: Message;
   compact?: boolean;
   taskState?: AgentTaskState | null;
+  onContinue?: (messageId: string) => void;
 }
 
 function parseAgentProgress(content: string): { payload: AgentProgressPayload; items: ProgressItem[] } | null {
@@ -100,7 +101,7 @@ function buildTaskStateView(task: AgentTaskState | null): { payload: AgentProgre
   };
 }
 
-export const AgentProgressCard: React.FC<AgentProgressCardProps> = ({ message, compact = false, taskState: providedTaskState }) => {
+export const AgentProgressCard: React.FC<AgentProgressCardProps> = ({ message, compact = false, taskState: providedTaskState, onContinue }) => {
   const parsed = useMemo(() => parseAgentProgress(message.content), [message.content]);
   const taskState = providedTaskState ?? null;
 
@@ -205,6 +206,22 @@ export const AgentProgressCard: React.FC<AgentProgressCardProps> = ({ message, c
             </div>
           );
         })}
+        {(payload.status === 'waiting_user' || payload.status === 'paused') && (
+          <div className="mt-2 flex items-center justify-end gap-2 pt-2 border-t border-neutral-100 dark:border-neutral-800">
+            {pauseReason && <span className="mr-auto text-[10px] text-neutral-500 dark:text-neutral-400">需要你的指示才能继续</span>}
+            {onContinue && (
+              <button
+                type="button"
+                onClick={() => onContinue(message.id)}
+                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-medium bg-indigo-500 text-white active:scale-95 transition-transform"
+              >
+                <Play className="w-3 h-3" />
+                继续执行
+              </button>
+            )}
+          </div>
+        )}
+
         {(payload.status === 'waiting_user' || payload.status === 'paused') && pauseReason && (
           <div className="mt-2 pt-2 border-t border-neutral-100 dark:border-neutral-800 text-[10px] leading-relaxed text-neutral-500 dark:text-neutral-400">
             <span className="font-medium text-neutral-600 dark:text-neutral-300">暂停原因：</span>{pauseReason}
