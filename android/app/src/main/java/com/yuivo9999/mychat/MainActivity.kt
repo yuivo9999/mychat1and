@@ -15,6 +15,7 @@ import java.net.URL
 import java.util.concurrent.Callable
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.security.MessageDigest
 
 class MainActivity : Activity() {
     private lateinit var webView: WebView
@@ -128,6 +129,15 @@ class AndroidBridge(
             val nodeModules = File(root, "node_modules")
             val packageJson = File(root, "package.json")
             val packageLock = File(root, "package-lock.json")
+            val yarnLock = File(root, "yarn.lock")
+            val pnpmLock = File(root, "pnpm-lock.yaml")
+            val bunLock = File(root, "bun.lockb")
+            val bunLockText = File(root, "bun.lock")
+            val stateFile = dependencyStateFile(root)
+            val installedFingerprint = if (stateFile.isFile) {
+                try { JSONObject(stateFile.readText(Charsets.UTF_8)).optString("fingerprint", "") } catch (_: Throwable) { "" }
+            } else ""
+            val fingerprint = dependencyFingerprint(root)
             val state = JSONObject()
                 .put("workspaceId", workspaceId)
                 .put("workspacePath", root.absolutePath)
@@ -139,10 +149,61 @@ class AndroidBridge(
                 .put("packageLockExists", packageLock.isFile)
                 .put("packageLockModifiedAt", if (packageLock.isFile) packageLock.lastModified() else 0)
                 .put("runtimePersistent", nodeModules.isDirectory)
+                .put("dependencyFingerprint", fingerprint)
+                .put("installedDependencyFingerprint", installedFingerprint)
+                .put("dependenciesInSync", nodeModules.isDirectory && fingerprint.isNotEmpty() && fingerprint == installedFingerprint)
+                .put("lockfile", when {
+                    packageLock.isFile -> "package-lock.json"
+                    pnpmLock.isFile -> "pnpm-lock.yaml"
+                    yarnLock.isFile -> "yarn.lock"
+                    bunLock.isFile -> "bun.lockb"
+                    bunLockText.isFile -> "bun.lock"
+                    else -> null
+                })
             JSONObject().put("ok", true).put("state", state).toString()
         } catch (e: Throwable) {
             JSONObject().put("ok", false).put("error", e.message ?: e.javaClass.simpleName).toString()
         }
+    }
+
+    @JavascriptInterface
+    fun markWorkspaceDependenciesInstalled(workspaceId: String): String {
+        return try {
+            val root = workspaceRoot(workspaceId)
+            val fingerprint = dependencyFingerprint(root)
+            require(fingerprint.isNotEmpty()) { "当前工作区没有 package.json，无法记录依赖指纹" }
+            val stateFile = dependencyStateFile(root)
+            stateFile.parentFile?.mkdirs()
+            stateFile.writeText(
+                JSONObject()
+                    .put("version", 1)
+                    .put("fingerprint", fingerprint)
+                    .put("installedAt", System.currentTimeMillis())
+                    .toString(),
+                Charsets.UTF_8
+            )
+            JSONObject().put("ok", true).put("fingerprint", fingerprint).toString()
+        } catch (e: Throwable) {
+            JSONObject().put("ok", false).put("error", e.message ?: e.javaClass.simpleName).toString()
+        }
+    }
+
+    private fun dependencyStateFile(root: File): File = File(root, ".mychat-runtime/dependency-state.json")
+
+    private fun dependencyFingerprint(root: File): String {
+        val packageJson = File(root, "package.json")
+        if (!packageJson.isFile) return ""
+        val lockCandidates = listOf("package-lock.json", "pnpm-lock.yaml", "yarn.lock", "bun.lockb", "bun.lock")
+        val digest = MessageDigest.getInstance("SHA-256")
+        digest.update("mychat-deps-v1\n".toByteArray(Charsets.UTF_8))
+        for (name in listOf("package.json") + lockCandidates) {
+            val file = File(root, name)
+            digest.update(name.toByteArray(Charsets.UTF_8))
+            digest.update(byteArrayOf(0))
+            if (file.isFile) digest.update(file.readBytes())
+            digest.update(byteArrayOf(0))
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
     /**
