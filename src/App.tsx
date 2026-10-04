@@ -1272,7 +1272,7 @@ export default function App() {
               );
 
               let outcome;
-              const executionTools = new Set(['run_command', 'run_python', 'install_dependencies', 'run_project_check']);
+              const executionTools = new Set(['run_command', 'run_python', 'check_runtime', 'install_dependencies', 'run_project_check']);
               if (executionTools.has(tc.tool) && !activeParams.executeScript) {
                 outcome = {
                   result: null,
