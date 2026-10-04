@@ -1619,13 +1619,56 @@ export async function executeWorkspaceTool(
         const error = discovery.error || baseline.error || '没有足够的真实页面证据生成手机测试路径。';
         return { result: { success: false, viewport: 'mobile-390x780', discovery, plan, error }, updatedWorkspace: ws, errorMessage: error, stepIcon: 'lightning', stepTitle: '手机自测无法生成测试路径' };
       }
+      const summarizeMobileState = (state: any) => {
+        if (!state?.success) return { success: false, crossOrigin: state?.crossOrigin === true, error: state?.error || null };
+        const elements = Array.isArray(state.elements) ? state.elements : [];
+        return {
+          success: true,
+          count: state.count ?? elements.length,
+          activeTag: state.activeTag || null,
+          activeText: state.activeText || null,
+          scrollTop: state.scrollTop ?? null,
+          scrollHeight: state.scrollHeight ?? null,
+          clientHeight: state.clientHeight ?? null,
+          visibleElements: elements.slice(0, 30).map((e: any) => ({
+            tag: e.tag, role: e.role, type: e.type, text: String(e.text || '').slice(0, 80),
+            value: String(e.value || '').slice(0, 80), focused: e.focused === true, disabled: e.disabled === true,
+            x: e.x, y: e.y, width: e.width, height: e.height,
+          })),
+        };
+      };
+      const baselineState = summarizeMobileState(discovery);
+      const diffMobileState = (before: any, after: any) => {
+        if (!before?.success || !after?.success) return { comparable: false, reason: 'DOM 不可访问或元素发现失败' };
+        const beforeMap = new Map((before.visibleElements || []).map((e: any) => [`${e.tag}|${e.role}|${e.text}|${e.x}|${e.y}`, e]));
+        const afterMap = new Map((after.visibleElements || []).map((e: any) => [`${e.tag}|${e.role}|${e.text}|${e.x}|${e.y}`, e]));
+        const changedValues: any[] = [];
+        for (const [key, beforeItem] of beforeMap) {
+          const afterItem = afterMap.get(key);
+          if (afterItem && (beforeItem.value !== afterItem.value || beforeItem.focused !== afterItem.focused || beforeItem.disabled !== afterItem.disabled)) {
+            changedValues.push({ key, before: { value: beforeItem.value, focused: beforeItem.focused, disabled: beforeItem.disabled }, after: { value: afterItem.value, focused: afterItem.focused, disabled: afterItem.disabled } });
+          }
+        }
+        return {
+          comparable: true,
+          elementCountChanged: (before.count ?? 0) !== (after.count ?? 0),
+          scrollChanged: before.scrollTop !== after.scrollTop,
+          activeChanged: before.activeTag !== after.activeTag || before.activeText !== after.activeText,
+          changedValues: changedValues.slice(0, 12),
+          visibleElementCountBefore: before.count ?? 0,
+          visibleElementCountAfter: after.count ?? 0,
+        };
+      };
       const evidence: Array<Record<string, any>> = [];
       let failedAt = -1;
       let failure: string | undefined;
       evidence.push({ index: 0, phase: 'baseline', screenshot: baseline.success ? { width: baseline.width, height: baseline.height, dataUrl: baseline.dataUrl } : null, screenshotError: baseline.success ? undefined : baseline.error });
       for (let i = 0; i < steps.length; i += 1) {
         const step = steps[i];
+        const beforeState = i === 0 ? baselineState : summarizeMobileState(discoverProjectPreviewElements(ws.id));
         const interaction = interactProjectPreview(ws.id, step.action as any, { target: step.target, value: step.value, x: step.x, y: step.y });
+        const afterState = summarizeMobileState(discoverProjectPreviewElements(ws.id));
+        const stateDelta = diffMobileState(beforeState, afterState);
         const item: Record<string, any> = {
           index: i + 1,
           action: step,
@@ -1636,7 +1679,12 @@ export async function executeWorkspaceTool(
             selectorUsed: Boolean(step.target),
             coordinateFallback: !step.target && typeof step.x === 'number' && typeof step.y === 'number',
             interactionSucceeded: interaction.success === true,
+            structuredStateComparable: stateDelta.comparable === true,
+            stateChanged: stateDelta.comparable === true && (stateDelta.elementCountChanged || stateDelta.scrollChanged || stateDelta.activeChanged || stateDelta.changedValues?.length > 0),
           },
+          stateBefore: beforeState,
+          stateAfter: afterState,
+          stateDelta,
         };
         const shot = captureProjectRuntimeScreenshot(ws.id, 72, 'mobile');
         item.screenshot = shot.success ? { width: shot.width, height: shot.height, dataUrl: shot.dataUrl } : null;
@@ -1664,6 +1712,10 @@ export async function executeWorkspaceTool(
           item.diagnosis.failureClass = step.target && /跨域|DOM|iframe/i.test(String(interaction.error || ''))
             ? 'selector-cross-origin'
             : 'interaction-failed';
+        } else if (stateDelta.comparable === true && stateDelta.scrollChanged && step.action === 'scroll') {
+          item.diagnosis.failureClass = 'state-change-observed';
+        } else if (stateDelta.comparable === true && stateDelta.changedValues?.length > 0) {
+          item.diagnosis.failureClass = 'state-change-observed';
         } else if (item.visualDelta?.changed === false && ['tap', 'type', 'back'].includes(step.action)) {
           item.diagnosis.failureClass = 'possible-no-op';
         } else if (item.visualDelta?.changed === true) {
