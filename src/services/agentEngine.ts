@@ -1791,15 +1791,37 @@ export async function executeWorkspaceTool(
         }
         evidence.push(item);
         if (!interaction.success) { failedAt = i + 1; failure = interaction.error || '手机预览交互失败'; break; }
-        if (assertion.status === 'failed') { failedAt = i + 1; failure = assertion.reason; break; }
+        if (assertion.status === 'failed') {
+          failedAt = i + 1;
+          failure = assertion.reason;
+          item.repairDiagnosis = {
+            target: step.target || null,
+            likelyCauses: expectation.semantic?.primaryAction
+              ? ['检查该按钮的 onClick/submit handler 是否实际触发', '检查提交后的状态更新、路由跳转或数据刷新', '检查 disabled/loading 条件是否阻止了事件']
+              : expectation.semantic?.overlay
+                ? ['检查弹窗 open 状态与触发事件', '检查条件渲染/Portal 是否实际生成弹窗节点']
+                : step.action === 'type'
+                  ? ['检查输入框 focus、受控 value/onChange 与 Android 键盘输入链路']
+                  : step.action === 'scroll'
+                    ? ['检查实际滚动容器、overflow 与可滚动高度']
+                    : ['检查目标元素事件绑定、状态更新与条件渲染'],
+            evidenceToTrace: {
+              appeared: stateDelta.appeared?.map((e: any) => e.text || e.aria || e.role).filter(Boolean).slice(0, 8) || [],
+              disappeared: stateDelta.disappeared?.map((e: any) => e.text || e.aria || e.role).filter(Boolean).slice(0, 8) || [],
+              changedValues: stateDelta.changedValues?.slice(0, 8) || [],
+            },
+            nextAction: '优先定位目标元素对应的组件、事件处理器和状态更新代码；修复后重新运行同一手机路径验证，不要盲改无关文件。',
+          };
+          break;
+        }
       }
       const flow = { result: {
         success: failedAt === -1, visualVerificationRequired: true, viewport: 'mobile-390x780',
         stepCount: steps.length, completedSteps: failedAt === -1 ? steps.length : failedAt - 1,
         failedAt: failedAt === -1 ? null : failedAt, failure: failure || null, evidence,
         repairHint: failedAt === -1
-          ? '动作链执行完成。请结合 baseline 与最后截图判断按钮状态、输入结果、滚动位置、键盘遮挡、溢出与空白区域；若发现明确 UI 问题，直接修复后重新执行同一流程。'
-          : '先根据失败动作与对应截图定位问题。修复代码后重新启动/检查项目，再重新执行流程验证；不要把 selector 跨域失败误判成业务按钮不存在。'
+          ? '动作链执行完成。请结合结构化断言与 baseline/最后截图判断按钮状态、输入结果、滚动位置、键盘遮挡、溢出与空白区域；若发现明确 UI 问题，优先定位对应组件与事件处理器后修复，再执行同一流程验证。'
+          : '先读取失败步骤的 repairDiagnosis、stateDelta 与 assertion；优先定位目标元素对应组件、事件处理器和状态更新代码。修复后重新启动/检查项目，再执行同一手机路径验证；不要把 selector 跨域失败误判成业务按钮不存在。'
       }};
       const result = {
         success: flow?.result?.success === true,
