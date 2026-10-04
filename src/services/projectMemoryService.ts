@@ -36,6 +36,20 @@ function looksLikeSupersedingDecision(value: string): boolean {
   return /改成|改为|调整为|换成|替换|取消|不再|停止使用|弃用|废弃|最终决定|最终采用|现在采用|改用|重新确定|不使用|删除掉|移除/i.test(value);
 }
 
+function memoryConfidence(content: string, updatedAt: number): number {
+  let score = 0.55;
+  if (looksLikeSupersedingDecision(content)) score += 0.25;
+  if (/必须|不得|始终|统一|确定|确认|决定|正式/i.test(content)) score += 0.12;
+  const ageDays = Math.max(0, (Date.now() - updatedAt) / 86400000);
+  score -= Math.min(0.12, ageDays * 0.003);
+  return Math.max(0.2, Math.min(1, Number(score.toFixed(2))));
+}
+
+function conflictGroupId(a: string, b: string): string {
+  const tokens = [...decisionTokens(a), ...decisionTokens(b)].sort().join('|');
+  return stableRecordId(tokens);
+}
+
 function stableRecordId(content: string): string {
   const normalized = normalizeDecision(content).toLowerCase();
   let hash = 2166136261;
@@ -56,6 +70,7 @@ function buildRecord(content: string, conversation: Conversation, index: number)
     updatedAt: conversation.updatedAt || now,
     sourceConversationId: conversation.id,
     sourceConversationUpdatedAt: conversation.updatedAt || now,
+    confidence: memoryConfidence(content, conversation.updatedAt || now),
   };
 }
 
@@ -111,10 +126,19 @@ function reconcileMemoryRecords(
           item.record.status = 'superseded';
           item.record.updatedAt = candidate.updatedAt;
           item.record.supersededById = candidate.id;
+          item.record.conflictGroupId = conflictGroupId(item.record.content, candidate.content);
+          item.record.resolutionReason = '被更新、更明确的项目决定取代';
         }
       }
     }
 
+    if (related.length > 0) {
+      const bestOverlap = related[0].overlap;
+      if (bestOverlap >= 0.5) {
+        candidate.conflictGroupId = conflictGroupId(related[0].record.content, candidate.content);
+      }
+    }
+    candidate.confidence = candidate.confidence ?? memoryConfidence(candidate.content, candidate.updatedAt);
     records.push(candidate);
   }
 
@@ -280,6 +304,7 @@ export function updateProjectMemoryRecord(
   }
   if (patch.status) target.status = patch.status;
   target.updatedAt = Date.now();
+  target.confidence = memoryConfidence(target.content, target.updatedAt);
   if (target.status === 'active') target.supersededById = undefined;
   const activeKeyPoints = records.filter(r => r.status === 'active').sort((a,b) => b.updatedAt-a.updatedAt).slice(0, MAX_ACTIVE_MEMORY_RECORDS).map(r => r.content);
   return { ...project, updatedAt: Date.now(), sharedMemory: { ...project.sharedMemory, keyPoints: activeKeyPoints, records } };
