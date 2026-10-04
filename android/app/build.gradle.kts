@@ -3,6 +3,7 @@ plugins {
     id("com.chaquo.python")
 }
 
+import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.Exec
 
 val syncWebAssets = tasks.register<Exec>("syncWebAssets") {
