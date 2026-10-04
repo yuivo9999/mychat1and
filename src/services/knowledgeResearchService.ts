@@ -23,3 +23,16 @@ export async function runKnowledgeResearch(
   const context7Grounding = docs && docs.success ? formatContext7Grounding(docs.data) : '';
   return { web, context7Grounding };
 }
+
+export function buildUnifiedKnowledgeGrounding(result: Awaited<ReturnType<typeof runKnowledgeResearch>>): string {
+  const sections: string[] = [];
+  if (result.context7Grounding.trim()) {
+    sections.push('【官方技术文档｜Context7】\n' + result.context7Grounding.trim());
+  }
+  if (result.web && result.web.results.length) {
+    sections.push('【联网研究】\n' + result.web.results.map((item, index) =>
+      '[' + (index + 1) + '] ' + item.title + '\n' + item.snippet + '\n' + item.url
+    ).join('\n\n'));
+  }
+  return sections.length ? '## MyChat 统一知识检索结果\n' + sections.join('\n\n') : '';
+}
