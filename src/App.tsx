@@ -1151,7 +1151,9 @@ export default function App() {
       const systemNotices = '';
 
       let turn = 0;
-      // Project-memory audit gets one bounded extra reasoning turn only for meaningful project work.
+      // The Agent now has a real staged loop: 12 total turns is the hard ceiling for one
+      // Agent task, including the bounded project-memory audit. We no longer spend extra
+      // hidden turns beyond the advertised limit.
       const memoryAuditEligible = projectMemoryEnabled && !!targetConv.projectId && (
         workspaceAgentEnabled ||
         modifiedPaths.size > 0 ||
@@ -1159,9 +1161,12 @@ export default function App() {
       );
       let memoryAuditCompleted = !memoryAuditEligible;
       let memoryAuditTurn = false;
-      // Provide ample turns (up to 12 turns) for multi-file inspection, plan formulation, and multi-file modification.
-      // A project-memory audit may consume one additional bounded turn.
-      const maxAgentTurns = (workspaceAgentEnabled ? 12 : (historySearchEnabled || (projectMemoryEnabled && !!targetConv.projectId)) ? 6 : 1) + (memoryAuditEligible ? 2 : 0);
+      const maxAgentTurns = workspaceAgentEnabled
+        ? 12
+        : (historySearchEnabled || (projectMemoryEnabled && !!targetConv.projectId))
+          ? 6
+          : 1;
+      let agentLoopState: AgentLoopState = createAgentLoopState(maxAgentTurns);
       let finalFullText = '';
       let cumulativeAssistantNarrative = '';
       let validationFailureCount = 0;
