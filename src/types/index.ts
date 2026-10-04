@@ -167,6 +167,7 @@ export interface AgentTaskChecklistItem {
   required?: boolean;
   acceptanceCriteria?: string[];
   evidence?: string;
+  dependsOn?: string[];
 }
 
 export interface AgentTaskState {
