@@ -16,6 +16,15 @@ import {
   Code
 } from 'lucide-react';
 import { Workspace } from '../types/workspace';
+import {
+  ProjectRuntimeState,
+  getProjectRuntimeState,
+  startProjectRuntime,
+  stopProjectRuntime,
+  getNodeDependencyState,
+  installProjectDependencies,
+  buildProjectStartCommand,
+} from '../services/projectRuntimeService';
 import { 
   generatePreviewHtml, 
   detectWorkspaceRunnableType, 
@@ -52,8 +61,18 @@ export const WorkspacePreviewModal: React.FC<WorkspacePreviewModalProps> = ({
   const [consoleLogs, setConsoleLogs] = useState<ConsoleLogItem[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
   const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false);
+  const [runtimeState, setRuntimeState] = useState<ProjectRuntimeState>({ supported: false, running: false, status: 'unknown' });
+  const [runtimeBusy, setRuntimeBusy] = useState(false);
+  const [runtimeMode, setRuntimeMode] = useState<'static' | 'live'>('static');
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  const refreshRuntimeState = () => {
+    if (!activeWorkspace) return;
+    const state = getProjectRuntimeState(activeWorkspace.id);
+    setRuntimeState(state);
+    if (state.running && state.port) setRuntimeMode('live');
+  };
 
   // Sync selected workspace if initialWorkspaceId changes
   useEffect(() => {
@@ -95,6 +114,54 @@ export const WorkspacePreviewModal: React.FC<WorkspacePreviewModalProps> = ({
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
   }, []);
+
+  useEffect(() => {
+    if (!activeWorkspace) return;
+    setRuntimeState(getProjectRuntimeState(activeWorkspace.id));
+    setRuntimeMode('static');
+    const timer = window.setInterval(() => {
+      const state = getProjectRuntimeState(activeWorkspace.id);
+      setRuntimeState(state);
+      if (state.running && state.port) setRuntimeMode('live');
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [activeWorkspace?.id, refreshKey]);
+
+  useEffect(() => () => {
+    if (activeWorkspace?.id) stopProjectRuntime(activeWorkspace.id);
+  }, [activeWorkspace?.id]);
+
+  const handleStartRuntime = () => {
+    if (!activeWorkspace || runtimeBusy) return;
+    setRuntimeBusy(true);
+    try {
+      const command = buildProjectStartCommand(activeWorkspace);
+      if (!command) {
+        setRuntimeState({ supported: false, running: false, status: 'unknown', stderr: '当前项目没有可识别的 Node Web 启动脚本；已保留静态预览。' });
+        return;
+      }
+      const deps = getNodeDependencyState(activeWorkspace.id);
+      if (!deps.inSync) {
+        const install = installProjectDependencies(activeWorkspace.id);
+        if (!install.success) {
+          setRuntimeState({ supported: true, running: false, status: 'error', command, stderr: install.stderr || install.error || '依赖安装失败' });
+          return;
+        }
+      }
+      const state = startProjectRuntime(activeWorkspace);
+      setRuntimeState(state);
+      if (state.port) setRuntimeMode('live');
+    } finally {
+      setRuntimeBusy(false);
+    }
+  };
+
+  const handleStopRuntime = () => {
+    if (!activeWorkspace) return;
+    stopProjectRuntime(activeWorkspace.id);
+    setRuntimeState({ supported: true, running: false, status: 'stopped' });
+    setRuntimeMode('static');
+  };
 
   // Handle refresh
   const handleRefresh = () => {
@@ -267,6 +334,18 @@ export const WorkspacePreviewModal: React.FC<WorkspacePreviewModalProps> = ({
               </button>
             )}
 
+            {runtimeState.supported && buildProjectStartCommand(activeWorkspace || ({} as Workspace)) && (
+              runtimeState.running ? (
+                <button type="button" onClick={handleStopRuntime} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300 border border-red-200 dark:border-red-800 text-xs font-medium" title="停止真实项目进程">
+                  <span className="w-2 h-2 rounded-full bg-red-500" />停止运行
+                </button>
+              ) : (
+                <button type="button" onClick={handleStartRuntime} disabled={runtimeBusy} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-xs font-medium disabled:opacity-50" title="安装依赖并启动真实项目">
+                  <Play className="w-3 h-3 fill-current" />{runtimeBusy ? '启动中…' : '运行项目'}
+                </button>
+              )
+            )}
+
             <button
               type="button"
               onClick={handleRefresh}
@@ -331,7 +410,7 @@ export const WorkspacePreviewModal: React.FC<WorkspacePreviewModalProps> = ({
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-400/80" />
               </div>
               <div className="flex-1 mx-2 bg-white dark:bg-neutral-800/80 rounded-md px-2 py-0.5 text-[10px] text-neutral-400 truncate font-mono text-center border border-neutral-200/60 dark:border-neutral-700/60">
-                localhost:3000 / {activeWorkspace?.name || 'workspace'} / {runnableInfo.entryPath || 'preview'}
+                {runtimeMode === 'live' && runtimeState.port ? `http://127.0.0.1:${runtimeState.port}` : `静态预览 · ${activeWorkspace?.name || 'workspace'} · ${runnableInfo.entryPath || 'preview'}`}
               </div>
             </div>
 
@@ -339,8 +418,9 @@ export const WorkspacePreviewModal: React.FC<WorkspacePreviewModalProps> = ({
             <div className="flex-1 relative bg-white overflow-hidden">
               <iframe
                 ref={iframeRef}
-                key={`${selectedWorkspaceId}_${refreshKey}`}
-                srcDoc={previewHtml}
+                key={`${selectedWorkspaceId}_${refreshKey}_${runtimeMode}_${runtimeState.port || 'static'}`}
+                src={runtimeMode === 'live' && runtimeState.port ? `http://127.0.0.1:${runtimeState.port}` : undefined}
+                srcDoc={runtimeMode === 'live' && runtimeState.port ? undefined : previewHtml}
                 title="Workspace Preview"
                 sandbox="allow-scripts allow-modals allow-forms allow-same-origin allow-popups"
                 className="w-full h-full border-0 bg-white"
@@ -355,7 +435,8 @@ export const WorkspacePreviewModal: React.FC<WorkspacePreviewModalProps> = ({
             <div className="px-3 py-1.5 bg-neutral-950 border-b border-neutral-800 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Terminal className="w-3.5 h-3.5 text-neutral-400" />
-                <span className="font-semibold text-neutral-300">浏览器运行控制台 (Console)</span>
+                <span className="font-semibold text-neutral-300">{runtimeMode === 'live' ? '项目运行控制台' : '浏览器运行控制台 (Console)'}</span>
+                {runtimeMode === 'live' && runtimeState.port && <span className="text-[10px] text-emerald-400">LIVE · :{runtimeState.port}</span>}
                 <span className="text-[10px] text-neutral-500">
                   ({consoleLogs.length} 条记录)
                 </span>
@@ -381,7 +462,11 @@ export const WorkspacePreviewModal: React.FC<WorkspacePreviewModalProps> = ({
             <div className="flex-1 p-2 overflow-y-auto space-y-1 select-text">
               {consoleLogs.length === 0 ? (
                 <div className="text-neutral-500 text-[11px] p-2 italic">
-                  暂无控制台日志输出。网页中的 console.log 与运行时报错将实时显示在此处。
+                  {runtimeMode === 'live' && (runtimeState.stdout || runtimeState.stderr) ? (
+                    <pre className="whitespace-pre-wrap break-all text-[11px] text-neutral-300">{runtimeState.stdout}{runtimeState.stderr && `\\n${runtimeState.stderr}`}</pre>
+                  ) : (
+                    <>暂无控制台日志输出。网页中的 console.log 与运行时报错将实时显示在此处。</>
+                  )}
                 </div>
               ) : (
                 consoleLogs.map(log => (
