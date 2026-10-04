@@ -75,7 +75,7 @@ import {
   saveProject,
   deleteProject
 } from './services/db';
-import { formatProjectMemoryPrompt, updateProjectCollectiveMemory, getProjectMemoryRecords, updateProjectMemoryRecord, archiveProjectMemoryRecord } from './services/projectMemoryService';
+import { formatProjectMemoryPrompt, updateProjectCollectiveMemory, getProjectMemoryRecords, createProjectMemoryRecord, updateProjectMemoryRecord, archiveProjectMemoryRecord } from './services/projectMemoryService';
 import { getAdapterForProvider } from './services/adapters';
 import { safeExtractText } from './services/adapters/base';
 import { performWebSearch, buildWebSearchContext } from './services/webSearch';
