@@ -19,7 +19,9 @@ import {
   Trash2,
   Star,
   RefreshCcw,
-  Check
+  Check,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { ModelParameters, UserSettings, SearchEngineItem } from '../types';
 import { DEFAULT_SEARCH_ENGINES } from '../services/db';
@@ -47,6 +49,15 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
   const [showAddEngineForm, setShowAddEngineModal] = useState(false);
   const [newEngineName, setNewEngineName] = useState('');
   const [newEngineUrl, setNewEngineUrl] = useState('');
+  const [context7ApiKeyDraft, setContext7ApiKeyDraft] = useState('');
+  const [showContext7ApiKey, setShowContext7ApiKey] = useState(false);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setContext7ApiKeyDraft(settings?.context7ApiKey || '');
+      setShowContext7ApiKey(false);
+    }
+  }, [isOpen, settings?.context7ApiKey]);
 
   if (!isOpen) return null;
 
@@ -142,6 +153,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
         compactMode: false,
         boldHeadings: true,
         enableChatContextMemory: false,
+        enableHistorySearch: true,
         uiUxSkill: false,
       });
     }
@@ -343,6 +355,56 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
                   }`}
                 />
               </button>
+            </div>
+
+            {/* Context7 API Key */}
+            <div className="p-2.5 rounded-xl bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 shadow-2xs space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-neutral-900 dark:text-neutral-100">Context7 API Key</div>
+                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">连接 Context7 官方文档 API；密钥仅保存在本机。</p>
+                </div>
+                <a
+                  href="https://context7.com/dashboard"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="shrink-0 text-[10px] text-lime-600 dark:text-lime-400 hover:underline"
+                >
+                  获取 Key
+                </a>
+              </div>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type={showContext7ApiKey ? 'text' : 'password'}
+                    value={context7ApiKeyDraft}
+                    onChange={(e) => setContext7ApiKeyDraft(e.target.value)}
+                    placeholder="ctx7sk-••••••••••••"
+                    autoComplete="off"
+                    spellCheck={false}
+                    className="w-full h-9 rounded-lg bg-neutral-100 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 px-2.5 pr-9 text-xs font-mono outline-none focus:border-lime-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowContext7ApiKey(v => !v)}
+                    className="absolute right-1 top-1 w-7 h-7 rounded-md text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 flex items-center justify-center"
+                    title={showContext7ApiKey ? '隐藏 API Key' : '显示 API Key'}
+                  >
+                    {showContext7ApiKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!settings || !onSaveSettings) return;
+                    onSaveSettings({ ...settings, context7ApiKey: context7ApiKeyDraft.trim() || undefined });
+                  }}
+                  className="h-9 px-3 rounded-lg bg-lime-500 hover:bg-lime-400 text-black text-xs font-semibold transition shrink-0"
+                >
+                  保存
+                </button>
+              </div>
+              <p className="text-[10px] text-neutral-500 dark:text-neutral-500">Context7 官方 Search API：GET /api/v3/search，使用 Bearer Token 认证。</p>
             </div>
 
             {/* 1.65. UI/UX Design Skill */}
