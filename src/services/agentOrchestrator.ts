@@ -38,7 +38,80 @@ export interface AgentTaskChecklistItem {
   id: string;
   title: string;
   status: 'pending' | 'in_progress' | 'completed' | 'blocked';
+  required?: boolean;
+  acceptanceCriteria?: string[];
   evidence?: string;
+}
+
+const MAX_DYNAMIC_CHECKLIST_ITEMS = 8;
+
+function normalizePlanString(value: unknown, fallback: string): string {
+  return typeof value === 'string' && value.trim() ? value.trim() : fallback;
+}
+
+function normalizePlanStringList(value: unknown, fallback: string[]): string[] {
+  if (!Array.isArray(value)) return fallback;
+  const items = value
+    .filter(item => typeof item === 'string' && item.trim())
+    .map(item => item.trim())
+    .slice(0, 8);
+  return items.length > 0 ? items : fallback;
+}
+
+export function buildAgentTaskPlanPrompt(goal: string): string {
+  return '[Agent 动态任务规划协议]\\n' +
+    '用户目标：\\n' + goal + '\\n\\n' +
+    '你现在需要把“用户真正想完成的事情”拆成可验证的执行计划。不要把阶段名称当成子任务，也不要泛化成“做完并测试”。\\n' +
+    '请输出一个机器可读的规划块：\\n\\n' +
+    '<agent_plan>\\n' +
+    '{\\n' +
+    '  "goal": "一句话准确描述最终目标",\\n' +
+    '  "definitionOfDone": ["3-8 条可验证的最终完成条件"],\\n' +
+    '  "checklist": [{"id":"简短稳定ID","title":"具体子任务","required":true,"acceptanceCriteria":["可验证事实"]}]\\n' +
+    '}\\n' +
+    '</agent_plan>\\n\\n' +
+    '要求：\\n' +
+    '1. checklist 最多 ' + MAX_DYNAMIC_CHECKLIST_ITEMS + ' 项，按真实依赖顺序排列；\\n' +
+    '2. 每项必须是具体可执行/可验证的工作；\\n' +
+    '3. acceptanceCriteria 必须能通过代码、工具输出、运行结果或明确用户输入验证；\\n' +
+    '4. 不确定的事实不要编造，先写成需要探索验证的条件；\\n' +
+    '5. 规划完成后继续正常 Agent 工作，不要因为输出规划块就结束任务。';
+}
+
+export function parseAgentTaskPlan(text: string, fallbackGoal: string): AgentTaskPlan | null {
+  const match = text.match(/<agent_plan>\\s*([\\s\\S]*?)\\s*<\\/agent_plan>/i);
+  if (!match) return null;
+  try {
+    const raw = JSON.parse(match[1]);
+    if (!raw || typeof raw !== 'object') return null;
+    const checklistRaw = Array.isArray(raw.checklist) ? raw.checklist : [];
+    const checklist = checklistRaw
+      .filter((item: any) => item && typeof item.title === 'string' && item.title.trim())
+      .slice(0, MAX_DYNAMIC_CHECKLIST_ITEMS)
+      .map((item: any, index: number) => ({
+        id: normalizePlanString(item.id, 'task_' + (index + 1)),
+        title: item.title.trim(),
+        status: index === 0 ? 'in_progress' as const : 'pending' as const,
+        required: item.required !== false,
+        acceptanceCriteria: normalizePlanStringList(item.acceptanceCriteria, []),
+      }));
+    if (checklist.length === 0) return null;
+    return {
+      goal: normalizePlanString(raw.goal, fallbackGoal),
+      definitionOfDone: normalizePlanStringList(raw.definitionOfDone, [
+        '完成用户明确提出的主要目标',
+        '修改基于真实工作区代码与运行时证据，而不是猜测',
+        '修改后完成针对性的真实验证',
+      ]),
+      checklist,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function stripAgentPlanBlock(text: string): string {
+  return text.replace(/<agent_plan>\\s*[\\s\\S]*?\\s*<\\/agent_plan>/gi, '').trim();
 }
 
 export function createAgentTaskPlan(goal: string): AgentTaskPlan {
@@ -242,20 +315,34 @@ export function shouldProtectAgainstNoProgress(state: AgentLoopState): boolean {
 export function buildAgentLoopFeedback(
   state: AgentLoopState,
   toolResults: string,
+  plan?: AgentTaskPlan,
 ): string {
-  return `[Agent 阶段推进指令]
-第 ${state.round + 1}/${state.maxRounds} 轮 · 当前阶段：${getAgentPhaseLabel(state.phase)}
+  const checklist = plan
+    ? plan.checklist.map((item, index) => {
+        const criteria = item.acceptanceCriteria?.length
+          ? '; 验收：' + item.acceptanceCriteria.join(' / ')
+          : '';
+        return (index + 1) + '. [' + item.status + '] ' + item.title + criteria +
+          (item.evidence ? '; 证据：' + item.evidence.slice(0, 300) : '');
+      }).join('\\n')
+    : '尚未建立动态子任务清单；请先根据用户目标建立可验证计划。';
 
-${getAgentPhaseInstruction(state)}
+  const definitionOfDone = plan
+    ? plan.definitionOfDone.map(item => '- ' + item).join('\\n')
+    : '- 完成用户明确提出的主要目标';
 
-上一轮工具结果：
-${toolResults}
-
-请根据真实证据决定下一步：
-1. 有未完成目标且可以自主推进 → 继续调用最相关工具；
-2. 修改后必须优先验证；
-3. 验证失败 → 定位根因、修复、再验证；
-4. 已满足完成条件 → 停止调用工具并总结；
-5. 只有确实缺少用户才能提供的信息才进入等待用户，不要因为“暂停一下”而人为停止任务。
-`;
+  return '[Agent 阶段推进指令]\\n' +
+    '第 ' + (state.round + 1) + '/' + state.maxRounds + ' 轮 · 当前阶段：' + getAgentPhaseLabel(state.phase) + '\\n\\n' +
+    getAgentPhaseInstruction(state) + '\\n\\n' +
+    '## 当前任务目标\\n' + (plan?.goal || '未明确') + '\\n\\n' +
+    '## Definition of Done\\n' + definitionOfDone + '\\n\\n' +
+    '## 动态子任务清单\\n' + checklist + '\\n\\n' +
+    '上一轮工具结果：\\n' + toolResults + '\\n\\n' +
+    '请根据真实证据决定下一步：\\n' +
+    '1. 优先完成当前最前面的未完成 required 子任务；\\n' +
+    '2. 每完成一个子任务，必须让其 acceptanceCriteria 有真实证据支撑；\\n' +
+    '3. 修改后必须优先验证；\\n' +
+    '4. 验证失败 → 定位根因、修复、再验证；\\n' +
+    '5. 所有 required 子任务和 Definition of Done 都满足后，才停止调用工具并总结；\\n' +
+    '6. 只有确实缺少用户才能提供的信息才进入等待用户，不要因为“暂停一下”而人为停止任务。\\n';
 }
