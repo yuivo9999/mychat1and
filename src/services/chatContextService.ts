@@ -108,6 +108,47 @@ export function decoupleCodeBlocksForModelContext(
   });
 }
 
+
+/**
+ * Inject lightweight time-gap markers into API-facing history.
+ * Persisted conversation messages are never mutated.
+ */
+export function injectTimeGapHints(
+  messages: Message[],
+  thresholdMs = 4 * 60 * 60 * 1000
+): Message[] {
+  if (messages.length < 2) return messages;
+  const result: Message[] = [];
+
+  for (let i = 0; i < messages.length; i++) {
+    const current = messages[i];
+    if (i > 0) {
+      const previous = messages[i - 1];
+      const gapMs = current.timestamp - previous.timestamp;
+      if (gapMs >= thresholdMs) {
+        const totalMinutes = Math.floor(gapMs / 60000);
+        const days = Math.floor(totalMinutes / 1440);
+        const hours = Math.floor((totalMinutes % 1440) / 60);
+        const minutes = totalMinutes % 60;
+        const gapText = days > 0
+          ? `约 ${days} 天${hours > 0 ? ` ${hours} 小时` : ''}`
+          : hours > 0
+          ? `约 ${hours} 小时${minutes > 0 ? ` ${minutes} 分钟` : ''}`
+          : `约 ${minutes} 分钟`;
+
+        result.push({
+          id: `msg_time_gap_${current.id}`,
+          role: 'system',
+          content: `【时间间隔提醒】上一条消息与本条消息之间相隔 ${gapText}。请注意：用户可能已经离开一段时间；不要默认两条消息之间的状态、环境或外部世界没有发生变化。请结合当前消息判断是否需要重新确认上下文。`,
+          timestamp: current.timestamp,
+        });
+      }
+    }
+    result.push(current);
+  }
+  return result;
+}
+
 /**
  * Hierarchical History Preparation (黄金平衡分层上下文组装):
  * - Layer 1: Global System Prompt & Rules (Outside)
