@@ -1116,7 +1116,8 @@ export default function App() {
           effectiveSystemPrompt,
           isDiagnosisMode,
           activeParams.executeScript,
-          historySearchEnabled
+          historySearchEnabled,
+          isVisionSupported
         );
       } else {
         // Pure chat mode / Agent OFF: only append chat's own private memory if present AND enabled, ZERO workspace tools protocol or directory trees
@@ -1528,7 +1529,7 @@ export default function App() {
                 setIsPreviewOpen(false);
               }
 
-              if (tc.tool === 'capture_project_runtime_screenshot' && outcome.result?.success === true && typeof outcome.result?.dataUrl === 'string') {
+              if (tc.tool === 'capture_project_runtime_screenshot' && outcome.result?.success === true && typeof outcome.result?.dataUrl === 'string' && isVisionSupported) {
                 visualAttachments.push({
                   id: `agent_runtime_screenshot_${turn}_${i}_${Date.now()}`,
                   name: `project-runtime-${turn + 1}.jpg`,
@@ -1553,7 +1554,7 @@ export default function App() {
                   { label: 'mobile-baseline', shot: baselineShot },
                   { label: 'mobile-final', shot: finalShot },
                 ].filter((item: any) => item.shot?.dataUrl);
-                shots.forEach((item: any, shotIndex: number) => {
+                if (isVisionSupported) shots.forEach((item: any, shotIndex: number) => {
                   visualAttachments.push({
                     id: `agent_mobile_selftest_${turn}_${i}_${shotIndex}_${Date.now()}`,
                     name: `${item.label}-${turn + 1}.jpg`,
@@ -1665,7 +1666,9 @@ export default function App() {
 
             const mobileSelfTestWasRun = detectedToolCalls.some(tc => tc.tool === 'auto_test_mobile_preview');
             const mobileSelfTestInstruction = mobileSelfTestWasRun
-              ? '\n\n### 📱 手机自测视觉闭环（强制）\n本轮已提供 mobile-baseline 与 mobile-final 真实截图。请实际比较两张截图，并结合 auto_test_mobile_preview 的动作证据判断页面是否真的响应；“动作 API 成功”不等于 UI 正确。若发现明确 UI/UX 问题，下一轮必须直接修改工作区代码，然后调用 restart_project_runtime（必要时）并再次调用 auto_test_mobile_preview 复验；最多复验 1 轮。若没有明确问题，说明具体视觉证据，不要为了凑轮次修改代码。只检查手机 390×780，不检查 Network、电脑或平板。'
+              ? (isVisionSupported
+                ? '\n\n### 📱 手机自测视觉闭环（强制）\n本轮已提供 mobile-baseline 与 mobile-final 真实截图。请实际比较两张截图，并结合 auto_test_mobile_preview 的动作证据判断页面是否真的响应；“动作 API 成功”不等于 UI 正确。若发现明确 UI/UX 问题，下一轮必须直接修改工作区代码，然后调用 restart_project_runtime（必要时）并再次调用 auto_test_mobile_preview 复验；最多复验 1 轮。若没有明确问题，说明具体视觉证据，不要为了凑轮次修改代码。只检查手机 390×780，不检查 Network、电脑或平板。'
+                : '\n\n### 📱 手机自测程序化闭环（当前模型无视觉能力）\n截图已生成但不会作为模型可读图片提供。只能依据 discover_mobile_preview、交互结果、元素可见性与几何、Accessibility、runtime/HTTP、visualDelta 和 failureClass 判断；不得声称看到了截图。纯视觉缺陷若无法由结构化证据证明，必须标记为“需要视觉模型复核”。发现明确程序问题后直接修改并 restart_project_runtime + auto_test_mobile_preview 复验；最多复验 1 轮。只检查手机 390×780，不检查 Network、电脑或平板。')
               : '';
             const phaseFeedback = buildAgentLoopFeedback(
               agentLoopState,
