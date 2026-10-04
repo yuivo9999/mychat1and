@@ -297,7 +297,9 @@ export async function installWorkspaceDependencies(workspaceId: string, timeoutM
         exitCode: typeof parsed?.exitCode === 'number' ? parsed.exitCode : (parsed?.success ? 0 : -1),
         error: parsed?.error,
         runtime: 'android',
-      };
+        failureCategory: parsed?.failureCategory,
+        recoveredPreviousDependencies: parsed?.recoveredPreviousDependencies === true,
+      } as CodeExecutionResult & { failureCategory?: string; recoveredPreviousDependencies?: boolean };
     } catch (error: any) {
       return { success: false, stdout: '', stderr: '', exitCode: -1, error: error?.message || String(error), runtime: 'android' };
     }
