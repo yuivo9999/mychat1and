@@ -13,9 +13,21 @@ function fail(message) { console.error('[npm-runtime] ERROR:', message); process
 function findNpmDir(explicitPath) {
   const candidates = [];
   if (explicitPath) candidates.push(path.resolve(explicitPath));
+  if (process.env.npm_execpath) candidates.push(path.dirname(path.resolve(process.env.npm_execpath)));
   if (process.execPath) candidates.push(path.join(path.dirname(process.execPath), 'node_modules', 'npm'));
   if (process.env.NPM_HOME) candidates.push(path.join(process.env.NPM_HOME, 'node_modules', 'npm'));
-  for (const dir of candidates) if (fs.existsSync(path.join(dir, 'bin', 'npm-cli.js'))) return dir;
+
+  // Node distributions used by CI and package managers commonly install npm
+  // under a global prefix rather than next to the node executable.
+  try {
+    const root = require('node:child_process')
+      .execFileSync('npm', ['root', '-g'], { encoding: 'utf8' }).trim();
+    if (root) candidates.push(path.join(root, 'npm'));
+  } catch {}
+
+  for (const dir of [...new Set(candidates)]) {
+    if (fs.existsSync(path.join(dir, 'bin', 'npm-cli.js'))) return dir;
+  }
   return null;
 }
 const source = findNpmDir(explicit);
