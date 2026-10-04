@@ -965,6 +965,27 @@ export async function executeWorkspaceTool(
         };
       }
 
+      // Android compatibility: if the caller supplied raw Python source,
+      // do not force the model to remember "python -c" syntax.
+      if (looksLikePythonSource(command)) {
+        const runData = await executeCode({ language: 'python', code: command, timeoutMs: 20_000 });
+        if (runData.success) {
+          return {
+            result: { stdout: runData.stdout, stderr: runData.stderr, exitCode: runData.exitCode, runtime: runData.runtime },
+            updatedWorkspace: ws,
+            stepIcon: 'lightning',
+            stepTitle: `成功执行 Python 源码（${runData.runtime === 'android' ? 'Android 原生运行时' : '服务器运行时'}）`,
+          };
+        }
+        return {
+          result: { stdout: runData.stdout, stderr: runData.stderr, exitCode: runData.exitCode, error: runData.error, runtime: runData.runtime },
+          updatedWorkspace: ws,
+          errorMessage: runData.error || runData.stderr || `Python 执行失败，退出码: ${runData.exitCode}`,
+          stepIcon: 'lightning',
+          stepTitle: `Python 执行出错（${runData.runtime}）`,
+        };
+      }
+
       try {
         const res = await fetch('/api/execute-script', {
           method: 'POST',
