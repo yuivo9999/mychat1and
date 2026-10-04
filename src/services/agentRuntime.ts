@@ -164,8 +164,8 @@ export async function executeAgentRuntime(request: AgentRuntimeRequest): Promise
         // python3 executable; Python is embedded and Node is bundled separately.
         const trimmed = code.trim();
 
-        if (/^(?:python3?|py)(?:\\s|$)/i.test(trimmed) && typeof b.executePython === 'function') {
-          const pythonCommand = trimmed.replace(/^(?:python3?|py)\\s*/i, '');
+        if (/^(?:python3?|py)(?:\s|$)/i.test(trimmed) && typeof b.executePython === 'function') {
+          const pythonCommand = trimmed.replace(/^(?:python3?|py)\s*/i, '');
           if (!pythonCommand) {
             return {
               success: false,
@@ -179,8 +179,8 @@ export async function executeAgentRuntime(request: AgentRuntimeRequest): Promise
           }
 
           let pythonSource: string | null = null;
-          if (/^-c(?:\\s|$)/i.test(pythonCommand)) {
-            const expression = pythonCommand.replace(/^-c\\s*/i, '').trim();
+          if (/^-c(?:\s|$)/i.test(pythonCommand)) {
+            const expression = pythonCommand.replace(/^-c\s*/i, '').trim();
             try {
               pythonSource = JSON.parse(expression);
             } catch {
@@ -189,8 +189,8 @@ export async function executeAgentRuntime(request: AgentRuntimeRequest): Promise
                 ? expression.slice(1, -1).replace(/\\n/g, '\\n').replace(/\\(['"])/g, '$1')
                 : expression;
             }
-          } else if (/^(?:-u\\s+)?[^\\s]+\\.py(?:\\s|$)/i.test(pythonCommand) && b.readWorkspaceFile) {
-            const scriptPath = pythonCommand.replace(/^-u\\s+/i, '').split(/\\s+/)[0];
+          } else if (/^(?:-u\s+)?[^\s]+\\.py(?:\s|$)/i.test(pythonCommand) && b.readWorkspaceFile) {
+            const scriptPath = pythonCommand.replace(/^-u\s+/i, '').split(/\s+/)[0];
             const raw = await b.readWorkspaceFile(request.workspaceId || '', scriptPath);
             const file = typeof raw === 'string' ? JSON.parse(raw) : (raw as any);
             if (!file?.exists || typeof file.content !== 'string') {
