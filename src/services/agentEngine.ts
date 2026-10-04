@@ -1555,7 +1555,28 @@ export async function executeWorkspaceTool(
         const error = discovery.error || baseline.error || '没有足够的真实页面证据生成手机测试路径。';
         return { result: { success: false, viewport: 'mobile-390x780', discovery, plan, error }, updatedWorkspace: ws, errorMessage: error, stepIcon: 'lightning', stepTitle: '手机自测无法生成测试路径' };
       }
-      const flow = await executeAgentTool('run_mobile_preview_flow', { steps, screenshotEveryStep: true }, ws);
+      const evidence: Array<Record<string, any>> = [];
+      let failedAt = -1;
+      let failure: string | undefined;
+      evidence.push({ index: 0, phase: 'baseline', screenshot: baseline.success ? { width: baseline.width, height: baseline.height, dataUrl: baseline.dataUrl } : null, screenshotError: baseline.success ? undefined : baseline.error });
+      for (let i = 0; i < steps.length; i += 1) {
+        const step = steps[i];
+        const interaction = interactProjectPreview(ws.id, step.action as any, { target: step.target, value: step.value, x: step.x, y: step.y });
+        const item: Record<string, any> = { index: i + 1, action: step, interaction, viewport: 'mobile-390x780' };
+        const shot = captureProjectRuntimeScreenshot(ws.id, 72, 'mobile');
+        item.screenshot = shot.success ? { width: shot.width, height: shot.height, dataUrl: shot.dataUrl } : null;
+        item.screenshotError = shot.success ? undefined : shot.error;
+        evidence.push(item);
+        if (!interaction.success) { failedAt = i + 1; failure = interaction.error || '手机预览交互失败'; break; }
+      }
+      const flow = { result: {
+        success: failedAt === -1, visualVerificationRequired: true, viewport: 'mobile-390x780',
+        stepCount: steps.length, completedSteps: failedAt === -1 ? steps.length : failedAt - 1,
+        failedAt: failedAt === -1 ? null : failedAt, failure: failure || null, evidence,
+        repairHint: failedAt === -1
+          ? '动作链执行完成。请结合 baseline 与最后截图判断按钮状态、输入结果、滚动位置、键盘遮挡、溢出与空白区域；若发现明确 UI 问题，直接修复后重新执行同一流程。'
+          : '先根据失败动作与对应截图定位问题。修复代码后重新启动/检查项目，再重新执行流程验证；不要把 selector 跨域失败误判成业务按钮不存在。'
+      }};
       const result = {
         success: flow?.result?.success === true,
         viewport: 'mobile-390x780',
