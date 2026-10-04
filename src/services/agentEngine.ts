@@ -1577,7 +1577,11 @@ export async function executeWorkspaceTool(
         plan.push({ action: 'wait', value: '500' });
         if (includeScroll) plan.push({ action: 'scroll', value: '480' });
       }
-      const steps = plan.slice(0, maxSteps);
+      // 去重连续等待，避免有限步数被无意义等待占用；优先保留真实交互和滚动。
+      const normalizedPlan = plan.filter((step: PlannedStep, index: number, arr: PlannedStep[]) => (
+        step.action !== 'wait' || (index > 0 && arr[index - 1]?.action !== 'wait')
+      ));
+      const steps = normalizedPlan.slice(0, maxSteps);
       if (!steps.length) {
         const error = discovery.error || baseline.error || '没有足够的真实页面证据生成手机测试路径。';
         return { result: { success: false, viewport: 'mobile-390x780', discovery, plan, error }, updatedWorkspace: ws, errorMessage: error, stepIcon: 'lightning', stepTitle: '手机自测无法生成测试路径' };
