@@ -169,6 +169,11 @@ export const WORKSPACE_TOOLS_SPEC = [
     parameters: { type: 'object', properties: {} },
   },
   {
+    name: 'check_runtime',
+    description: '执行 MyChat Android 运行时冒烟检查：验证 Node.js、npm，以及 npm lifecycle 能否通过 PATH 找到 node。Node 项目执行构建/测试前建议先调用。',
+    parameters: { type: 'object', properties: {} },
+  },
+  {
     name: 'install_dependencies',
     description: '根据项目类型安装运行依赖。Node/TypeScript 项目使用 npm install；执行后必须读取输出，若失败应分析错误再修改项目。',
     parameters: { type: 'object', properties: {} },
@@ -312,6 +317,7 @@ ${corePrinciples}
 
 ### 阶段 0：项目运行时识别与验证闭环 (Runtime)
 - 只要任务涉及“写代码、修 Bug、重构、构建、测试、打包”，先调用 `inspect_project`，不要凭经验猜项目类型。
+- Node/TypeScript/React/Vite 等项目在 Android runtime 上开始构建/测试前，优先调用 `check_runtime`；若 Node/npm/lifecycle 检查失败，先修复运行时桥接或明确报告环境限制，不要把运行时故障误判为业务代码错误。
 - Node/TypeScript/React/Vite 等项目：先识别 package.json 与 scripts；必要时调用 `install_dependencies`，然后调用 `run_project_check`。
 - 检查失败时，把 stdout/stderr/退出码当作真实证据：定位错误文件与行号 → 读取相关代码 → 修改 → 再次检查。
 - 验证必须形成“失败证据 → 定位 → 修改 → 再验证”的闭环；如果同一检查命令连续失败且代码没有发生针对性变化，不得机械重复。
@@ -1011,6 +1017,58 @@ export async function executeWorkspaceTool(
         updatedWorkspace: ws,
         stepIcon: 'search',
         stepTitle: '识别项目运行时: ' + info.kind,
+      };
+    }
+
+    case 'check_runtime': {
+      const checks = [
+        { name: 'node', command: 'node --version' },
+        { name: 'npm', command: 'npm --version' },
+        { name: 'npm-lifecycle-node', command: 'npm exec -- node --version' },
+      ];
+      const results: Array<Record<string, any>> = [];
+      for (const check of checks) {
+        const runData = await executeCode({
+          language: 'shell',
+          code: check.command,
+          timeoutMs: 30_000,
+          workspaceId: ws.id,
+        });
+        results.push({
+          name: check.name,
+          command: check.command,
+          success: runData.success,
+          stdout: runData.stdout,
+          stderr: runData.stderr,
+          exitCode: runData.exitCode,
+          error: runData.error,
+          runtime: runData.runtime,
+        });
+        if (!runData.success) break;
+      }
+
+      const failed = results.find(item => !item.success);
+      const result = {
+        supported: !failed,
+        checks: results,
+        summary: failed
+          ? `运行时检查失败: ${failed.name}`
+          : 'Node.js、npm 与 npm lifecycle 的 node PATH 均可用',
+      };
+      if (!failed) {
+        return {
+          result,
+          updatedWorkspace: ws,
+          stepIcon: 'code',
+          stepTitle: 'Android Node/npm 运行时检查通过',
+        };
+      }
+      return {
+        result,
+        updatedWorkspace: ws,
+        errorMessage: `${result.summary}。请根据 stderr/stdout 定位 Android runtime 问题，不要直接修改业务代码。`,
+        stepIcon: 'lightning',
+        stepTitle: result.summary,
       };
     }
 
