@@ -10,6 +10,10 @@ import androidx.webkit.WebViewAssetLoader
 import android.webkit.WebChromeClient
 import android.webkit.ConsoleMessage
 import android.util.Log
+import android.view.WindowInsets
+import android.view.WindowManager
+import androidx.webkit.WebSettingsCompat
+import androidx.webkit.WebViewFeature
 import org.json.JSONObject
 import com.chaquo.python.Python
 import java.io.File
@@ -28,6 +32,10 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Hide the Android status bar so the Web UI header is never overlapped by system chrome.
+        window.setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN)
+        window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+
         val assetLoader = WebViewAssetLoader.Builder()
             .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
             .build()
@@ -37,6 +45,11 @@ class MainActivity : Activity() {
             settings.domStorageEnabled = true
             settings.allowFileAccess = true
             settings.allowContentAccess = true
+            // The web app owns its complete theme palette. Do not let Android/WebView
+            // algorithmically darken custom themes and change their colors.
+            if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
+                WebSettingsCompat.setAlgorithmicDarkeningAllowed(settings, false)
+            }
             webViewClient = object : WebViewClient() {
                 override fun shouldInterceptRequest(
                     view: WebView,
@@ -297,44 +310,69 @@ class AndroidBridge(
         body: String,
         timeoutMs: Int,
     ): String {
+        // JavascriptInterface calls execute on the WebView/UI thread. Network I/O must
+        // happen off that thread or Android can reject it with NetworkOnMainThreadException.
+        val future = executor.submit(Callable {
+            try {
+                val headers = JSONObject(headersJson.ifBlank { "{}" })
+                val connection = (URL(url).openConnection() as HttpURLConnection).apply {
+                    requestMethod = method.uppercase()
+                    connectTimeout = timeoutMs.coerceIn(1000, 30000)
+                    readTimeout = timeoutMs.coerceIn(1000, 30000)
+                    instanceFollowRedirects = true
+                    useCaches = false
+                    doInput = true
+                    if (requestMethod !in setOf("GET", "HEAD")) doOutput = true
+
+                    val keys = headers.keys()
+                    while (keys.hasNext()) {
+                        val key = keys.next()
+                        setRequestProperty(key, headers.optString(key))
+                    }
+                }
+
+                if (connection.requestMethod !in setOf("GET", "HEAD") && body.isNotEmpty()) {
+                    connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+                }
+
+                val status = connection.responseCode
+                val stream = if (status >= 400) connection.errorStream else connection.inputStream
+                val responseBody = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
+                val responseHeaders = JSONObject()
+                connection.headerFields.forEach { (key, values) ->
+                    if (key != null && !values.isNullOrEmpty()) {
+                        responseHeaders.put(key, values.joinToString(", "))
+                    }
+                }
+                connection.disconnect()
+
+                JSONObject()
+                    .put("ok", status in 200..299)
+                    .put("status", status)
+                    .put("body", responseBody)
+                    .put("headers", responseHeaders)
+                    .toString()
+            } catch (e: Throwable) {
+                JSONObject()
+                    .put("ok", false)
+                    .put("status", 0)
+                    .put("body", "")
+                    .put("headers", JSONObject())
+                    .put("error", e.message ?: e.javaClass.simpleName)
+                    .toString()
+            }
+        })
+
         return try {
-            val headers = JSONObject(headersJson.ifBlank { "{}" })
-            val connection = (URL(url).openConnection() as HttpURLConnection).apply {
-                requestMethod = method.uppercase()
-                connectTimeout = timeoutMs.coerceIn(1000, 30000)
-                readTimeout = timeoutMs.coerceIn(1000, 30000)
-                instanceFollowRedirects = true
-                useCaches = false
-                doInput = true
-                if (requestMethod !in setOf("GET", "HEAD")) doOutput = true
-
-                val keys = headers.keys()
-                while (keys.hasNext()) {
-                    val key = keys.next()
-                    setRequestProperty(key, headers.optString(key))
-                }
-            }
-
-            if (connection.requestMethod !in setOf("GET", "HEAD") && body.isNotEmpty()) {
-                connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
-            }
-
-            val status = connection.responseCode
-            val stream = if (status >= 400) connection.errorStream else connection.inputStream
-            val responseBody = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
-            val responseHeaders = JSONObject()
-            connection.headerFields.forEach { (key, values) ->
-                if (key != null && !values.isNullOrEmpty()) {
-                    responseHeaders.put(key, values.joinToString(", "))
-                }
-            }
-            connection.disconnect()
-
+            future.get(timeoutMs.coerceIn(1000, 30000).toLong() + 1000L, TimeUnit.MILLISECONDS)
+        } catch (e: java.util.concurrent.TimeoutException) {
+            future.cancel(true)
             JSONObject()
-                .put("ok", status in 200..299)
-                .put("status", status)
-                .put("body", responseBody)
-                .put("headers", responseHeaders)
+                .put("ok", false)
+                .put("status", 0)
+                .put("body", "")
+                .put("headers", JSONObject())
+                .put("error", "Native HTTP request timed out")
                 .toString()
         } catch (e: Throwable) {
             JSONObject()
