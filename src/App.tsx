@@ -1324,7 +1324,7 @@ export default function App() {
                     } else {
                       const updatedProject = tc.tool === 'archive_project_memory'
                         ? archiveProjectMemoryRecord(project, recordId)
-                        : updateProjectMemoryRecord(project, recordId, { content: typeof tc.args.content === 'string' ? tc.args.content : undefined, status: ['active', 'superseded', 'archived'].includes(tc.args.status) ? tc.args.status : undefined });
+                        : updateProjectMemoryRecord(project, recordId, { content: typeof tc.args.content === 'string' ? tc.args.content : undefined, status: ['active', 'superseded', 'archived'].includes(tc.args.status) ? tc.args.status : undefined, reason: typeof tc.args.reason === 'string' ? tc.args.reason : undefined });
                       saveProject(updatedProject);
                       setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
                       const updatedRecord = getProjectMemoryRecords(updatedProject, true, 60).find(r => r.id === recordId);
