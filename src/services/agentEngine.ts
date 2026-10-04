@@ -922,6 +922,37 @@ export async function executeWorkspaceTool(
       }
     }
 
+    case 'run_python': {
+      const code = String(args.code || '');
+      if (!code.trim()) {
+        return {
+          result: null,
+          updatedWorkspace: ws,
+          errorMessage: 'Python 代码为空。',
+          stepIcon: 'lightning',
+          stepTitle: '尝试执行 Python（代码为空）',
+        };
+      }
+
+      const runData = await executeCode({ language: 'python', code, timeoutMs: 20_000 });
+      if (runData.success) {
+        return {
+          result: { stdout: runData.stdout, stderr: runData.stderr, exitCode: runData.exitCode, runtime: runData.runtime },
+          updatedWorkspace: ws,
+          stepIcon: 'lightning',
+          stepTitle: `成功执行 Python（${runData.runtime === 'android' ? 'Android 原生运行时' : '服务器运行时'}）`,
+        };
+      }
+
+      return {
+        result: { stdout: runData.stdout, stderr: runData.stderr, exitCode: runData.exitCode, error: runData.error, runtime: runData.runtime },
+        updatedWorkspace: ws,
+        errorMessage: runData.error || runData.stderr || `Python 执行失败，退出码: ${runData.exitCode}`,
+        stepIcon: 'lightning',
+        stepTitle: `Python 执行出错（${runData.runtime}）`,
+      };
+    }
+
     case 'run_command': {
       const command = String(args.command || '').trim();
       if (!command) {
