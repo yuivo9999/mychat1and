@@ -191,7 +191,7 @@ export const WORKSPACE_TOOLS_SPEC = [
   },
   {
     name: 'run_python',
-    description: '执行 Python 源代码。直接传入 Python 代码即可，不需要写 python -c；MyChat 会自动选择 Android 原生 Python 运行时或服务器 Python 运行时。此工具在“运行脚本与命令”权限开启时可用。',
+    description: '执行 Python 源代码。直接传入 Python 代码即可，不需要写 python -c；统一 Agent Runtime 自动选择当前可用的 Python 实现。AI 不需要知道底层平台。此工具在“运行脚本与命令”权限开启时可用。',
     parameters: {
       type: 'object',
       properties: {
