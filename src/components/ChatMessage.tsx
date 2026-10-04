@@ -15,6 +15,7 @@ import {
   FileText,
   Eye,
   FileCode,
+  FolderOpen,
   Globe,
   BarChart2,
   X
@@ -39,6 +40,7 @@ interface ChatMessageProps {
   onDownloadWorkspaceZip?: () => void;
   currentWorkspace?: any;
   onSaveWorkspace?: (workspace: any) => void;
+  onOpenWorkspace?: () => void;
 }
 
 export const ChatMessage: React.FC<ChatMessageProps> = ({
@@ -54,6 +56,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   onDownloadWorkspaceZip,
   currentWorkspace,
   onSaveWorkspace,
+  onOpenWorkspace,
 }) => {
   const isUser = message.role === 'user';
   const [copied, setCopied] = useState(false);
@@ -395,12 +398,15 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
         };
         onSaveWorkspace(updatedWorkspace);
         
-        // Visual indicator on the button
+        // Visual indicator on the button, then offer a direct path into the workspace.
         const span = addWorkspaceBtn.querySelector('span');
         if (span) {
           const original = span.innerText;
           span.innerText = '已加入工作区!';
           setTimeout(() => { span.innerText = original; }, 2000);
+        }
+        if (onOpenWorkspace) {
+          window.setTimeout(() => onOpenWorkspace(), 180);
         }
       }
       return;
