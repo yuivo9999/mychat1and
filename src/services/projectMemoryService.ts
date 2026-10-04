@@ -294,7 +294,7 @@ export function getProjectMemoryRecords(
 export function updateProjectMemoryRecord(
   project: Project,
   recordId: string,
-  patch: { content?: string; status?: ProjectMemoryRecord['status'] }
+  patch: { content?: string; status?: ProjectMemoryRecord['status']; reason?: string }
 ): Project {
   const records = migrateLegacyRecords(project).map(r => ({ ...r }));
   const target = records.find(r => r.id === recordId);
@@ -305,6 +305,7 @@ export function updateProjectMemoryRecord(
   if (patch.status) target.status = patch.status;
   target.updatedAt = Date.now();
   target.confidence = memoryConfidence(target.content, target.updatedAt);
+  if (patch.reason?.trim()) target.resolutionReason = normalizeDecision(patch.reason);
   if (target.status === 'active') target.supersededById = undefined;
   const activeKeyPoints = records.filter(r => r.status === 'active').sort((a,b) => b.updatedAt-a.updatedAt).slice(0, MAX_ACTIVE_MEMORY_RECORDS).map(r => r.content);
   return { ...project, updatedAt: Date.now(), sharedMemory: { ...project.sharedMemory, keyPoints: activeKeyPoints, records } };
