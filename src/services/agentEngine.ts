@@ -12,7 +12,7 @@ import {
 } from './workspaceService';
 import { formatChatContextPrompt, detectWorkspaceIntent, WorkspaceIntent } from './chatContextService';
 import { ChatContext } from '../types/workspace';
-import { executeCode, looksLikePythonSource } from './codeExecutionAdapter';
+import { executeCode, looksLikePythonSource, getWorkspaceNodeRuntimeState } from './codeExecutionAdapter';
 import { buildProjectRuntimeReport, inspectProjectRuntime } from './projectRuntimeService';
 
 export { detectWorkspaceIntent, type WorkspaceIntent };
@@ -1012,8 +1012,24 @@ export async function executeWorkspaceTool(
 
     case 'inspect_project': {
       const info = inspectProjectRuntime(ws);
+      const report = JSON.parse(buildProjectRuntimeReport(ws)) as Record<string, any>;
+      if (info.kind === 'node') {
+        const runtimeState = await getWorkspaceNodeRuntimeState(ws.id);
+        report.androidWorkspaceRuntime = runtimeState || {
+          available: false,
+          reason: '当前运行环境未暴露 Android workspace runtime 状态接口',
+        };
+        report.dependencies = runtimeState
+          ? {
+              status: runtimeState.nodeModulesExists ? 'present' : 'missing',
+              nodeModulesCount: runtimeState.nodeModulesCount,
+              persistent: runtimeState.runtimePersistent,
+              packageLockExists: runtimeState.packageLockExists,
+            }
+          : { status: 'unknown' };
+      }
       return {
-        result: JSON.parse(buildProjectRuntimeReport(ws)),
+        result: report,
         updatedWorkspace: ws,
         stepIcon: 'search',
         stepTitle: '识别项目运行时: ' + info.kind,
@@ -1085,12 +1101,27 @@ export async function executeWorkspaceTool(
           stepTitle: '依赖安装暂不支持: ' + info.kind,
         };
       }
+      const beforeState = await getWorkspaceNodeRuntimeState(ws.id);
       const runData = await executeCode({ language: 'shell', code: info.dependencyInstallCommand, timeoutMs: 120_000, workspaceId: ws.id });
+      const afterState = await getWorkspaceNodeRuntimeState(ws.id);
       if (runData.success) {
         return {
-          result: { command: info.dependencyInstallCommand, stdout: runData.stdout, stderr: runData.stderr, exitCode: runData.exitCode, runtime: runData.runtime },
+          result: {
+            command: info.dependencyInstallCommand,
+            stdout: runData.stdout,
+            stderr: runData.stderr,
+            exitCode: runData.exitCode,
+            runtime: runData.runtime,
+            dependencyState: {
+              before: beforeState,
+              after: afterState,
+              persisted: !!afterState?.nodeModulesExists,
+            },
+          },
           updatedWorkspace: ws, stepIcon: 'lightning',
-          stepTitle: '依赖安装成功: ' + info.dependencyInstallCommand,
+          stepTitle: afterState?.nodeModulesExists
+            ? '依赖安装成功，并已持久化到当前工作区'
+            : '依赖安装成功，但未确认 node_modules 持久化',
         };
       }
       return {
