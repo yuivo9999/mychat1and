@@ -316,9 +316,9 @@ ${corePrinciples}
 当 Agent 模式开启时，系统支持你在一个交互任务中【多次连续被调用（支持最高 12 轮自主交互）】。你应充分利用多轮自主迭代的能力，按部就班地完成从“查阅探查”到“多文件协同修改”的全闭环：
 
 ### 阶段 0：项目运行时识别与验证闭环 (Runtime)
-- 只要任务涉及“写代码、修 Bug、重构、构建、测试、打包”，先调用 `inspect_project`，不要凭经验猜项目类型。
-- Node/TypeScript/React/Vite 等项目在 Android runtime 上开始构建/测试前，优先调用 `check_runtime`；若 Node/npm/lifecycle 检查失败，先修复运行时桥接或明确报告环境限制，不要把运行时故障误判为业务代码错误。
-- Node/TypeScript/React/Vite 等项目：先识别 package.json 与 scripts；必要时调用 `install_dependencies`，然后调用 `run_project_check`。
+- 只要任务涉及“写代码、修 Bug、重构、构建、测试、打包”，先调用 \`inspect_project\`，不要凭经验猜项目类型。
+- Node/TypeScript/React/Vite 等项目在 Android runtime 上开始构建/测试前，优先调用 \`check_runtime\`；若 Node/npm/lifecycle 检查失败，先修复运行时桥接或明确报告环境限制，不要把运行时故障误判为业务代码错误。
+- Node/TypeScript/React/Vite 等项目：先识别 package.json 与 scripts；必要时调用 \`install_dependencies\`，然后调用 \`run_project_check\`。
 - 检查失败时，把 stdout/stderr/退出码当作真实证据：定位错误文件与行号 → 读取相关代码 → 修改 → 再次检查。
 - 验证必须形成“失败证据 → 定位 → 修改 → 再验证”的闭环；如果同一检查命令连续失败且代码没有发生针对性变化，不得机械重复。
 - 单次任务默认最多 3 次“项目检查失败后的修复验证”，超过后停止自动尝试并向用户报告剩余错误与环境限制；不要为了追求绿色结果而盲目改代码。
