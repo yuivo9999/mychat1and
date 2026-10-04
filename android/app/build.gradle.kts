@@ -1,6 +1,6 @@
 plugins {
     id("com.android.application")
-    id("com.chaquopy.python")
+    id("com.chaquo.python")
 }
 
 import org.gradle.api.tasks.Copy
