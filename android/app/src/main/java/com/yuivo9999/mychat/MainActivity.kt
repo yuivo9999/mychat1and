@@ -794,13 +794,16 @@ class AndroidBridge(
                         const nodes = Array.from(doc.querySelectorAll(selectors)).slice(0,60);
                         const elements = nodes.map((el, index) => {
                           const r = el.getBoundingClientRect();
-                          const text = String(el.innerText || el.value || el.getAttribute('aria-label') || el.getAttribute('title') || '').trim().replace(/\\s+/g,' ').slice(0,120);
+                          const rawValue = 'value' in el ? String(el.value || '') : '';
+                          const text = String(el.innerText || rawValue || el.getAttribute('aria-label') || el.getAttribute('title') || '').trim().replace(/\\s+/g,' ').slice(0,120);
                           const id = el.id ? '#' + CSS.escape(el.id) : '';
                           const testId = el.getAttribute('data-testid');
                           const selector = id || (testId ? '[data-testid="' + CSS.escape(testId) + '"]' : '');
-                          return {index,tag:el.tagName.toLowerCase(),role:el.getAttribute('role')||'',type:el.getAttribute('type')||'',text,aria:el.getAttribute('aria-label')||'',title:el.getAttribute('title')||'',disabled:!!el.disabled,visible:r.width>0&&r.height>0,x:Math.round(r.left),y:Math.round(r.top),width:Math.round(r.width),height:Math.round(r.height),selector};
+                          return {index,tag:el.tagName.toLowerCase(),role:el.getAttribute('role')||'',type:el.getAttribute('type')||'',text,aria:el.getAttribute('aria-label')||'',title:el.getAttribute('title')||'',value:rawValue.slice(0,160),focused:doc.activeElement===el,disabled:!!el.disabled,visible:r.width>0&&r.height>0,x:Math.round(r.left),y:Math.round(r.top),width:Math.round(r.width),height:Math.round(r.height),selector};
                         }).filter(e => e.visible);
-                        return JSON.stringify({success:true,crossOrigin:false,workspaceId,viewport:"mobile-390x780",count:elements.length,elements,durationMs:Date.now()});
+                        const active = doc.activeElement;
+                        const scrollRoot = doc.scrollingElement || doc.documentElement;
+                        return JSON.stringify({success:true,crossOrigin:false,workspaceId,viewport:"mobile-390x780",count:elements.length,elements,activeTag:active?.tagName?.toLowerCase()||"",activeText:String(active?.value||active?.innerText||active?.getAttribute?.("aria-label")||"").slice(0,160),scrollTop:Math.round(scrollRoot?.scrollTop||0),scrollHeight:Math.round(scrollRoot?.scrollHeight||0),clientHeight:Math.round(scrollRoot?.clientHeight||0),durationMs:Date.now()});
                       } catch (e) { return JSON.stringify({success:false,crossOrigin:true,error:"无法读取 iframe DOM：" + (e?.message || e)}); }
                     })()
                 """.trimIndent()
