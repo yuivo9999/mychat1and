@@ -77,31 +77,31 @@ function cleanHtmlText(text: string): string {
     .replace(/&gt;/g, '>')
     .replace(/&middot;/g, '·')
     .replace(/&nbsp;/g, ' ')
-    .replace(/\\s+/g, ' ')
+    .replace(/\s+/g, ' ')
     .trim();
 }
 
 function extractTextFromHtml(html: string): { title: string; text: string } {
-  const titleMatch = html.match(/<title[^>]*>([\\s\\S]*?)<\\/title>/i);
+  const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
   const title = titleMatch ? cleanHtmlText(titleMatch[1]) : '网页内容';
   let clean = html
-    .replace(/<script\\b[^<]*(?:(?!<\\/script>)<[^<]*)*<\\/script>/gi, ' ')
-    .replace(/<style\\b[^<]*(?:(?!<\\/style>)<[^<]*)*<\\/style>/gi, ' ')
-    .replace(/<svg\\b[^<]*(?:(?!<\\/svg>)<[^<]*)*<\\/svg>/gi, ' ')
-    .replace(/<noscript\\b[^<]*(?:(?!<\\/noscript>)<[^<]*)*<\\/noscript>/gi, ' ')
-    .replace(/<header\\b[^<]*(?:(?!<\\/header>)<[^<]*)*<\\/header>/gi, ' ')
-    .replace(/<footer\\b[^<]*(?:(?!<\\/footer>)<[^<]*)*<\\/footer>/gi, ' ');
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, ' ')
+    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, ' ')
+    .replace(/<svg\b[^<]*(?:(?!<\/svg>)<[^<]*)*<\/svg>/gi, ' ')
+    .replace(/<noscript\b[^<]*(?:(?!<\/noscript>)<[^<]*)*<\/noscript>/gi, ' ')
+    .replace(/<header\b[^<]*(?:(?!<\/header>)<[^<]*)*<\/header>/gi, ' ')
+    .replace(/<footer\b[^<]*(?:(?!<\/footer>)<[^<]*)*<\/footer>/gi, ' ');
   clean = cleanHtmlText(clean);
   return { title, text: clean.slice(0, 8000) };
 }
 
 function parseRssItems(xmlText: string): WebSearchResult[] {
   const items: WebSearchResult[] = [];
-  const itemMatches = xmlText.match(/<item>[\\s\\S]*?<\\/item>/gi) || [];
+  const itemMatches = xmlText.match(/<item>[\s\S]*?<\/item>/gi) || [];
   for (const itemXml of itemMatches.slice(0, 8)) {
-    const titleMatch = itemXml.match(/<title>([\\s\\S]*?)<\\/title>/i);
-    const linkMatch = itemXml.match(/<link>([\\s\\S]*?)<\\/link>/i) || itemXml.match(/<guid[^>]*>([\\s\\S]*?)<\\/guid>/i);
-    const descMatch = itemXml.match(/<description>([\\s\\S]*?)<\\/description>/i);
+    const titleMatch = itemXml.match(/<title>([\s\S]*?)<\/title>/i);
+    const linkMatch = itemXml.match(/<link>([\s\S]*?)<\/link>/i) || itemXml.match(/<guid[^>]*>([\s\S]*?)<\/guid>/i);
+    const descMatch = itemXml.match(/<description>([\s\S]*?)<\/description>/i);
     const title = titleMatch ? cleanHtmlText(titleMatch[1]) : '';
     const url = linkMatch ? cleanHtmlText(linkMatch[1]) : '';
     const snippet = descMatch ? cleanHtmlText(descMatch[1]) : '';
@@ -112,11 +112,11 @@ function parseRssItems(xmlText: string): WebSearchResult[] {
 
 function parseBingResults(html: string): WebSearchResult[] {
   const items: WebSearchResult[] = [];
-  const algoBlocks = html.split(/<li\\s+class=["']b_algo["']/i).slice(1);
+  const algoBlocks = html.split(/<li\s+class=["']b_algo["']/i).slice(1);
   for (const block of algoBlocks.slice(0, 8)) {
-    const titleMatch = block.match(/<h2[^>]*>[\\s\\S]*?<a[^>]*>([\\s\\S]*?)<\\/a><\\/h2>/i);
-    const linkMatch = block.match(/<h2[^>]*>[\\s\\S]*?<a\\s+[^>]*href=["']([^"']+)["']/i);
-    const snippetMatch = block.match(/<div\\s+class=["']b_caption["'][\\s\\S]*?<p[^>]*>([\\s\\S]*?)<\\/p>/i) || block.match(/<p[^>]*>([\\s\\S]*?)<\\/p>/i);
+    const titleMatch = block.match(/<h2[^>]*>[\s\S]*?<a[^>]*>([\s\S]*?)<\/a><\/h2>/i);
+    const linkMatch = block.match(/<h2[^>]*>[\s\S]*?<a\s+[^>]*href=["']([^"']+)["']/i);
+    const snippetMatch = block.match(/<div\s+class=["']b_caption["'][\s\S]*?<p[^>]*>([\s\S]*?)<\/p>/i) || block.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
     if (!titleMatch) continue;
     const title = cleanHtmlText(titleMatch[1]);
     const snippet = snippetMatch ? cleanHtmlText(snippetMatch[1]) : '';
@@ -127,7 +127,7 @@ function parseBingResults(html: string): WebSearchResult[] {
 }
 
 export function extractCleanQuery(text: string): { query: string; urls: string[] } {
-  const urlRegex = /https?:\\/\\/[^\\s<>"'()]+/gi;
+  const urlRegex = /https?:\/\/[^\s<>"'()]+/gi;
   const urls: string[] = [];
   let match;
   while ((match = urlRegex.exec(text)) !== null) urls.push(match[0]);
@@ -141,9 +141,9 @@ export function extractCleanQuery(text: string): { query: string; urls: string[]
   let deNoised = query;
   for (const re of conversationalFillers) deNoised = deNoised.replace(re, ' ').trim();
   if (deNoised.length >= 2) query = deNoised;
-  query = query.replace(/[，。！？、\\n\\r\\t]/g, ' ').replace(/\\s+/g, ' ').trim();
+  query = query.replace(/[，。！？、\n\r\t]/g, ' ').replace(/\s+/g, ' ').trim();
   if (!query && urls.length > 0) {
-    try { query = new URL(urls[0]).hostname.replace(/^www\\./, ''); } catch { query = urls[0]; }
+    try { query = new URL(urls[0]).hostname.replace(/^www\./, ''); } catch { query = urls[0]; }
   }
   if (query.length > 80) query = query.slice(0, 80);
   return { query: query || text.slice(0, 60), urls };
@@ -264,7 +264,7 @@ async function performNativeSearch(
   if (pageContents.length < 2) {
     const candidates = uniqueResults
       .map(r => r.url)
-      .filter(u => u.startsWith('http') && !/youtube\\.com|bilibili\\.com|bing\\.com|google\\.com/i.test(u))
+      .filter(u => u.startsWith('http') && !/youtube\.com|bilibili\.com|bing\.com|google\.com/i.test(u))
       .slice(0, 2);
     const crawled = await Promise.all(candidates.map(url => crawl(url, 5000)));
     pageContents.push(...crawled.filter(Boolean) as WebPageContent[]);
