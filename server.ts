@@ -429,9 +429,9 @@ async function startServer() {
     }
   });
 
-  // Context7 official documentation proxy. Keep the API key server-side.
+  // Context7 official documentation proxy. Uses the locally supplied key when available; server env remains a fallback.
   app.post('/api/context7/search', async (req, res) => {
-    const { query, library, language, version } = req.body || {};
+    const { query, library, language, version, apiKey: requestApiKey } = req.body || {};
     const cleanQuery = String(query || '').trim().slice(0, 2000);
     const cleanLibrary = library ? String(library).trim().slice(0, 200) : '';
     const cleanLanguage = language ? String(language).trim().slice(0, 80) : '';
@@ -441,7 +441,7 @@ async function startServer() {
       return res.status(400).json({ error: 'Context7 query is required.' });
     }
 
-    const apiKey = process.env.CONTEXT7_API_KEY;
+    const apiKey = String(requestApiKey || process.env.CONTEXT7_API_KEY || '').trim();
     if (!apiKey) {
       return res.status(503).json({
         error: 'Context7 未配置。请在服务器环境变量中设置 CONTEXT7_API_KEY。',
