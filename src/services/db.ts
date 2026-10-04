@@ -9,7 +9,7 @@ import {
 } from '../types';
 import { getRawModelId, buildUniqueModelId } from './modelUtils';
 import { abortActiveRequestControllers } from './adapters/base';
-import { requestAgentStop } from './agentOrchestrator';
+import { cleanupAgentStopRequest, requestAgentStop } from './agentOrchestrator';
 
 const DB_NAME = 'OmniChatLocalDB';
 const DB_VERSION = 4;
@@ -796,11 +796,7 @@ export async function stopAgentTask(conversationId: string, reason = '用户手�
     requestAgentStop(taskId);
     // Keep the stop marker briefly so stale promises that finish after abort()
     // are still rejected, then let the orchestrator TTL cleanup release it.
-    window.setTimeout(() => {
-      void import('./agentOrchestrator').then(({ cleanupAgentStopRequest }) => {
-        cleanupAgentStopRequest(taskId);
-      }).catch(() => {});
-    }, 10 * 60 * 1000);
+    setTimeout(() => cleanupAgentStopRequest(taskId), 10 * 60 * 1000);
   }
   if (!conversation?.agentTask) return false;
   const now = Date.now();
