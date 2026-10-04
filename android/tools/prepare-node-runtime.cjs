@@ -53,7 +53,7 @@ function extractDeb(deb, work) {
   // member directly so this works on Linux/macOS/Windows without depending on
   // the host having an ar utility.
   const archive = fs.readFileSync(path.resolve(deb));
-  const magic = Buffer.from('!<arch>\\n');
+  const magic = Buffer.from('!<arch>\n');
   if (!archive.subarray(0, magic.length).equals(magic)) {
     fail(`${deb}: 不是有效的 ar/.deb 文件`);
   }
@@ -71,7 +71,7 @@ function extractDeb(deb, work) {
     const end = start + size;
     if (end > archive.length) fail(`${deb}: ar 成员越界`);
 
-    if (/^data\\.tar\\.(xz|gz|zst)$/.test(name)) {
+    if (/^data\.tar\.(xz|gz|zst)$/.test(name)) {
       dataName = name;
       fs.writeFileSync(path.join(work, name), archive.subarray(start, end));
       break;
