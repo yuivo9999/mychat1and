@@ -222,6 +222,8 @@ export interface ProjectPreviewElement {
   text?: string;
   aria?: string;
   title?: string;
+  value?: string;
+  focused?: boolean;
   disabled?: boolean;
   visible?: boolean;
   x: number;
@@ -239,6 +241,11 @@ export interface ProjectPreviewElementDiscoveryResult {
   count?: number;
   elements?: ProjectPreviewElement[];
   error?: string;
+  activeTag?: string;
+  activeText?: string;
+  scrollTop?: number;
+  scrollHeight?: number;
+  clientHeight?: number;
   durationMs?: number;
 }
 
@@ -260,6 +267,11 @@ export function discoverProjectPreviewElements(workspaceId: string): ProjectPrev
       elements: Array.isArray(payload?.elements) ? payload.elements : undefined,
       error: typeof payload?.error === 'string' ? payload.error : undefined,
       durationMs: typeof payload?.durationMs === 'number' ? payload.durationMs : undefined,
+      activeTag: typeof payload?.activeTag === 'string' ? payload.activeTag : undefined,
+      activeText: typeof payload?.activeText === 'string' ? payload.activeText : undefined,
+      scrollTop: typeof payload?.scrollTop === 'number' ? payload.scrollTop : undefined,
+      scrollHeight: typeof payload?.scrollHeight === 'number' ? payload.scrollHeight : undefined,
+      clientHeight: typeof payload?.clientHeight === 'number' ? payload.clientHeight : undefined,
     };
   } catch (error: any) {
     return { success: false, workspaceId, viewport: 'mobile-390x780', error: error?.message || String(error) };
