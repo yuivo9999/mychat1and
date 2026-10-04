@@ -14,7 +14,7 @@ import { formatChatContextPrompt, detectWorkspaceIntent, WorkspaceIntent } from 
 import { ChatContext } from '../types/workspace';
 import { looksLikePythonSource, getWorkspaceNodeRuntimeState, markWorkspaceDependenciesInstalled, readWorkspaceFile } from './codeExecutionAdapter';
 import { executeAgentRuntime, getAgentRuntimeCapabilities, installAgentDependencies } from './agentRuntime';
-import { buildProjectRuntimeReport, inspectProjectRuntime } from './projectRuntimeService';
+import { buildProjectRuntimeReport, inspectProjectRuntime, getProjectRuntimeDiagnostics, startProjectRuntime, stopProjectRuntime } from './projectRuntimeService';
 
 export { detectWorkspaceIntent, type WorkspaceIntent };
 
@@ -188,6 +188,26 @@ export const WORKSPACE_TOOLS_SPEC = [
         command: { type: 'string', description: '可选检查命令；留空时使用项目检测得到的第一个推荐命令。' },
       },
     },
+  },
+  {
+    name: 'start_project_runtime',
+    description: '启动当前工作区的真实项目开发服务器，并返回进程、端口与启动状态。代码修改后需要真实运行项目时使用；仅对当前 Agent Runtime 支持的项目类型生效。',
+    parameters: { type: 'object', properties: {} },
+  },
+  {
+    name: 'inspect_project_runtime',
+    description: '读取当前项目真实运行状态：进程状态、PID、端口、HTTP 健康检查、最近 stdout/stderr，并给出结构化诊断。项目启动后或修改代码后优先使用。',
+    parameters: { type: 'object', properties: {} },
+  },
+  {
+    name: 'restart_project_runtime',
+    description: '停止当前项目进程并重新启动，然后返回新的运行状态。用于根据运行时错误完成一次修复后的重新验证。',
+    parameters: { type: 'object', properties: {} },
+  },
+  {
+    name: 'stop_project_runtime',
+    description: '停止当前工作区正在运行的真实项目进程。',
+    parameters: { type: 'object', properties: {} },
   },
   {
     name: 'run_python',
@@ -385,6 +405,7 @@ ${historySearchEnabled ? `
 ### 阶段 0：项目运行时识别与验证闭环 (Runtime)
 - 只要任务涉及“写代码、修 Bug、重构、构建、测试、打包”，先调用 \`inspect_project\`，不要凭经验猜项目类型。
 - Node/TypeScript/React/Vite 等项目在 Android runtime 上开始构建/测试前，优先调用 \`check_runtime\`；若 Node/npm/lifecycle 检查失败，先修复运行时桥接或明确报告环境限制，不要把运行时故障误判为业务代码错误。
+- 当任务要求运行项目或修复实际运行时报错时，先调用 start_project_runtime，再调用 inspect_project_runtime 获取真实进程、端口、HTTP 健康与 stdout/stderr 证据；若发现异常，修改代码后调用 restart_project_runtime，并围绕同一问题最多重复 3 次，确认健康后再进入下一阶段。
 - Node/TypeScript/React/Vite 等项目：先识别 package.json 与 scripts；必要时调用 \`install_dependencies\`，然后调用 \`run_project_check\`。
 - 检查失败时，把 stdout/stderr/退出码当作真实证据：定位错误文件与行号 → 读取相关代码 → 修改 → 再次检查。
 - 验证必须形成“失败证据 → 定位 → 修改 → 再验证”的闭环；如果同一检查命令连续失败且代码没有发生针对性变化，不得机械重复。
@@ -1333,6 +1354,34 @@ export async function executeWorkspaceTool(
         errorMessage: runData.error || runData.stderr || ('项目检查失败，退出码: ' + runData.exitCode),
         stepIcon: 'lightning', stepTitle: '项目检查失败: ' + command,
       };
+    }
+
+    case 'start_project_runtime': {
+      const state = startProjectRuntime(ws);
+      const result = { supported: state.supported, running: state.running, status: state.status, port: state.port, pid: state.pid, command: state.command, stderr: state.stderr };
+      if (state.status === 'error' || !state.supported) return { result, updatedWorkspace: ws, errorMessage: state.stderr || '当前项目无法通过 Android Agent Runtime 启动。', stepIcon: 'lightning', stepTitle: '项目运行启动失败' };
+      return { result, updatedWorkspace: ws, stepIcon: 'lightning', stepTitle: state.port ? '项目已启动，HTTP 端口: ' + state.port : '项目进程已启动，等待检测端口' };
+    }
+
+    case 'inspect_project_runtime': {
+      const diagnostics = getProjectRuntimeDiagnostics(ws.id);
+      const result = { ...diagnostics, runtime: { ...diagnostics.runtime, stdout: undefined, stderr: undefined } };
+      if (!diagnostics.healthy) return { result, updatedWorkspace: ws, errorMessage: diagnostics.diagnosis, stepIcon: 'lightning', stepTitle: '项目运行诊断：' + diagnostics.diagnosis.slice(0, 80) };
+      return { result, updatedWorkspace: ws, stepIcon: 'code', stepTitle: '项目运行正常' + (diagnostics.health?.latencyMs != null ? ' · ' + diagnostics.health.latencyMs + 'ms' : '') };
+    }
+
+    case 'restart_project_runtime': {
+      stopProjectRuntime(ws.id);
+      const state = startProjectRuntime(ws);
+      const diagnostics = getProjectRuntimeDiagnostics(ws.id);
+      const result = { restart: true, state, diagnostics };
+      if (!diagnostics.healthy && state.status === 'error') return { result, updatedWorkspace: ws, errorMessage: diagnostics.diagnosis, stepIcon: 'lightning', stepTitle: '项目重启失败' };
+      return { result, updatedWorkspace: ws, stepIcon: 'lightning', stepTitle: diagnostics.healthy ? '项目重启并健康检查通过' : '项目已重启，等待进一步诊断' };
+    }
+
+    case 'stop_project_runtime': {
+      stopProjectRuntime(ws.id);
+      return { result: { stopped: true, workspaceId: ws.id }, updatedWorkspace: ws, stepIcon: 'code', stepTitle: '已停止项目运行进程' };
     }
 
     case 'run_python': {
