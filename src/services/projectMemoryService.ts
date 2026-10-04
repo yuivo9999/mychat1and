@@ -1,4 +1,5 @@
 import { Project, Conversation, ProjectMemoryRecord } from '../types';
+import { extractKeyDecisionsFromTurn } from './chatContextService';
 
 const MAX_ACTIVE_MEMORY_RECORDS = 20;
 const MAX_STORED_MEMORY_RECORDS = 60;
@@ -89,8 +90,19 @@ function reconcileMemoryRecords(
 
   const candidates: ProjectMemoryRecord[] = [];
   for (const conv of projectConversations) {
-    const decisions = conv.chatContext?.importantDecisions || [];
-    decisions.forEach((decision, index) => {
+    const decisions = new Set(conv.chatContext?.importantDecisions || []);
+    const userMessages = conv.messages.filter(m => m.role === 'user').slice(-2);
+    const assistantMessages = conv.messages.filter(m => m.role === 'assistant').slice(-2);
+    if (userMessages.length > 0 && assistantMessages.length > 0) {
+      const latestUser = userMessages[userMessages.length - 1];
+      const latestAssistant = assistantMessages[assistantMessages.length - 1];
+      extractKeyDecisionsFromTurn(
+        latestUser.content,
+        latestAssistant.content,
+        latestAssistant.modifiedFiles || []
+      ).forEach(d => decisions.add(d));
+    }
+    Array.from(decisions).forEach((decision, index) => {
       const normalized = normalizeDecision(decision || '');
       if (normalized.length >= 6) candidates.push(buildRecord(normalized, conv, index));
     });
