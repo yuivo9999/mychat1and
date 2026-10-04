@@ -197,7 +197,7 @@ export function renderMarkdown(content: string, options: MarkdownOptions = {}): 
 
         if (isLongCode) {
           return `
-            <div class="code-block-wrapper my-3.5 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-900 dark:bg-neutral-950 text-neutral-100 overflow-hidden shadow-sm not-prose">
+            <div class="code-block-wrapper ai-content-unit ai-code-unit my-3.5 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-900 dark:bg-neutral-950 text-neutral-100 overflow-hidden shadow-sm not-prose" data-content-unit="code" data-language="${displayLang}" data-line-count="${lineCount}">
               <div class="code-header flex items-center justify-between px-3.5 py-1.5 bg-neutral-800/80 dark:bg-neutral-900/95 text-xs font-mono text-neutral-400 border-b border-neutral-700/50 dark:border-neutral-800 select-none">
                 <div class="flex items-center gap-2">
                   <span class="font-medium text-neutral-300 uppercase tracking-wider">${displayLang}</span>
@@ -221,7 +221,7 @@ export function renderMarkdown(content: string, options: MarkdownOptions = {}): 
         }
 
         return `
-          <div class="code-block-wrapper my-3.5 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-900 dark:bg-neutral-950 text-neutral-100 overflow-hidden shadow-sm not-prose">
+          <div class="code-block-wrapper ai-content-unit ai-code-unit my-3.5 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-900 dark:bg-neutral-950 text-neutral-100 overflow-hidden shadow-sm not-prose" data-content-unit="code" data-language="${displayLang}" data-line-count="${lineCount}">
             <div class="code-header flex items-center justify-between px-3.5 py-1.5 bg-neutral-800/80 dark:bg-neutral-900/95 text-xs font-mono text-neutral-400 border-b border-neutral-700/50 dark:border-neutral-800 select-none">
               <span class="font-medium text-neutral-300 uppercase tracking-wider">${displayLang}</span>
               <div class="flex items-center gap-1.5">
@@ -244,10 +244,10 @@ export function renderMarkdown(content: string, options: MarkdownOptions = {}): 
         return `<h${safeDepth} class="${headingClass}" data-heading-depth="${safeDepth}">${text}</h${safeDepth}>`;
       },
       paragraph({ text }: { text: string }) {
-        return `<p class="markdown-paragraph">${text}</p>`;
+        return `<p class="markdown-paragraph ai-content-unit" data-content-unit="paragraph">${text}</p>`;
       },
       hr() {
-        return '<hr class="markdown-divider" />';
+        return '<hr class="markdown-divider ai-content-unit" data-content-unit="divider" />';
       },
       list({ items, ordered, start }: { items: any[]; ordered: boolean; start: number }) {
         const tag = ordered ? 'ol' : 'ul';
@@ -268,7 +268,7 @@ export function renderMarkdown(content: string, options: MarkdownOptions = {}): 
       },
       table({ header, rows }: { header: string; rows: string }) {
         return `
-          <div class="overflow-x-auto my-3.5 rounded-lg border border-neutral-200 dark:border-neutral-800">
+          <div class="ai-content-unit ai-table-unit overflow-x-auto my-3.5 rounded-lg border border-neutral-200 dark:border-neutral-800" data-content-unit="table">
             <table class="w-full text-left border-collapse text-sm">
               <thead class="bg-neutral-100 dark:bg-neutral-800/80 font-medium text-neutral-700 dark:text-neutral-200 border-b border-neutral-200 dark:border-neutral-800">
                 ${header}
@@ -282,9 +282,9 @@ export function renderMarkdown(content: string, options: MarkdownOptions = {}): 
       },
       blockquote({ text }: { text: string }) {
         if (!useTextBox) {
-          return `<div class="my-1.5 pl-2 text-neutral-500 italic font-sans">${text}</div>`;
+          return `<div class="ai-content-unit ai-quote-unit my-1.5 pl-2 text-neutral-500 italic font-sans" data-content-unit="quote">${text}</div>`;
         }
-        return `<div class="my-2 pl-3.5 border-l-2 border-neutral-300 dark:border-neutral-700 text-neutral-500 font-sans">${text}</div>`;
+        return `<div class="ai-content-unit ai-quote-unit my-2 pl-3.5 border-l-2 border-neutral-300 dark:border-neutral-700 text-neutral-500 font-sans" data-content-unit="quote">${text}</div>`;
       },
     };
 
