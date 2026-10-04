@@ -12,7 +12,7 @@ import {
 } from './workspaceService';
 import { formatChatContextPrompt, detectWorkspaceIntent, WorkspaceIntent } from './chatContextService';
 import { ChatContext } from '../types/workspace';
-import { executeCode, looksLikePythonSource, getWorkspaceNodeRuntimeState, markWorkspaceDependenciesInstalled } from './codeExecutionAdapter';, installWorkspaceDependencies
+import { executeCode, looksLikePythonSource, getWorkspaceNodeRuntimeState, markWorkspaceDependenciesInstalled, installWorkspaceDependencies } from './codeExecutionAdapter';
 import { buildProjectRuntimeReport, inspectProjectRuntime } from './projectRuntimeService';
 
 export { detectWorkspaceIntent, type WorkspaceIntent };
