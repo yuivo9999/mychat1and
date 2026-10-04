@@ -9,6 +9,9 @@ import {
 } from '../types/workspace';
 import { saveWorkspace as saveWorkspaceDb, getWorkspaces, getWorkspace, deleteWorkspace as deleteWorkspaceDb } from './db';
 
+// Re-export workspace listing for UI consumers while keeping persistence in db.ts.
+export { getWorkspaces };
+
 interface AndroidWorkspaceBridge {
   writeWorkspaceFile?: (workspaceId: string, relativePath: string, content: string) => string;
   deleteWorkspaceFile?: (workspaceId: string, relativePath: string) => string;
