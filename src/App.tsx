@@ -1210,7 +1210,7 @@ export default function App() {
       let memoryAuditCompleted = !memoryAuditEligible;
       // Provide ample turns (up to 12 turns) for multi-file inspection, plan formulation, and multi-file modification.
       // A project-memory audit may consume one additional bounded turn.
-      const maxAgentTurns = (workspaceAgentEnabled ? 12 : (historySearchEnabled || (projectMemoryEnabled && !!targetConv.projectId)) ? 6 : 1) + (memoryAuditEligible ? 1 : 0);
+      const maxAgentTurns = (workspaceAgentEnabled ? 12 : (historySearchEnabled || (projectMemoryEnabled && !!targetConv.projectId)) ? 6 : 1) + (memoryAuditEligible ? 2 : 0);
       let finalFullText = '';
       let cumulativeAssistantNarrative = '';
       let validationFailureCount = 0;
