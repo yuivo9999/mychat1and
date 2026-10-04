@@ -931,6 +931,14 @@ export default function App() {
             status: 'completed',
           });
         }
+        if (knowledgeResult.github && knowledgeResult.github.commits > 0) {
+          updatedSteps.push({
+            id: `step_github_history_${Date.now()}`,
+            icon: 'github',
+            title: `GitHub 历史变更已纳入：${knowledgeResult.github.commits} 条 Commit，${knowledgeResult.github.releases} 个 Release，并结合 Issue/PR 判断版本演进`,
+            status: 'completed',
+          });
+        }
         if (knowledgeResult.web && knowledgeResult.web.conflictHints.length > 0) {
           updatedSteps.push({
             id: `step_research_conflict_${Date.now()}`,
