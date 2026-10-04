@@ -246,11 +246,13 @@ class AndroidBridge(
 
         val future = executor.submit(Callable {
             val trimmed = command.trim()
-            val npmCli = if (trimmed == "npm" || trimmed.startsWith("npm ")) ensureNpmRuntime() else null
+            val npmCli = if (trimmed == "npm" || trimmed.startsWith("npm ") || trimmed == "npx" || trimmed.startsWith("npx ")) ensureNpmRuntime() else null
             val processBuilder = if (npmCli != null) {
-                val args = trimmed.removePrefix("npm").trim()
-                if (args.isBlank()) ProcessBuilder(nodeBinary.absolutePath, npmCli.absolutePath)
-                else ProcessBuilder(listOf(nodeBinary.absolutePath, npmCli.absolutePath) + args.split(Regex("\\s+")))
+                val isNpx = trimmed == "npx" || trimmed.startsWith("npx ")
+                val rawArgs = if (isNpx) trimmed.removePrefix("npx").trim() else trimmed.removePrefix("npm").trim()
+                val args = if (isNpx) listOf("exec", "--") + rawArgs.split(Regex("\\s+")).filter { it.isNotBlank() } else rawArgs.split(Regex("\\s+")).filter { it.isNotBlank() }
+                if (args.isEmpty()) ProcessBuilder(nodeBinary.absolutePath, npmCli.absolutePath)
+                else ProcessBuilder(listOf(nodeBinary.absolutePath, npmCli.absolutePath) + args)
             } else if (trimmed.startsWith("node -e ")) {
                 val encoded = trimmed.removePrefix("node -e ").trim()
                 val code = org.json.JSONTokener(encoded).nextValue() as? String
