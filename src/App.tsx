@@ -1201,8 +1201,16 @@ export default function App() {
       const systemNotices = '';
 
       let turn = 0;
-      // Provide ample turns (up to 12 turns) for multi-file inspection, plan formulation, and multi-file modification
-      const maxAgentTurns = workspaceAgentEnabled ? 12 : (historySearchEnabled || (projectMemoryEnabled && !!targetConv.projectId)) ? 6 : 1;
+      // Project-memory audit gets one bounded extra reasoning turn only for meaningful project work.
+      const memoryAuditEligible = projectMemoryEnabled && !!targetConv.projectId && (
+        workspaceAgentEnabled ||
+        modifiedPaths.size > 0 ||
+        /必须|不得|禁止|统一|规范|约定|决定|最终|改为|改成|调整为|换成|采用|技术选型|架构|UI|UX|配色|主题|布局|输入框|键盘|依赖|框架|方案/i.test(text)
+      );
+      let memoryAuditCompleted = !memoryAuditEligible;
+      // Provide ample turns (up to 12 turns) for multi-file inspection, plan formulation, and multi-file modification.
+      // A project-memory audit may consume one additional bounded turn.
+      const maxAgentTurns = (workspaceAgentEnabled ? 12 : (historySearchEnabled || (projectMemoryEnabled && !!targetConv.projectId)) ? 6 : 1) + (memoryAuditEligible ? 1 : 0);
       let finalFullText = '';
       let cumulativeAssistantNarrative = '';
       let validationFailureCount = 0;
@@ -1280,8 +1288,8 @@ export default function App() {
             : cleanedThisTurn;
         }
 
-        // Check if response contains tool calls (Protected by workspaceAgentEnabled)
-        if ((workspaceAgentEnabled && wsToOperate) || historySearchEnabled) {
+        // Project-memory tools are also available in ordinary project chats when the project-memory switch is enabled.
+        if ((workspaceAgentEnabled && wsToOperate) || historySearchEnabled || (projectMemoryEnabled && !!targetConv.projectId)) {
           const detectedToolCalls = extractToolCallsFromResponse(turnAccumulatedText);
 
           if (detectedToolCalls.length > 0) {
@@ -1473,7 +1481,23 @@ export default function App() {
           }
         }
 
-        // If no tool calls or agent mode disabled, break loop
+        // If this was a meaningful project task, give the model one final bounded memory-audit turn.
+        // The audit must decide whether this turn created a durable project rule/decision; ordinary progress,
+        // temporary errors, and file lists must result in no-op. Existing memory should be read before edits.
+        if (!memoryAuditCompleted && projectMemoryEnabled && targetConv.projectId) {
+          memoryAuditCompleted = true;
+          currentHistoryMessages.push({
+            id: `msg_memory_audit_${turn}_${Date.now()}`,
+            role: 'user',
+            content: `[项目记忆最终审计]\n请只做一次本轮任务的长期记忆审计：判断用户本轮是否明确形成了稳定、可复用的项目级规则、约束、架构/技术选型、UI/UX约定或明确决定。普通进度、一次性报错、临时实现细节、修改文件列表不要保存。若存在候选：先调用 get_project_memory 读取相关当前记录，再根据结果选择 create_project_memory、update_project_memory 或 archive_project_memory；如果是明确替代旧决定，确保旧记录进入 superseded。若没有值得长期保存的内容，直接说明“无需更新项目记忆”，不要调用记忆写入工具。不要搜索历史对话，也不要为了审计修改工作区代码。`,
+            timestamp: Date.now(),
+          });
+          turn++;
+          setStatusMessage(`Agent 正在进行项目记忆最终审计...`);
+          continue;
+        }
+
+        // If no tool calls or no bounded audit is needed, finish this response.
         break;
       }
 
