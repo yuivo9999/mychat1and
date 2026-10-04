@@ -235,6 +235,11 @@ export const WORKSPACE_TOOLS_SPEC = [
     parameters: { type: 'object', properties: {} },
   },
   {
+    name: 'auto_test_mobile_preview',
+    description: '一键完成手机 390×780 自测：自动发现真实可交互元素，生成短关键路径，执行点击/输入/滚动/等待并逐步截图。仅执行真实可操作步骤，不检查 Network、电脑或平板；若 iframe 跨域则改用真实截图与坐标，不伪造 DOM。',
+    parameters: { type: 'object', properties: { maxSteps: { type: 'number' }, includeScroll: { type: 'boolean' } } },
+  },
+  {
     name: 'run_mobile_preview_flow',
     description: '对当前手机 390×780 真实预览执行一组连续 UI 测试步骤，并在每一步后截图留证。用于验证按钮、输入框、提交、滚动、返回、等待以及键盘遮挡等关键路径；最多 8 步，不检查 Network、电脑或平板。失败时返回完整动作与截图证据，供 Agent 修复后重新执行。',
     parameters: {
@@ -1512,6 +1517,59 @@ export async function executeWorkspaceTool(
         return { result, updatedWorkspace: ws, errorMessage: discovery.error || screenshot.error || '手机预览发现失败', stepIcon: 'lightning', stepTitle: '手机预览元素发现失败' };
       }
       return { result, updatedWorkspace: ws, stepIcon: 'code', stepTitle: discovery.success ? `发现 ${discovery.count || 0} 个手机可交互元素` : '手机预览为跨域模式，已返回真实截图供视觉规划' };
+    }
+
+    case 'auto_test_mobile_preview': {
+      const maxSteps = Math.max(2, Math.min(8, Number(args.maxSteps) || 6));
+      const includeScroll = args.includeScroll !== false;
+      const discovery = discoverProjectPreviewElements(ws.id);
+      const baseline = captureProjectRuntimeScreenshot(ws.id, 72, 'mobile');
+      type PlannedStep = { action: 'tap' | 'type' | 'scroll' | 'back' | 'wait'; target?: string; value?: string; x?: number; y?: number };
+      const plan: PlannedStep[] = [];
+      if (discovery.success && discovery.elements?.length) {
+        const elements = discovery.elements.filter((e: any) => !e.disabled && e.visible !== false);
+        const input = elements.find((e: any) => ['input', 'textarea'].includes(e.tag) && e.type !== 'hidden');
+        const primary = elements.find((e: any) => ['button', 'a'].includes(e.tag) || ['button', 'link'].includes(e.role || ''));
+        const submit = elements.find((e: any) => e.type === 'submit' || /提交|保存|发送|登录|注册|确定|下一步|开始|搜索|send|submit|save|login|next/i.test(String(e.text || '') + ' ' + String(e.aria || '')));
+        const action = submit || primary || elements[0];
+        if (input?.selector) {
+          plan.push({ action: 'tap', target: input.selector });
+          plan.push({ action: 'type', target: input.selector, value: 'MyChat mobile test' });
+        } else if (input) {
+          plan.push({ action: 'tap', x: input.x + input.width / 2, y: input.y + input.height / 2 });
+          plan.push({ action: 'type', value: 'MyChat mobile test' });
+        }
+        if (action) {
+          if (action.selector) plan.push({ action: 'tap', target: action.selector });
+          else plan.push({ action: 'tap', x: action.x + action.width / 2, y: action.y + action.height / 2 });
+          plan.push({ action: 'wait', value: '500' });
+        }
+        if (includeScroll) plan.push({ action: 'scroll', value: '480' });
+      } else if (baseline.success && discovery.crossOrigin) {
+        plan.push({ action: 'tap', x: 195, y: 390 });
+        plan.push({ action: 'wait', value: '500' });
+        if (includeScroll) plan.push({ action: 'scroll', value: '480' });
+      }
+      const steps = plan.slice(0, maxSteps);
+      if (!steps.length) {
+        const error = discovery.error || baseline.error || '没有足够的真实页面证据生成手机测试路径。';
+        return { result: { success: false, viewport: 'mobile-390x780', discovery, plan, error }, updatedWorkspace: ws, errorMessage: error, stepIcon: 'lightning', stepTitle: '手机自测无法生成测试路径' };
+      }
+      const flow = await executeAgentTool('run_mobile_preview_flow', { steps, screenshotEveryStep: true }, ws);
+      const result = {
+        success: flow?.result?.success === true,
+        viewport: 'mobile-390x780',
+        planningMode: discovery.success ? 'dom' : 'screenshot-coordinate',
+        discovery,
+        baseline: baseline.success ? { width: baseline.width, height: baseline.height, dataUrl: baseline.dataUrl } : null,
+        plan: steps,
+        flow: flow?.result || flow,
+        nextAction: flow?.result?.success === true
+          ? '根据 baseline 与最后截图判断布局、键盘遮挡、溢出、按钮状态和页面是否产生真实变化；若发现明确问题，修复后最多再跑 1 轮。'
+          : '根据失败步骤和截图定位明确问题；修复后重新发现元素并再跑一轮。',
+      };
+      if (result.success) return { result, updatedWorkspace: ws, stepIcon: 'code', stepTitle: `手机自测完成 · 自动规划 ${steps.length} 步` };
+      return { result, updatedWorkspace: ws, errorMessage: flow?.errorMessage || '手机自测流程失败', stepIcon: 'lightning', stepTitle: '手机自测发现需要处理的问题' };
     }
 
     case 'run_mobile_preview_flow': {
