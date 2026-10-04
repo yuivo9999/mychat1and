@@ -180,12 +180,21 @@ class AndroidBridge(
     }
 
     @JavascriptInterface
-    fun executePython(code: String, timeoutMs: Int): String {
+    fun executePython(code: String, timeoutMs: Int, workspaceId: String = ""): String {
+        val workspacePath = if (workspaceId.isBlank()) {
+            null
+        } else {
+            workspaceRoot(workspaceId).absolutePath
+        }
+
         val future = executor.submit(Callable {
-            Python.getInstance()
-                .getModule("runner")
-                .callAttr("execute", code)
-                .toJava(Map::class.java)
+            val runner = Python.getInstance().getModule("runner")
+            val result = if (workspacePath == null) {
+                runner.callAttr("execute", code)
+            } else {
+                runner.callAttr("execute", code, workspacePath)
+            }
+            result.toJava(Map::class.java)
         })
 
         return try {
