@@ -12,7 +12,19 @@ export const ThinkingSteps: React.FC<ThinkingStepsProps> = ({
   isStreaming = false,
   hasContent = false,
 }) => {
-  if (!steps || steps.length === 0) return null;
+  // Hide legacy/non-action labels that were previously persisted in old chats.
+  // New entries are created only for concrete runtime events in App.tsx.
+  const visibleSteps = steps.filter((step) => {
+    const title = step.title || '';
+    return ![
+      '获取上下文并分析模型交互配置',
+      'Context7 官方技术文档检索已启用',
+    ].includes(title)
+      && !/^调用 .+ 推理引擎并准备输出$/.test(title)
+      && !/^结合联网\/GitHub资料调用 .+ 组织回答$/.test(title);
+  });
+
+  if (visibleSteps.length === 0) return null;
 
   const renderIcon = (type: ThinkingStep['icon']) => {
     switch (type) {
@@ -76,7 +88,7 @@ export const ThinkingSteps: React.FC<ThinkingStepsProps> = ({
   return (
     <div className={`my-1 select-none animate-in fade-in duration-200 ${hasContent ? 'mb-2' : ''}`}>
       <div className="thinking-steps-card inline-flex flex-col gap-1 px-2.5 py-1.5 rounded-xl bg-neutral-100/90 dark:bg-neutral-850/70 border border-neutral-200/80 dark:border-neutral-800/80 text-[11.5px] leading-snug text-neutral-600 dark:text-neutral-400 max-w-full font-sans shadow-2xs">
-        {steps.map((step, idx) => {
+        {visibleSteps.map((step, idx) => {
           const isRunning = step.status === 'running';
           return (
             <div
