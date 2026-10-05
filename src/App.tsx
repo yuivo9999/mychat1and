@@ -816,41 +816,9 @@ export default function App() {
     const isContext7Enabled = Boolean((targetConv?.parameters || parameters)?.context7);
     const isUiUxSkillEnabled = Boolean((targetConv?.parameters || parameters)?.uiUxSkill);
 
-    const initialThinkingSteps: ThinkingStep[] = [
-      {
-        id: `step_analyze_${Date.now()}`,
-        icon: 'github',
-        title: '获取上下文并分析模型交互配置',
-        status: 'completed',
-      },
-    ];
-
-    if (isPromptPerfectEnabled) {
-      initialThinkingSteps.push({
-        id: `step_prompt_perfect_${Date.now()}`,
-        icon: 'lightning',
-        title: '✨ Prompt Perfect 已启动：自动优化与升级您的提示词工程质量',
-        status: 'completed',
-      });
-    }
-
-    if (isContext7Enabled) {
-      initialThinkingSteps.push({
-        id: `step_context7_${Date.now()}`,
-        icon: 'search',
-        title: 'Context7 官方技术文档检索已启用',
-        status: 'completed',
-      });
-    }
-
-    if (isUiUxSkillEnabled) {
-      initialThinkingSteps.push({
-        id: `step_uiux_skill_${Date.now()}`,
-        icon: 'brain',
-        title: 'UI/UX Design Skill 已启用：设计 → 实现 → UI Review',
-        status: 'completed',
-      });
-    }
+    // Only show concrete runtime events here. Configuration/state that does not
+    // correspond to a completed action must never be presented as an execution step.
+    const initialThinkingSteps: ThinkingStep[] = [];
 
     // Check vision capabilities for image attachments
     const hasImageAttachments = (effectiveAttachments || []).some(a => a.type.startsWith('image/'));
@@ -903,13 +871,6 @@ export default function App() {
         id: `step_search_${Date.now()}`,
         icon: 'search',
         title: '联网模式已开启，检索最新网络网页资料中...',
-        status: 'running',
-      });
-    } else {
-      initialThinkingSteps.push({
-        id: `step_engine_${Date.now()}`,
-        icon: 'github',
-        title: `调用 ${currentModel.name} 推理引擎并准备输出`,
         status: 'running',
       });
     }
@@ -1005,9 +966,7 @@ export default function App() {
             return {
               ...s,
               icon: 'lightning',
-              title: webAccessEnabled
-                ? `联网研究完成：${webResults.length} 条网页/GitHub 资料，${knowledgeResult.web?.rounds.length || 0} 轮检索`
-                : '联网检索未开启，跳过网页/GitHub搜索',
+              title: `联网研究完成：${webResults.length} 条网页/GitHub 资料，${knowledgeResult.web?.rounds.length || 0} 轮检索`,
               status: 'completed',
             };
           }
@@ -1047,19 +1006,18 @@ export default function App() {
           });
         }
         if (webContext) {
+          const mergeTitle = knowledgeResult.web
+            ? (knowledgeResult.context7Grounding
+              ? '网页/GitHub 与 Context7 资料已合并到本轮上下文'
+              : '网页/GitHub 检索资料已合并到本轮上下文')
+            : 'Context7 技术文档资料已合并到本轮上下文';
           updatedSteps.push({
             id: `step_knowledge_merge_${Date.now()}`,
-            icon: 'github',
-            title: '网页 + GitHub + 可选官方文档资料已统一交给模型交叉分析',
+            icon: knowledgeResult.web ? 'github' : 'database',
+            title: mergeTitle,
             status: 'completed',
           });
         }
-        updatedSteps.push({
-          id: `step_engine_${Date.now()}`,
-          icon: 'github',
-          title: `结合联网/GitHub资料调用 ${currentModel.name} 组织回答`,
-          status: 'running',
-        });
         currentThinkingSteps = updatedSteps;
         setConversations(prev => prev.map(c => c.id !== updatedConv.id ? c : {
           ...c,
@@ -1127,6 +1085,12 @@ export default function App() {
         effectiveSystemPrompt = effectiveSystemPrompt
           ? `${effectiveSystemPrompt}\n\n${UI_UX_DESIGN_SKILL_PROMPT}`
           : UI_UX_DESIGN_SKILL_PROMPT;
+        currentThinkingSteps.push({
+          id: `step_uiux_skill_${Date.now()}`,
+          icon: 'brain',
+          title: 'UI/UX Design Skill 已注入本轮系统指令',
+          status: 'completed',
+        });
       }
 
       // The model may replace this safe fallback with a structured plan during the first Agent round.
@@ -1210,6 +1174,12 @@ export default function App() {
 
       if (isPromptPerfectEnabled) {
         adaptedContent = optimizePrompt(adaptedContent);
+        currentThinkingSteps.push({
+          id: `step_prompt_perfect_${Date.now()}`,
+          icon: 'lightning',
+          title: 'Prompt Perfect 已完成本轮提示词优化',
+          status: 'completed',
+        });
       }
 
       // Context7 已在统一知识检索阶段作为可选补充来源处理。
