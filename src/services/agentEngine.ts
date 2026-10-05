@@ -13,7 +13,7 @@ import {
 } from './workspaceService';
 import { formatChatContextPrompt, detectWorkspaceIntent, WorkspaceIntent } from './chatContextService';
 import { ChatContext } from '../types/workspace';
-import { looksLikePythonSource, getWorkspaceNodeRuntimeState, markWorkspaceDependenciesInstalled, readWorkspaceFile, executeCode } from './codeExecutionAdapter';
+import { looksLikePythonSource, getWorkspaceNodeRuntimeState, markWorkspaceDependenciesInstalled, readWorkspaceFile, listWorkspaceFiles, writeWorkspaceFile, deleteWorkspaceFile as deleteAndroidWorkspaceFile, executeCode } from './codeExecutionAdapter';
 import { executeAgentRuntime, getAgentRuntimeCapabilities, installAgentDependencies } from './agentRuntime';
 import { buildProjectRuntimeReport, inspectProjectRuntime, getProjectRuntimeDiagnostics, startProjectRuntime, stopProjectRuntime, captureProjectRuntimeScreenshot, interactProjectPreview, discoverProjectPreviewElements } from './projectRuntimeService';
 
@@ -205,7 +205,7 @@ export function buildAgentSystemPrompt(
   const customPrompt = baseSystemPrompt || '你是一个专业严谨的高级全栈编程助手与代码架构师。';
 
   const workspaceSummary = workspace
-    ? `## 📁 当前绑定的工作区: ${workspace.name} (版本: v${workspace.currentVersion})
+    ? `## 📁 当前绑定的工作区: ${workspace.name} (ID: ${workspace.id}, 版本: v${workspace.currentVersion})
 - 文件总数: ${Object.keys(workspace.files).length} 个
 - 工作区目录树概览:
 ${getWorkspaceDirectoryTree(workspace).slice(0, 1500)}${Object.keys(workspace.files).length > 25 ? '\n... (更多文件可使用 list_files 查看)' : ''}`
@@ -519,6 +519,21 @@ export async function executeWorkspaceTool(
 
   let ws = { ...workspace, files: { ...workspace.files } };
 
+  // Reconcile runtime-created files into the Agent's workspace view. Existing in-memory
+  // files win so unsaved edits from the current Agent turn are never overwritten.
+  if (typeof window !== 'undefined' && ws.id && ['list_files', 'get_workspace_tree', 'read_file', 'search_files', 'search_code'].includes(toolName)) {
+    const runtimeFiles = await listWorkspaceFiles(ws.id);
+    if (runtimeFiles) {
+      for (const entry of runtimeFiles) {
+        if (ws.files[entry.path]) continue;
+        const runtimeFile = await readWorkspaceFile(ws.id, entry.path);
+        if (runtimeFile?.exists && typeof runtimeFile.content === 'string') {
+          ws.files[entry.path] = { path: entry.path, content: runtimeFile.content, isBinary: false, size: entry.size || runtimeFile.content.length, updatedAt: entry.updatedAt || Date.now() };
+        }
+      }
+    }
+  }
+
   switch (toolName) {
     case 'list_files': {
       const prefix = args.path_prefix ? args.path_prefix.replace(/^\/+/, '').trim() : '';
@@ -700,6 +715,7 @@ export async function executeWorkspaceTool(
             size: newContent.length,
             updatedAt: Date.now(),
           };
+          await writeWorkspaceFile(ws.id, filePath, newContent);
           return {
             result: { success: true, path: filePath },
             updatedWorkspace: ws,
@@ -746,6 +762,7 @@ export async function executeWorkspaceTool(
         size: newContent.length,
         updatedAt: Date.now(),
       };
+      await writeWorkspaceFile(ws.id, filePath, newContent);
 
       return {
         result: { success: true, path: filePath },
@@ -780,6 +797,7 @@ export async function executeWorkspaceTool(
         size: newContent.length,
         updatedAt: Date.now(),
       };
+      await writeWorkspaceFile(ws.id, filePath, newContent);
 
       return {
         result: { success: true, path: filePath, size: newContent.length },
@@ -812,6 +830,7 @@ export async function executeWorkspaceTool(
         size: initialContent.length,
         updatedAt: Date.now(),
       };
+      await writeWorkspaceFile(ws.id, filePath, initialContent);
 
       return {
         result: { success: true, path: filePath },
@@ -838,6 +857,7 @@ export async function executeWorkspaceTool(
       const existing = ws.files[filePath];
       if (existing) {
         delete ws.files[filePath];
+        await deleteAndroidWorkspaceFile(ws.id, filePath);
       }
 
       return {
@@ -880,6 +900,8 @@ export async function executeWorkspaceTool(
         path: newVal.normalizedPath,
         updatedAt: Date.now(),
       };
+      await deleteAndroidWorkspaceFile(ws.id, oldVal.normalizedPath);
+      await writeWorkspaceFile(ws.id, newVal.normalizedPath, oldF.content);
 
       return {
         result: { success: true, from: oldVal.normalizedPath, to: newVal.normalizedPath },
