@@ -61,6 +61,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 }) => {
   const isUser = message.role === 'user';
   const [copied, setCopied] = useState(false);
+  const [promptPerfectCopied, setPromptPerfectCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(message.content);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -358,6 +359,17 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
     navigator.clipboard.writeText(message.content);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleCopyPromptPerfect = async () => {
+    if (!message.promptPerfectOutput) return;
+    try {
+      await navigator.clipboard.writeText(message.promptPerfectOutput);
+      setPromptPerfectCopied(true);
+      setTimeout(() => setPromptPerfectCopied(false), 1800);
+    } catch (error) {
+      console.warn('Failed to copy Prompt Perfect output:', error);
+    }
   };
 
   const handleDownload = () => {
@@ -722,26 +734,35 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
           </div>
         )}
 
-        {/* Thinking & Action Steps Stream (图片中展示的信息条样式) */}
+        {/* Thinking & Action Steps Stream: only concrete runtime events are shown. */}
         {!isUser && (
           <ThinkingSteps
-            steps={
-              message.thinkingSteps && message.thinkingSteps.length > 0
-                ? message.thinkingSteps
-                : message.status === 'streaming' && !message.content
-                ? [
-                    {
-                      id: 'default-step-1',
-                      icon: 'github',
-                      title: '分析输入内容与构建模型上下文',
-                      status: 'running',
-                    },
-                  ]
-                : undefined
-            }
+            steps={message.thinkingSteps && message.thinkingSteps.length > 0 ? message.thinkingSteps : undefined}
             isStreaming={message.status === 'streaming'}
             hasContent={Boolean(message.content && message.content.trim().length > 0)}
           />
+        )}
+
+        {/* Prompt Perfect: show the exact optimized prompt produced for this request. */}
+        {!isUser && message.promptPerfectOutput && (
+          <div className="rounded-xl border border-violet-500/20 bg-violet-500/[0.035] dark:bg-violet-950/15 overflow-hidden animate-in fade-in">
+            <div className="px-3 py-2 border-b border-violet-500/10 flex items-center gap-2">
+              <span className="text-xs font-semibold text-violet-700 dark:text-violet-300">Prompt Perfect 优化结果</span>
+              <span className="text-[10px] text-neutral-400">实际发送给模型的提示词</span>
+              <button
+                type="button"
+                onClick={handleCopyPromptPerfect}
+                className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-violet-500/15 px-2 py-1 text-[10px] font-medium text-violet-700 dark:text-violet-300 hover:bg-violet-500/10 transition"
+                title="复制 Prompt Perfect 实际生成的提示词"
+              >
+                {promptPerfectCopied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                <span>{promptPerfectCopied ? '已复制' : '一键复制'}</span>
+              </button>
+            </div>
+            <pre className="px-3 py-2.5 max-h-72 overflow-auto whitespace-pre-wrap break-words text-[11px] leading-relaxed font-sans text-neutral-700 dark:text-neutral-300 select-text">
+              {message.promptPerfectOutput}
+            </pre>
+          </div>
         )}
 
         {/* Web Search Sources — grouped summary + readable source cards */}
