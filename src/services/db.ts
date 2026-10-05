@@ -505,6 +505,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   compactMode: false,
   boldHeadings: true,
   conciseReplyMode: false,
+  enableAgentTpmRateLimit: true,
   enableChatContextMemory: false,
   enableHistorySearch: true,
   onlyParseMarkdownTables: false,

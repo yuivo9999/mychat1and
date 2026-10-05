@@ -1294,6 +1294,7 @@ export default function App() {
       let finalFullText = '';
       let cumulativeAssistantNarrative = '';
       let validationFailureCount = 0;
+      let lastAgentRequestTime = 0;
 
       while (turn < maxAgentTurns) {
         let turnAccumulatedText = '';
@@ -1301,67 +1302,122 @@ export default function App() {
         const currentTurnIsMemoryAudit = memoryAuditTurn;
         memoryAuditTurn = false;
 
+        // Check TPM rate limit protection (Limit 8000: single request bounded, next request 1 minute later)
+        const isTpmRateLimitEnabled = settings.enableAgentTpmRateLimit ?? true;
+        if (workspaceAgentEnabled && isTpmRateLimitEnabled && turn > 0 && lastAgentRequestTime > 0) {
+          const elapsed = Date.now() - lastAgentRequestTime;
+          const waitTargetMs = 60_000; // 下一次严格一分钟之后
+          if (elapsed < waitTargetMs) {
+            let remainingMs = waitTargetMs - elapsed;
+            while (remainingMs > 0 && !abortController.signal.aborted) {
+              const secondsLeft = Math.ceil(remainingMs / 1000);
+              setStatusMessage(`Agent [第 ${turn + 1} 轮] 正在遵守 8000 TPM 限额保护，等待窗口刷新中（剩余 ${secondsLeft} 秒）...`);
+              const sleepChunk = Math.min(remainingMs, 1000);
+              await new Promise(r => setTimeout(r, sleepChunk));
+              remainingMs -= sleepChunk;
+            }
+          }
+        }
+        if (abortController.signal.aborted) break;
+
         // Token Budget Guard: Prune deep tool outputs from earlier turns to prevent quadratic token growth
         const prunedMessagesForTurn = pruneAgentLoopHistory(currentHistoryMessages, turn);
 
-        await adapter.sendMessage(
-          {
-            model: currentModel,
-            apiKeyConfig: currentApiKey,
-            messages: prunedMessagesForTurn,
-            systemPrompt: effectiveSystemPrompt,
-            temperature: currentModel.temperature,
-            maxTokens: currentModel.maxTokens,
-            topP: currentModel.topP,
-            parameters: activeParams,
-            abortSignal: abortController.signal,
-            timeoutSeconds: settings.requestTimeout,
-          },
-          settings.enableStreaming ? {
-            onChunk: (chunk: string | any) => {
-              const textChunk = safeExtractText(chunk);
-              if (!textChunk) return;
-              turnAccumulatedText += textChunk;
-              const cleanTurnText = cleanResponseText(stripAgentReplanBlock(stripAgentProgressBlock(stripAgentPlanBlock(turnAccumulatedText))));
-              const fullNarrativeSoFar = cumulativeAssistantNarrative
-                ? (cleanTurnText ? `${cumulativeAssistantNarrative}\n\n${cleanTurnText}` : cumulativeAssistantNarrative)
-                : cleanTurnText;
+        // Strict TPM Limit: single request cannot exceed 8000 total tokens (prompt + maxTokens)
+        const effectiveMaxTokens = (workspaceAgentEnabled && isTpmRateLimitEnabled)
+          ? Math.min(currentModel.maxTokens || 2048, 2048)
+          : currentModel.maxTokens;
 
-              const displayContent = (systemNotices ? systemNotices : '') + fullNarrativeSoFar;
-              const completedSteps = currentThinkingSteps.map(s => ({ ...s, status: 'completed' as const }));
+        let sendSuccess = false;
+        let tpmRetries = 0;
+        const maxTpmRetries = isTpmRateLimitEnabled ? 3 : 0;
 
-              setConversations(prev => prev.map(c => {
-                if (c.id !== updatedConv.id) return c;
-                return {
-                  ...c,
-                  messages: c.messages.map(m => {
-                    if (m.id !== assistantMsgId) return m;
-                    const versions = [...(m.versions || [])];
-                    if (versions.length > 0) {
-                      versions[versions.length - 1] = {
-                        ...versions[versions.length - 1],
-                        content: displayContent,
-                      };
-                    }
+        while (!sendSuccess && tpmRetries <= maxTpmRetries) {
+          try {
+            await adapter.sendMessage(
+              {
+                model: currentModel,
+                apiKeyConfig: currentApiKey,
+                messages: prunedMessagesForTurn,
+                systemPrompt: effectiveSystemPrompt,
+                temperature: currentModel.temperature,
+                maxTokens: effectiveMaxTokens,
+                topP: currentModel.topP,
+                parameters: activeParams,
+                abortSignal: abortController.signal,
+                timeoutSeconds: settings.requestTimeout,
+              },
+              settings.enableStreaming ? {
+                onChunk: (chunk: string | any) => {
+                  const textChunk = safeExtractText(chunk);
+                  if (!textChunk) return;
+                  turnAccumulatedText += textChunk;
+                  const cleanTurnText = cleanResponseText(stripAgentReplanBlock(stripAgentProgressBlock(stripAgentPlanBlock(turnAccumulatedText))));
+                  const fullNarrativeSoFar = cumulativeAssistantNarrative
+                    ? (cleanTurnText ? `${cumulativeAssistantNarrative}\n\n${cleanTurnText}` : cumulativeAssistantNarrative)
+                    : cleanTurnText;
+
+                  const displayContent = (systemNotices ? systemNotices : '') + fullNarrativeSoFar;
+                  const completedSteps = currentThinkingSteps.map(s => ({ ...s, status: 'completed' as const }));
+
+                  setConversations(prev => prev.map(c => {
+                    if (c.id !== updatedConv.id) return c;
                     return {
-                      ...m,
-                      content: displayContent,
-                      status: 'streaming',
-                      versions,
-                      thinkingSteps: completedSteps,
-                      toolCalls: executedToolCalls.length > 0 ? [...executedToolCalls] : undefined,
-                      modifiedFiles: modifiedPaths.size > 0 ? Array.from(modifiedPaths) : undefined,
-                      webSearchResults: webResults.length > 0 ? webResults : undefined,
+                      ...c,
+                      messages: c.messages.map(m => {
+                        if (m.id !== assistantMsgId) return m;
+                        const versions = [...(m.versions || [])];
+                        if (versions.length > 0) {
+                          versions[versions.length - 1] = {
+                            ...versions[versions.length - 1],
+                            content: displayContent,
+                          };
+                        }
+                        return {
+                          ...m,
+                          content: displayContent,
+                          status: 'streaming',
+                          versions,
+                          thinkingSteps: completedSteps,
+                          toolCalls: executedToolCalls.length > 0 ? [...executedToolCalls] : undefined,
+                          modifiedFiles: modifiedPaths.size > 0 ? Array.from(modifiedPaths) : undefined,
+                          webSearchResults: webResults.length > 0 ? webResults : undefined,
+                        };
+                      }),
                     };
-                  }),
-                };
-              }));
-            },
-            onFinish: (fullText: string) => {
-              turnAccumulatedText = fullText;
-            },
-          } : undefined
-        );
+                  }));
+                },
+                onFinish: (fullText: string) => {
+                  turnAccumulatedText = fullText;
+                },
+              } : undefined
+            );
+            sendSuccess = true;
+            lastAgentRequestTime = Date.now();
+          } catch (sendErr: any) {
+            if (abortController.signal.aborted) throw sendErr;
+            const errMsg = String(sendErr?.message || sendErr || '');
+            const isTpmError = /tokens per minute|TPM|rate[ _-]limit|429|Please try again in/i.test(errMsg);
+            if (isTpmRateLimitEnabled && isTpmError && tpmRetries < maxTpmRetries) {
+              tpmRetries++;
+              const secMatch = errMsg.match(/try again in ([\d\.]+)s/i);
+              let waitSec = secMatch ? Math.ceil(parseFloat(secMatch[1])) + 1 : 60;
+              waitSec = Math.max(waitSec, 5);
+
+              let remainingWaitMs = waitSec * 1000;
+              while (remainingWaitMs > 0 && !abortController.signal.aborted) {
+                const sLeft = Math.ceil(remainingWaitMs / 1000);
+                setStatusMessage(`检测到模型 8000 TPM 限额频控，正在严格等待窗口冷却（剩余 ${sLeft} 秒后自动重试）...`);
+                const chunk = Math.min(remainingWaitMs, 1000);
+                await new Promise(r => setTimeout(r, chunk));
+                remainingWaitMs -= chunk;
+              }
+              turnAccumulatedText = '';
+            } else {
+              throw sendErr;
+            }
+          }
+        }
 
         finalFullText = stripAgentProgressBlock(stripAgentPlanBlock(turnAccumulatedText));
         const cleanedThisTurn = cleanResponseText(stripAgentProgressBlock(stripAgentPlanBlock(turnAccumulatedText)));

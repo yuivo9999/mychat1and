@@ -468,6 +468,35 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
               </button>
             </div>
 
+            {/* 1.8. 8000 TPM 限额速率保护 (Agent Strict Token Budget & Rate Limit) */}
+            {settings && onSaveSettings && (
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 shadow-2xs">
+                <div className="space-y-0.5 pr-2">
+                  <div className="flex items-center gap-1.5 relative">
+                    <span className="param-item-label text-xs font-semibold text-neutral-900 dark:text-neutral-100">8000 TPM 限额速率保护</span>
+                    <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold border border-amber-500/20">Limit 8000</span>
+                  </div>
+                  <p className="param-item-sub text-[11px] text-neutral-500 dark:text-neutral-400">
+                    针对每分钟 8000 tokens 限额的模型，严格单次不超过限额，相邻轮次自动冷却 1 分钟，遇到 TPM 限流自动按秒精准规避，避免 429 报错中断
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleToggleSetting('enableAgentTpmRateLimit')}
+                  className={`param-toggle w-10 h-5 flex items-center rounded-full p-0.5 cursor-pointer transition-colors shrink-0 ${
+                    (settings.enableAgentTpmRateLimit ?? true) ? 'bg-[#84cc16] bg-lime-500' : 'bg-neutral-300 dark:bg-neutral-800'
+                  }`}
+                >
+                  <div
+                    className={`param-toggle-dot bg-white dark:bg-black w-4 h-4 rounded-full shadow-md transform transition-transform ${
+                      (settings.enableAgentTpmRateLimit ?? true) ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+            )}
+
             {/* 2. 采样温度 */}
             <div className="space-y-2 p-2.5 rounded-xl bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 shadow-2xs">
               <div className="flex items-center justify-between">
@@ -923,25 +952,6 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
                     type="checkbox"
                     checked={settings.compactMode ?? false}
                     onChange={() => handleToggleSetting('compactMode')}
-                    className="rounded text-lime-500 h-4 w-4 shrink-0 accent-lime-500 cursor-pointer"
-                  />
-                </label>
-
-                {/* 4. 精简 AI 回复模式 */}
-                <label className="flex items-center justify-between p-2.5 rounded-xl bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 shadow-2xs cursor-pointer hover:border-lime-500/50 transition">
-                  <div className="space-y-0.5 pr-2">
-                    <div className="flex items-center gap-1.5">
-                      <Zap className="param-icon w-3.5 h-3.5 text-lime-600 dark:text-lime-400 shrink-0" />
-                      <span className="param-item-label text-xs font-semibold text-neutral-900 dark:text-neutral-100 block">精简 AI 回复模式</span>
-                    </div>
-                    <span className="param-item-sub text-[11px] text-neutral-500 dark:text-neutral-400 block pl-5">
-                      让 AI 只突出核心关键内容，并按「关键内容 + 操作步骤」分段回答，减少背景铺垫、重复解释和无关内容
-                    </span>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={settings.conciseReplyMode ?? false}
-                    onChange={() => handleToggleSetting('conciseReplyMode')}
                     className="rounded text-lime-500 h-4 w-4 shrink-0 accent-lime-500 cursor-pointer"
                   />
                 </label>
