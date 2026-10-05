@@ -11,8 +11,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Apply Prompt Perfect audit UI changes
-        shell: python {0}
+        shell: bash
         run: |
+          python - <<'PY'
           from pathlib import Path
           import subprocess
 
@@ -198,3 +199,5 @@ jobs:
               subprocess.run(["git", "add", str(workflow)], check=True)
               subprocess.run(["git", "commit", "-m", "chore: remove one-time patch workflow"], check=True)
               subprocess.run(["git", "push", "origin", "HEAD:main"], check=True)
+
+          PY
