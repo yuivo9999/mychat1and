@@ -315,7 +315,7 @@ export const TopBar: React.FC<TopBarProps> = ({
         )}
 
         {/* Compact Agent task controls: keep task actions without the persistent phase/round status bar. */}
-        {agentTaskStatus && ['running', 'paused', 'waiting_user'].includes(agentTaskStatus) && (
+        {(agentTaskStatus === 'running' || agentTaskStatus === 'paused' || agentTaskStatus === 'waiting_user') && (
           <div className="hidden sm:flex items-center gap-1 rounded-xl border border-purple-200/70 dark:border-purple-800/70 bg-purple-50/70 dark:bg-purple-950/30 px-1 py-1">
             {(agentTaskStatus === 'paused' || agentTaskStatus === 'waiting_user') && onResumeAgent ? (
               <button
