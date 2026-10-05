@@ -832,31 +832,6 @@ export default function App() {
     const isReasoningEnabled = Boolean((targetConv.parameters || parameters)?.enableReasoning);
     const modelSupportsReasoning = isModelReasoningSupported(currentModel, currentModel.providerId);
 
-    if (effectiveAttachments && effectiveAttachments.length > 0) {
-      if (hasImageAttachments && !isVisionSupported) {
-        initialThinkingSteps.push({
-          id: `step_att_${Date.now()}`,
-          icon: 'code',
-          title: `当前模型不支持图片识别，已自动略过图片数据，仅发送文字提问`,
-          status: 'completed',
-        });
-      } else if (nonImageAttachments.length > 0 && !fileSupport.supported) {
-        initialThinkingSteps.push({
-          id: `step_att_${Date.now()}`,
-          icon: 'code',
-          title: `当前模型不支持文件解析，已自动略过文件数据，仅发送文字提问`,
-          status: 'completed',
-        });
-      } else {
-        initialThinkingSteps.push({
-          id: `step_att_${Date.now()}`,
-          icon: 'code',
-          title: `已解析并装载【${effectiveAttachments.length} 个附件文件】`,
-          status: 'completed',
-        });
-      }
-    }
-
     if (isReasoningEnabled && !modelSupportsReasoning) {
       initialThinkingSteps.push({
         id: `step_reasoning_${Date.now()}`,
@@ -1169,6 +1144,19 @@ export default function App() {
         if (a.type.startsWith('image/')) return isVisionSupported;
         return fileSupport.supported && (isAttachmentTextReadable(a) || currentModel.providerId === 'google' || currentModel.providerId === 'gemini');
       });
+
+      const originalAttachmentCount = userMessage.attachments?.length || 0;
+      if (originalAttachmentCount > 0) {
+        const skippedAttachmentCount = originalAttachmentCount - effectiveAttsForApi.length;
+        currentThinkingSteps.push({
+          id: `step_attachment_1791242332805`,
+          icon: 'code',
+          title: skippedAttachmentCount > 0
+            ? `已发送 ${effectiveAttsForApi.length} 个附件，跳过 ${skippedAttachmentCount} 个当前模型不支持的附件`
+            : `已将 ${effectiveAttsForApi.length} 个附件加入本轮请求`,
+          status: 'completed',
+        });
+      }
 
       let adaptedContent = userMessage.content || '';
 
