@@ -100,6 +100,8 @@ export interface Message {
   thinkingSteps?: ThinkingStep[];
   toolCalls?: ToolCallExecution[];
   modifiedFiles?: string[];
+  /** Exact prompt produced by Prompt Perfect and sent to the model. */
+  promptPerfectOutput?: string;
 }
 
 export interface ModelParameters {
