@@ -2057,20 +2057,9 @@ export default function App() {
     const adapter = getAdapterForProvider(currentModel.providerId);
     let accumulatedText = '';
 
-    const retryThinkingSteps: ThinkingStep[] = [
-      {
-        id: `step_retry_${Date.now()}`,
-        icon: 'github',
-        title: '获取历史上下文并重新配置模型',
-        status: 'completed',
-      },
-      {
-        id: `step_retry_engine_${Date.now()}`,
-        icon: 'github',
-        title: `调用 ${currentModel.name} 推理引擎重新生成`,
-        status: 'running',
-      },
-    ];
+    // Retry itself has no separate user-visible execution step; the actual
+    // network/model operation is represented by the message streaming state.
+    const retryThinkingSteps: ThinkingStep[] = [];
 
     // Persist the streaming state before the network request.
     const streamingConversation = {
@@ -2175,20 +2164,9 @@ export default function App() {
     if (targetMsg.role === 'user') {
       const trimmedMessages = currentConversation.messages.slice(0, msgIndex + 1);
       const assistantMsgId = `msg_a_${Date.now()}`;
-      const regenThinkingSteps: ThinkingStep[] = [
-        {
-          id: `step_analyze_${Date.now()}`,
-          icon: 'github',
-          title: '获取上下文并分析模型交互配置',
-          status: 'completed',
-        },
-        {
-          id: `step_engine_${Date.now()}`,
-          icon: 'github',
-          title: `调用 ${currentModel.name} 推理引擎重新生成`,
-          status: 'running',
-        },
-      ];
+      // Regeneration does not fabricate an "analysis" or "engine" step.
+      // Only concrete tool/research events should appear in the execution box.
+      const regenThinkingSteps: ThinkingStep[] = [];
 
       const assistantMessage: Message = {
         id: assistantMsgId,
@@ -2319,20 +2297,8 @@ export default function App() {
     const adapter = getAdapterForProvider(currentModel.providerId);
     let accumulatedText = '';
 
-    const versionThinkingSteps: ThinkingStep[] = [
-      {
-        id: `step_analyze_${Date.now()}`,
-        icon: 'github',
-        title: '获取上下文并分析模型交互配置',
-        status: 'completed',
-      },
-      {
-        id: `step_engine_${Date.now()}`,
-        icon: 'github',
-        title: `调用 ${currentModel.name} 推理引擎生成新版本`,
-        status: 'running',
-      },
-    ];
+    // Version generation has no separate executable step to expose here.
+    const versionThinkingSteps: ThinkingStep[] = [];
 
     setConversations(prev => prev.map(c => {
       if (c.id !== currentConversation.id) return c;
