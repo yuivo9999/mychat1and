@@ -1,3 +1,4 @@
+# trigger: run once now that this workflow exists on main
 name: one-time-prompt-perfect-ui-fix
 on:
   push:
