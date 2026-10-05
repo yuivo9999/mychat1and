@@ -28,7 +28,7 @@ import {
   ChevronRight,
   ChevronLeft
 } from 'lucide-react';
-import { Attachment, ModelItem, ProviderDefinition, ApiKeyConfig, UserSettings, ModelParameters, Project } from '../types';
+import { Attachment, ModelItem, ProviderDefinition, ApiKeyConfig, UserSettings, ModelParameters, Project, AgentTaskStatus } from '../types';
 import { parseFileToAttachment, formatFileSize } from '../services/fileParser';
 import { isModelWebSearchSupported, isModelVisionCapable } from '../services/modelUtils';
 
@@ -61,7 +61,7 @@ interface ChatComposerProps {
   onToggleWebAccess?: (enabled: boolean) => void;
   agentMode?: boolean;
   onToggleAgentMode?: (enabled: boolean) => void;
-  agentTaskStatus?: import('../types').AgentTaskStatus;
+  agentTaskStatus?: AgentTaskStatus;
   pendingAttachments?: Attachment[] | null;
   onClearPendingAttachments?: () => void;
   pendingPrompt?: string | null;
