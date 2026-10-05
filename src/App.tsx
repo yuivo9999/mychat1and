@@ -851,6 +851,14 @@ export default function App() {
     }
 
     let currentThinkingSteps = [...initialThinkingSteps];
+    if (isResumingWaitingAgent) {
+      currentThinkingSteps.push({
+        id: `step_agent_user_reply_${Date.now()}`,
+        icon: 'brain',
+        title: '已收到你的 Agent 决策/补充，继续执行原任务',
+        status: 'completed',
+      });
+    }
 
     const initialNotices = '';
     const assistantMsgId = `msg_a_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
