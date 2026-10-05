@@ -1083,7 +1083,20 @@ export default function App() {
       }
     }
 
-    let wsToOperate: Workspace | null = currentWorkspace ? JSON.parse(JSON.stringify(currentWorkspace)) : null;
+    // Bind Agent to the exact workspace selected by this conversation. Refresh persisted
+    // state immediately before the task so Agent never operates on an old React snapshot.
+    const boundWorkspaceId = currentConversation?.workspaceId || activeWorkspaceId;
+    let freshWorkspaces = workspaces;
+    try {
+      const persistedWorkspaces = await getWorkspaces();
+      if (persistedWorkspaces.length > 0) freshWorkspaces = persistedWorkspaces;
+    } catch (error) {
+      console.warn('Agent workspace refresh failed; using in-memory workspace state:', error);
+    }
+    const freshWorkspace = boundWorkspaceId
+      ? freshWorkspaces.find(w => w.id === boundWorkspaceId) || null
+      : currentWorkspace;
+    let wsToOperate: Workspace | null = freshWorkspace ? JSON.parse(JSON.stringify(freshWorkspace)) : null;
     const historySearchEnabled = settings.enableHistorySearch ?? false;
     const projectMemoryEnabled = settings.enableProjectMemory ?? true;
     const workspaceContextEnabled = !!wsToOperate && (agentMode || workspaceIntent.shouldAccessWorkspace);
@@ -1566,7 +1579,7 @@ export default function App() {
                   stepTitle: '工作区工具被拒绝（Agent 未开启）'
                 };
               } else {
-                outcome = await executeWorkspaceTool(tc.tool, tc.args, wsToOperate);
+                outcome = await executeWorkspaceTool(tc.tool, tc.args, wsToOperate, agentTaskId);
               }
               wsToOperate = outcome.updatedWorkspace;
 
