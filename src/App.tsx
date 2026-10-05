@@ -2897,6 +2897,10 @@ export default function App() {
           onOpenWorkspace={() => setIsWorkspaceOpen(true)}
           agentMode={agentMode}
           onToggleAgentMode={handleToggleAgentMode}
+          agentTaskStatus={currentConversation?.agentTask?.status}
+          onPauseAgent={handlePauseAgent}
+          onResumeAgent={handleResumeAgent}
+          onStopAgent={isGenerating ? handleStopGeneration : undefined}
         />
 
         {/* Top Inverted Ink Wave Pattern (顶部工具栏下方垂直翻转淡墨色波浪纹，与底部加减号后波浪纹对齐呼应) */}
@@ -2932,24 +2936,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* Persistent Agent task control bar */}
-        {currentConversation?.agentTask && ['running', 'paused', 'waiting_user'].includes(currentConversation.agentTask.status) && (
-          <div className="mx-auto w-full max-w-4xl px-3 md:px-6 pt-2">
-            <div className="flex items-center gap-2 rounded-xl border border-neutral-200/70 dark:border-neutral-700/70 bg-white/80 dark:bg-neutral-900/80 backdrop-blur px-3 py-2 text-xs shadow-sm">
-              <span className="font-medium">Agent · {currentConversation.agentTask.phase}</span>
-              <span className="text-neutral-500">第 {currentConversation.agentTask.round}/{currentConversation.agentTask.maxRounds} 轮</span>
-              <span className="flex-1 min-w-0 truncate text-neutral-500" title={currentConversation.agentTask.goal}>
-                {currentConversation.agentTask.currentStep || currentConversation.agentTask.pauseReason || currentConversation.agentTask.progressSummary || '自动执行中'}
-              </span>
-              {currentConversation.agentTask.status === 'paused' || currentConversation.agentTask.status === 'waiting_user' ? (
-                <button type="button" onClick={handleResumeAgent} className="rounded-lg border px-3 py-1.5 font-medium hover:bg-neutral-100 dark:hover:bg-neutral-800">继续 Agent</button>
-              ) : (
-                <button type="button" onClick={handlePauseAgent} className="rounded-lg border px-3 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800">暂停</button>
-              )}
-              {isGenerating && <button type="button" onClick={handleStopGeneration} className="rounded-lg border px-3 py-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30">停止</button>}
-            </div>
-          </div>
-        )}
 
         {/* Message Stream Central Area */}
         <MessageList
