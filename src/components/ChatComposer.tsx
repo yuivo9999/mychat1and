@@ -61,6 +61,7 @@ interface ChatComposerProps {
   onToggleWebAccess?: (enabled: boolean) => void;
   agentMode?: boolean;
   onToggleAgentMode?: (enabled: boolean) => void;
+  agentTaskStatus?: import('../types').AgentTaskStatus;
   pendingAttachments?: Attachment[] | null;
   onClearPendingAttachments?: () => void;
   pendingPrompt?: string | null;
@@ -100,6 +101,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   onToggleWebAccess,
   agentMode = false,
   onToggleAgentMode,
+  agentTaskStatus,
   pendingAttachments,
   onClearPendingAttachments,
   pendingPrompt,
@@ -269,8 +271,10 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   };
 
   // Send action
+  const isAgentWaitingForUser = agentTaskStatus === 'waiting_user';
+
   const handleSend = () => {
-    if (isGenerating) {
+    if (isGenerating && !isAgentWaitingForUser) {
       onStopGeneration();
       return;
     }
@@ -327,7 +331,9 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   };
 
   const hasApiKey = !!currentApiKey?.apiKey?.trim() || currentModel?.providerId === 'ollama';
-  const canSend = (content.trim().length > 0 || attachments.length > 0) && !isGenerating && !isProcessingFiles;
+  const canSend = (content.trim().length > 0 || attachments.length > 0)
+    && (!isGenerating || isAgentWaitingForUser)
+    && !isProcessingFiles;
 
   const currentFontSize = settings.chatFontSizePx ?? 15;
 
@@ -905,9 +911,11 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
             placeholder={
-              isGenerating 
-                ? 'AI 正在生成中...' 
-                : '给 AI 发送消息... (Enter 发送, Shift+Enter 换行)'
+              isGenerating && !isAgentWaitingForUser
+                ? 'AI 正在生成中...'
+                : isAgentWaitingForUser
+                  ? 'Agent 正在等待你的选择/确认，发送后将继续当前任务...'
+                  : '给 AI 发送消息... (Enter 发送, Shift+Enter 换行)'
             }
             rows={3}
             className="w-full bg-transparent resize-none border-0 text-sm text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 outline-hidden leading-relaxed min-h-[100px] max-h-[360px] font-sans"
@@ -1019,7 +1027,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
               </span>
             )}
 
-            {isGenerating ? (
+            {isGenerating && !isAgentWaitingForUser ? (
               <button
                 type="button"
                 onClick={onStopGeneration}
@@ -1039,7 +1047,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                     ? 'bg-neutral-900 hover:bg-neutral-800 dark:bg-neutral-100 dark:hover:bg-white text-white dark:text-neutral-900 active:scale-95 cursor-pointer'
                     : 'bg-neutral-200 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-600 cursor-not-allowed'
                 }`}
-                title={isProcessingFiles ? '正在解析上传文件...' : (canSend ? '发送消息' : '请输入内容')}
+                title={isProcessingFiles ? '正在解析上传文件...' : (isAgentWaitingForUser && canSend ? '发送回复并继续 Agent 任务' : (canSend ? '发送消息' : '请输入内容'))}
               >
                 {isProcessingFiles ? (
                   <RefreshCw className="w-6 h-6 stroke-[2.2] animate-spin text-neutral-400 dark:text-neutral-500" />
