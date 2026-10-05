@@ -1027,7 +1027,36 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
               </span>
             )}
 
-            {isGenerating && !isAgentWaitingForUser ? (
+            {isAgentWaitingForUser ? (
+              <>
+                <button
+                  type="button"
+                  onClick={onStopGeneration}
+                  className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl bg-red-600 hover:bg-red-700 text-white text-xs font-semibold shadow-xs transition active:scale-95 cursor-pointer"
+                  title="停止当前 Agent 任务"
+                >
+                  <Square className="w-5 h-5 fill-current" />
+                  <span>停止</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSend}
+                  disabled={!canSend}
+                  className={`p-2.5 rounded-2xl flex items-center justify-center transition-all shadow-xs ${
+                    canSend
+                      ? 'bg-neutral-900 hover:bg-neutral-800 dark:bg-neutral-100 dark:hover:bg-white text-white dark:text-neutral-900 active:scale-95 cursor-pointer'
+                      : 'bg-neutral-200 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-600 cursor-not-allowed'
+                  }`}
+                  title={isProcessingFiles ? '正在解析上传文件...' : (canSend ? '发送回复并继续 Agent 任务' : '请输入回复')}
+                >
+                  {isProcessingFiles ? (
+                    <RefreshCw className="w-6 h-6 stroke-[2.2] animate-spin text-neutral-400 dark:text-neutral-500" />
+                  ) : (
+                    <ArrowUp className="w-6 h-6 stroke-[2.2]" />
+                  )}
+                </button>
+              </>
+            ) : isGenerating ? (
               <button
                 type="button"
                 onClick={onStopGeneration}
@@ -1047,7 +1076,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                     ? 'bg-neutral-900 hover:bg-neutral-800 dark:bg-neutral-100 dark:hover:bg-white text-white dark:text-neutral-900 active:scale-95 cursor-pointer'
                     : 'bg-neutral-200 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-600 cursor-not-allowed'
                 }`}
-                title={isProcessingFiles ? '正在解析上传文件...' : (isAgentWaitingForUser && canSend ? '发送回复并继续 Agent 任务' : (canSend ? '发送消息' : '请输入内容'))}
+                title={isProcessingFiles ? '正在解析上传文件...' : (canSend ? '发送消息' : '请输入内容')}
               >
                 {isProcessingFiles ? (
                   <RefreshCw className="w-6 h-6 stroke-[2.2] animate-spin text-neutral-400 dark:text-neutral-500" />
