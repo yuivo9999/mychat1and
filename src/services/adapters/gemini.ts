@@ -125,8 +125,6 @@ export class GeminiAdapter implements BaseAdapter {
 
     if (parameters?.enableReasoning) {
       bodyPayload.generationConfig.thinkingConfig = { thinkingBudget: 2048 };
-    } else if (parameters?.enableReasoning === false) {
-      bodyPayload.generationConfig.thinkingConfig = { thinkingBudget: 0 };
     }
 
     const controller = new AbortController();
