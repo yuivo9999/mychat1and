@@ -1285,7 +1285,7 @@ export default function App() {
           taskId: agentTaskId,
           status: 'running',
           phase: agentLoopState.phase,
-          round: 0,
+          round: agentLoopState.round,
           maxRounds: maxAgentTurns,
           ...agentTaskPlan,
           ...getAgentTaskStepText(agentLoopState),
