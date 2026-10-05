@@ -1650,6 +1650,21 @@ export default function App() {
               );
             }
 
+            const mutationTools = new Set(['patch_file', 'write_file', 'create_file', 'delete_file', 'rename_file']);
+            const mutationExecutedThisTurn = detectedToolCalls.some(tc => mutationTools.has(tc.tool)) || modifiedPaths.size > 0;
+            const implementationTaskRequested =
+              workspaceIntent.type === 'modify' ||
+              (isResumingWaitingAgent && agentTaskPlan.checklist.some(item =>
+                item.status !== 'completed' && /(?:修改|实现|代码|文件|工作区|修复|构建|验证)/i.test(item.title)
+              ));
+            const implementationGateTriggered =
+              workspaceAgentEnabled &&
+              implementationTaskRequested &&
+              !mutationExecutedThisTurn &&
+              turn < maxAgentTurns - 1;
+
+            const asksForUserDecision = /(?:请(?:你|您)?(?:选择|确认|决定|告诉我|指定)|请选择|需要(?:你|您)?(?:选择|确认)|希望你(?:选择|确认)|你(?:希望|想要)选择|你想(?:采用|选择)|需要确认|请问(?:你|您)?(?:希望|是否)|是否(?:采用|继续|保留|修改))/i.test(turnAccumulatedText);
+
             // Agent self-verification guard: when Agent changed executable/project code but
             // forgot to request verification in the same turn, automatically run one project check.
             // This makes the edit -> execute -> evidence loop reliable instead of prompt-dependent.
