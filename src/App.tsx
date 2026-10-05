@@ -1159,15 +1159,23 @@ export default function App() {
       }
 
       let adaptedContent = userMessage.content || '';
+      let promptPerfectOutput: string | undefined;
 
       if (isPromptPerfectEnabled) {
-        adaptedContent = optimizePrompt(adaptedContent);
+        promptPerfectOutput = optimizePrompt(adaptedContent);
+        adaptedContent = promptPerfectOutput;
         currentThinkingSteps.push({
           id: `step_prompt_perfect_${Date.now()}`,
           icon: 'lightning',
           title: 'Prompt Perfect 已完成本轮提示词优化',
           status: 'completed',
         });
+        setConversations(prev => prev.map(c => c.id !== updatedConv.id ? c : {
+          ...c,
+          messages: c.messages.map(m => m.id === assistantMsgId
+            ? { ...m, promptPerfectOutput, thinkingSteps: [...currentThinkingSteps] }
+            : m),
+        }));
       }
 
       // Context7 已在统一知识检索阶段作为可选补充来源处理。
