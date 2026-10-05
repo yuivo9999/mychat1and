@@ -1876,6 +1876,68 @@ export default function App() {
           }
         }
 
+        // A model can return a long plan without emitting any tool call at all.
+        // For Agent mode that is not an implementation result. Keep the loop alive and
+        // explicitly require a real workspace action on the next round.
+        if (workspaceAgentEnabled) {
+          const noToolCallsThisTurn = !extractToolCallsFromResponse(turnAccumulatedText).length;
+          const asksForUserDecisionWithoutTools = /(?:请(?:你|您)?(?:选择|确认|决定|告诉我|指定)|请选择|需要(?:你|您)?(?:选择|确认)|希望你(?:选择|确认)|你(?:希望|想要)选择|你想(?:采用|选择)|需要确认|请问(?:你|您)?(?:希望|是否)|是否(?:采用|继续|保留|修改))/i.test(turnAccumulatedText);
+          const implementationTaskStillPending =
+            workspaceIntent.type === 'modify' ||
+            (isResumingWaitingAgent && agentTaskPlan.checklist.some(item =>
+              item.status !== 'completed' && /(?:修改|实现|代码|文件|工作区|修复|构建|验证)/i.test(item.title)
+            ));
+
+          if (noToolCallsThisTurn && asksForUserDecisionWithoutTools) {
+            if (agentTaskId) {
+              await persistAgentTaskState(targetConv.id, {
+                taskId: agentTaskId,
+                status: 'waiting_user',
+                phase: agentLoopState.phase,
+                round: agentLoopState.round,
+                maxRounds: maxAgentTurns,
+                ...agentTaskPlan,
+                ...getAgentTaskStepText({ ...agentLoopState, phase: 'waiting_user' }),
+                progressSummary: 'Agent 正在等待用户决策',
+                pauseReason: '模型明确请求用户选择/确认，等待用户回复后继续同一任务',
+                updatedAt: Date.now(),
+              });
+            }
+            setStatusMessage('Agent 正在等待你的选择/确认；请直接在下方输入并发送，回复会继续当前 Agent 任务。');
+            break;
+          }
+
+          if (noToolCallsThisTurn && implementationTaskStillPending && turn < maxAgentTurns - 1) {
+            currentHistoryMessages.push({
+              id: `msg_agent_implementation_gate_${turn}_${Date.now()}`,
+              role: 'user',
+              content:
+                '### Agent 实施门禁（无工具调用）\n' +
+                '你刚才只输出了方案/文字，没有执行任何工作区工具。当前任务要求真正修改工作区，因此本轮不能视为完成。' +
+                '下一轮必须先使用 read_file/search_code 获取真实代码证据，然后直接调用 patch_file、write_file、create_file、delete_file 或 rename_file 完成实际修改；不要再次只写计划。' +
+                '修改后继续调用 run_project_check 或其他真实验证工具。若确实无需修改，必须给出基于工作区工具结果的明确证据。',
+              timestamp: Date.now(),
+            });
+            if (agentTaskId) {
+              await persistAgentTaskState(targetConv.id, {
+                taskId: agentTaskId,
+                status: 'running',
+                phase: agentLoopState.phase,
+                round: agentLoopState.round,
+                maxRounds: maxAgentTurns,
+                ...agentTaskPlan,
+                ...getAgentTaskStepText(agentLoopState),
+                progressSummary: '实施门禁触发：上一轮未执行工作区工具',
+                updatedAt: Date.now(),
+              });
+            }
+            turn++;
+            setStatusMessage(`Agent · 实施门禁 · 第 ${turn + 1}/${maxAgentTurns} 轮：要求下一轮直接执行工作区修改...`);
+            await new Promise<void>(resolve => setTimeout(resolve, getAgentPauseDelayMs(agentLoopState)));
+            continue;
+          }
+        }
+
         // If this was a meaningful project task, give the model one final bounded memory-audit turn.
         // The audit must decide whether this turn created a durable project rule/decision; ordinary progress,
         // temporary errors, and file lists must result in no-op. Existing memory should be read before edits.
