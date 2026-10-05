@@ -35,6 +35,9 @@ export interface AndroidExecutionBridge {
   executeNode?: (command: string, timeoutMs?: number, workspaceId?: string) => Promise<unknown> | unknown;
   getWorkspaceNodeRuntimeState?: (workspaceId: string) => Promise<unknown> | unknown;
   readWorkspaceFile?: (workspaceId: string, relativePath: string) => Promise<unknown> | unknown;
+  listWorkspaceFiles?: (workspaceId: string) => Promise<unknown> | unknown;
+  writeWorkspaceFile?: (workspaceId: string, relativePath: string, content: string) => Promise<unknown> | unknown;
+  deleteWorkspaceFile?: (workspaceId: string, relativePath: string) => Promise<unknown> | unknown;
   markWorkspaceDependenciesInstalled?: (workspaceId: string) => Promise<unknown> | unknown;
   installWorkspaceDependencies?: (workspaceId: string, timeoutMs?: number) => Promise<unknown> | unknown;
 }
@@ -403,6 +406,40 @@ export async function readWorkspaceFile(workspaceId: string, relativePath: strin
     }
   }
   return null;
+}
+
+export interface AndroidWorkspaceFileEntry {
+  path: string;
+  size: number;
+  updatedAt?: number;
+}
+
+export async function listWorkspaceFiles(workspaceId: string): Promise<AndroidWorkspaceFileEntry[] | null> {
+  if (typeof window === 'undefined' || !window.MyChatAndroid?.listWorkspaceFiles) return null;
+  try {
+    const raw = await window.MyChatAndroid.listWorkspaceFiles(workspaceId);
+    const payload = typeof raw === 'string' ? JSON.parse(raw) : raw as any;
+    if (payload?.ok !== true || !Array.isArray(payload?.files)) return null;
+    return payload.files.filter((item: any) => item && typeof item.path === 'string').map((item: any) => ({ path: item.path, size: Number(item.size ?? 0), updatedAt: typeof item.updatedAt === 'number' ? item.updatedAt : undefined }));
+  } catch { return null; }
+}
+
+export async function writeWorkspaceFile(workspaceId: string, relativePath: string, content: string): Promise<{ ok: boolean; error?: string } | null> {
+  if (typeof window === 'undefined' || !window.MyChatAndroid?.writeWorkspaceFile) return null;
+  try {
+    const raw = await window.MyChatAndroid.writeWorkspaceFile(workspaceId, relativePath, content);
+    const payload = typeof raw === 'string' ? JSON.parse(raw) : raw as any;
+    return { ok: payload?.ok === true, error: payload?.error };
+  } catch (error: any) { return { ok: false, error: error?.message || String(error) }; }
+}
+
+export async function deleteWorkspaceFile(workspaceId: string, relativePath: string): Promise<{ ok: boolean; error?: string } | null> {
+  if (typeof window === 'undefined' || !window.MyChatAndroid?.deleteWorkspaceFile) return null;
+  try {
+    const raw = await window.MyChatAndroid.deleteWorkspaceFile(workspaceId, relativePath);
+    const payload = typeof raw === 'string' ? JSON.parse(raw) : raw as any;
+    return { ok: payload?.ok === true, error: payload?.error };
+  } catch (error: any) { return { ok: false, error: error?.message || String(error) }; }
 }
 
 export async function getWorkspaceNodeRuntimeState(workspaceId: string): Promise<WorkspaceNodeRuntimeState | null> {
