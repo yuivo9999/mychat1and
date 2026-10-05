@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Apply Prompt Perfect audit UI changes
-        shell: python
+        shell: python {0}
         run: |
           from pathlib import Path
           import subprocess
