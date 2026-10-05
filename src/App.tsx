@@ -1150,20 +1150,20 @@ export default function App() {
         if (chatMemory) {
           effectiveSystemPrompt = effectiveSystemPrompt ? `${effectiveSystemPrompt}\n\n${chatMemory}` : chatMemory;
         }
-      }
 
         if (historySearchEnabled || projectMemoryEnabled) {
-          const historySearchPrompt = '## 🔎 本地历史与项目记忆工具\\n仅在当前问题确有必要时调用搜索或记忆工具。历史搜索默认优先当前项目；项目记忆只保存稳定、可复用的项目级共识。\\n\\n记忆生命周期规则：1) 普通进度、一次性报错、临时代码细节、已修改文件列表不要进入长期记忆；2) 新内容若与现有记忆相同，不要重复新增；3) 若只是澄清/细化已有记录，优先 update_project_memory；4) 明确替代旧决定时，先读取相关记录，再 update_project_memory 或 create_project_memory 让旧记录进入 superseded；5) 已失效的规则使用 archive_project_memory；6) 无法判断是否应该长期保存时不要写入。\\n\\n工具：search_local_memory、get_project_memory、create_project_memory、update_project_memory、archive_project_memory。不要为了普通背景了解而无目的扫描历史或改写记忆。';
-          effectiveSystemPrompt = effectiveSystemPrompt ? `${effectiveSystemPrompt}\\n\\n${historySearchPrompt}` : historySearchPrompt;
+          const historySearchPrompt = '## 🔎 本地历史与项目记忆工具\n仅在当前问题确有必要时调用搜索或记忆工具。历史搜索默认优先当前项目；项目记忆只保存稳定、可复用的项目级共识。\n\n工具：search_local_memory、get_project_memory、create_project_memory、update_project_memory、archive_project_memory。不要为了普通背景了解而无目的扫描历史或改写记忆。';
+          effectiveSystemPrompt = effectiveSystemPrompt ? `${effectiveSystemPrompt}\n\n${historySearchPrompt}` : historySearchPrompt;
         }
-      // 4. Project Collective Memory (Multiple chats inside same project share project memory)
-      if ((settings.enableProjectMemory ?? true) && targetConv.projectId) {
-        const currentProj = projects.find(p => p.id === targetConv.projectId);
-        if (currentProj) {
-          const projConvs = conversations.filter(c => c.projectId === currentProj.id);
-          const projPrompt = formatProjectMemoryPrompt(currentProj, projConvs, targetConv.id, text);
-          if (projPrompt) {
-            effectiveSystemPrompt = effectiveSystemPrompt ? `${effectiveSystemPrompt}\n\n${projPrompt}` : projPrompt;
+        // 4. Project Collective Memory (Multiple chats inside same project share project memory)
+        if ((settings.enableProjectMemory ?? true) && targetConv.projectId) {
+          const currentProj = projects.find(p => p.id === targetConv.projectId);
+          if (currentProj) {
+            const projConvs = conversations.filter(c => c.projectId === currentProj.id);
+            const projPrompt = formatProjectMemoryPrompt(currentProj, projConvs, targetConv.id, text);
+            if (projPrompt) {
+              effectiveSystemPrompt = effectiveSystemPrompt ? `${effectiveSystemPrompt}\n\n${projPrompt}` : projPrompt;
+            }
           }
         }
       }
@@ -1271,8 +1271,7 @@ export default function App() {
       // The Agent now has a real staged loop: 12 total turns is the hard ceiling for one
       // Agent task, including the bounded project-memory audit. We no longer spend extra
       // hidden turns beyond the advertised limit.
-      const memoryAuditEligible = projectMemoryEnabled && !!targetConv.projectId && (
-        workspaceAgentEnabled ||
+      const memoryAuditEligible = !workspaceAgentEnabled && projectMemoryEnabled && !!targetConv.projectId && (
         modifiedPaths.size > 0 ||
         /必须|不得|禁止|统一|规范|约定|决定|最终|改为|改成|调整为|换成|采用|技术选型|架构|UI|UX|配色|主题|布局|输入框|键盘|依赖|框架|方案/i.test(text)
       );
@@ -1604,7 +1603,7 @@ export default function App() {
             const autoVerificationSupported = wsToOperate
               ? inspectProjectRuntime(wsToOperate).checkStrategy !== 'unsupported'
               : false;
-            if (!isDiagnosisMode && !verificationAlreadyRequested && executableChange && autoVerificationSupported && wsToOperate) {
+            if (!verificationAlreadyRequested && executableChange && autoVerificationSupported && wsToOperate) {
               const autoVerify = await executeWorkspaceTool('run_project_check', {}, wsToOperate);
               wsToOperate = autoVerify.updatedWorkspace;
               if (autoVerify.errorMessage) validationFailureCount += 1;
