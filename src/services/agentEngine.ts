@@ -525,7 +525,9 @@ export async function executeWorkspaceTool(
     const runtimeFiles = await listWorkspaceFiles(ws.id);
     if (runtimeFiles) {
       for (const entry of runtimeFiles) {
-        if (ws.files[entry.path]) continue;
+        const existing = ws.files[entry.path];
+        const runtimeIsNewer = !existing || ((entry.updatedAt || 0) > (existing.updatedAt || 0));
+        if (!runtimeIsNewer) continue;
         const runtimeFile = await readWorkspaceFile(ws.id, entry.path);
         if (runtimeFile?.exists && typeof runtimeFile.content === 'string') {
           ws.files[entry.path] = { path: entry.path, content: runtimeFile.content, isBinary: false, size: entry.size || runtimeFile.content.length, updatedAt: entry.updatedAt || Date.now() };
