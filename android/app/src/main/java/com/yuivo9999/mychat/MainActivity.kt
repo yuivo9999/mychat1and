@@ -178,6 +178,24 @@ class AndroidBridge(
     }
 
     @JavascriptInterface
+    fun listWorkspaceFiles(workspaceId: String): String {
+        return try {
+            val root = workspaceRoot(workspaceId)
+            val files = org.json.JSONArray()
+            if (root.exists()) {
+                root.walkTopDown().filter { it.isFile }.forEach { file ->
+                    val relative = root.toPath().relativize(file.toPath()).toString().replace(File.separatorChar, '/')
+                    if (relative == ".mychat-runtime" || relative.startsWith(".mychat-runtime/") || relative.startsWith("node_modules/")) return@forEach
+                    files.put(JSONObject().put("path", relative).put("size", file.length()).put("updatedAt", file.lastModified()))
+                }
+            }
+            JSONObject().put("ok", true).put("files", files).toString()
+        } catch (e: Throwable) {
+            JSONObject().put("ok", false).put("error", e.message ?: e.javaClass.simpleName).toString()
+        }
+    }
+
+    @JavascriptInterface
     fun readWorkspaceFile(workspaceId: String, relativePath: String): String {
         return try {
             val file = workspaceFile(workspaceId, relativePath)
