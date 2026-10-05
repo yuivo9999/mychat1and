@@ -339,14 +339,18 @@ export function computeDiffBetweenFileSnapshots(
   return diffs;
 }
 
-// Create a new version snapshot after AI or User modifications
+// Create a new version snapshot after AI or User modifications (max 15 checkpoints)
 export function createWorkspaceSnapshot(
   workspace: Workspace, 
   label: string, 
   source: 'upload' | 'agent' | 'user' = 'agent'
 ): Workspace {
-  const previousSnapshot = workspace.snapshots[workspace.snapshots.length - 1];
-  const previousFiles = previousSnapshot ? previousSnapshot.files : workspace.originalSnapshot.files;
+  const currentSnapshots = (workspace.snapshots && workspace.snapshots.length > 0)
+    ? workspace.snapshots
+    : (workspace.originalSnapshot ? [workspace.originalSnapshot] : []);
+
+  const previousSnapshot = currentSnapshots[currentSnapshots.length - 1];
+  const previousFiles = previousSnapshot ? previousSnapshot.files : (workspace.originalSnapshot?.files || {});
 
   const diffFromPrevious = computeDiffBetweenFileSnapshots(previousFiles, workspace.files);
 
@@ -355,7 +359,10 @@ export function createWorkspaceSnapshot(
     return workspace;
   }
 
-  const nextVersion = workspace.currentVersion + 1;
+  const existingVersions = currentSnapshots.map(s => s.version);
+  const maxVersion = existingVersions.length > 0 ? Math.max(...existingVersions) : workspace.currentVersion;
+  const nextVersion = Math.max(maxVersion, workspace.currentVersion) + 1;
+
   const newSnapshot: WorkspaceSnapshot = {
     version: nextVersion,
     label: label || `版本 v${nextVersion}`,
@@ -365,12 +372,116 @@ export function createWorkspaceSnapshot(
     source,
   };
 
+  const allSnapshots = [...currentSnapshots, newSnapshot];
+  // Retain at most 15 checkpoints
+  const MAX_CHECKPOINTS = 15;
+  const trimmedSnapshots = allSnapshots.length > MAX_CHECKPOINTS
+    ? allSnapshots.slice(-MAX_CHECKPOINTS)
+    : allSnapshots;
+
   return {
     ...workspace,
     currentVersion: nextVersion,
-    snapshots: [...workspace.snapshots, newSnapshot],
+    snapshots: trimmedSnapshots,
     updatedAt: Date.now(),
   };
+}
+
+// Restore workspace to a specific checkpoint version without deleting any versions
+export function restoreWorkspaceSnapshot(
+  workspace: Workspace,
+  targetVersion: number
+): { 
+  success: boolean; 
+  workspace: Workspace; 
+  message: string 
+} {
+  const currentSnapshots = (workspace.snapshots && workspace.snapshots.length > 0)
+    ? workspace.snapshots
+    : (workspace.originalSnapshot ? [workspace.originalSnapshot] : []);
+
+  const targetSnapshot = currentSnapshots.find(s => s.version === targetVersion) ||
+    (workspace.originalSnapshot?.version === targetVersion ? workspace.originalSnapshot : null);
+
+  if (!targetSnapshot) {
+    return {
+      success: false,
+      workspace,
+      message: `找不到回退版本 v${targetVersion}`,
+    };
+  }
+
+  const restoredWorkspace: Workspace = {
+    ...workspace,
+    currentVersion: targetSnapshot.version,
+    files: JSON.parse(JSON.stringify(targetSnapshot.files)),
+    updatedAt: Date.now(),
+  };
+
+  return {
+    success: true,
+    workspace: restoredWorkspace,
+    message: `已成功恢复至回退档 v${targetSnapshot.version} (${targetSnapshot.label})`,
+  };
+}
+
+// Delete a specific checkpoint from history (leaves user in full control)
+export function deleteWorkspaceSnapshot(
+  workspace: Workspace,
+  versionToDelete: number
+): {
+  success: boolean;
+  workspace: Workspace;
+  message: string;
+} {
+  const currentSnapshots = (workspace.snapshots && workspace.snapshots.length > 0)
+    ? workspace.snapshots
+    : (workspace.originalSnapshot ? [workspace.originalSnapshot] : []);
+
+  if (currentSnapshots.length <= 1) {
+    return {
+      success: false,
+      workspace,
+      message: '至少保留一个版本回退档，无法删除',
+    };
+  }
+
+  const updatedSnapshots = currentSnapshots.filter(s => s.version !== versionToDelete);
+  let updatedCurrentVersion = workspace.currentVersion;
+  let updatedFiles = workspace.files;
+
+  // If deleted the currently active version, fall back to the newest remaining snapshot
+  if (workspace.currentVersion === versionToDelete) {
+    const fallback = updatedSnapshots[updatedSnapshots.length - 1];
+    updatedCurrentVersion = fallback.version;
+    updatedFiles = JSON.parse(JSON.stringify(fallback.files));
+  }
+
+  return {
+    success: true,
+    workspace: {
+      ...workspace,
+      currentVersion: updatedCurrentVersion,
+      files: updatedFiles,
+      snapshots: updatedSnapshots,
+      updatedAt: Date.now(),
+    },
+    message: `已删除版本 v${versionToDelete} 回退档`,
+  };
+}
+
+// Package clean snapshot files into a .zip archive
+export async function packageSnapshotToZip(snapshot: WorkspaceSnapshot): Promise<Blob> {
+  const zip = new JSZip();
+  for (const [path, file] of Object.entries(snapshot.files)) {
+    if (file.isBinary) continue;
+    zip.file(path, file.content);
+  }
+  return await zip.generateAsync({
+    type: 'blob',
+    compression: 'DEFLATE',
+    compressionOptions: { level: 6 }
+  });
 }
 
 // Undo recent AI changes by reverting to the previous snapshot
@@ -379,7 +490,7 @@ export function revertToPreviousSnapshot(workspace: Workspace): {
   workspace: Workspace; 
   message: string 
 } {
-  if (workspace.snapshots.length <= 1) {
+  if (!workspace.snapshots || workspace.snapshots.length <= 1) {
     return {
       success: false,
       workspace,
@@ -389,7 +500,7 @@ export function revertToPreviousSnapshot(workspace: Workspace): {
 
   const currentSnapIdx = workspace.snapshots.findIndex(s => s.version === workspace.currentVersion);
   const targetIdx = currentSnapIdx > 0 ? currentSnapIdx - 1 : workspace.snapshots.length - 2;
-  const targetSnapshot = workspace.snapshots[targetIdx];
+  const targetSnapshot = workspace.snapshots[targetIdx >= 0 ? targetIdx : 0];
 
   const revertedWorkspace: Workspace = {
     ...workspace,
@@ -401,7 +512,7 @@ export function revertToPreviousSnapshot(workspace: Workspace): {
   return {
     success: true,
     workspace: revertedWorkspace,
-    message: `已成功撤销，回退至版本 v${targetSnapshot.version} (${targetSnapshot.label})`,
+    message: `已成功回退至版本 v${targetSnapshot.version} (${targetSnapshot.label})`,
   };
 }
 

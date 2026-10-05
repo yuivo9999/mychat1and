@@ -26,12 +26,14 @@ import {
   FilePlus,
   Layers,
   FileSpreadsheet, 
-  Play, 
-  Loader2, 
-  Send, 
+  RotateCcw,
+  History,
+  Clock,
+  Sparkles,
+  Bot,
   ChevronDown as DropdownIcon
 } from 'lucide-react';
-import { Workspace, WorkspaceFile } from '../types/workspace';
+import { Workspace, WorkspaceFile, WorkspaceSnapshot } from '../types/workspace';
 import { Attachment } from '../types';
 import { workspaceFileToAttachment, workspaceZipToAttachment } from '../services/workspaceFileAttachment';
 import { FileEditorModal } from './FileEditorModal';
@@ -42,11 +44,13 @@ import {
   packageWorkspaceToZip,
   addFilesToActiveWorkspace,
   deleteFolderFromWorkspace,
-  renameFolderInWorkspace
+  renameFolderInWorkspace,
+  restoreWorkspaceSnapshot,
+  deleteWorkspaceSnapshot,
+  revertToPreviousSnapshot,
+  packageSnapshotToZip
 } from '../services/workspaceService';
 import { downloadWorkspaceFile, decodeTextFile } from '../services/fileParser';
-import { executeCode, installWorkspaceDependencies, getWorkspaceNodeRuntimeState } from '../services/codeExecutionAdapter';
-import { inspectProjectRuntime, ProjectRuntimeInfo } from '../services/projectRuntimeService';
 
 interface WorkspaceDrawerProps {
   isOpen: boolean;
@@ -239,9 +243,11 @@ export const WorkspaceDrawer: React.FC<WorkspaceDrawerProps> = ({
   const [movingFile, setMovingFile] = useState<WorkspaceFile | null>(null);
   const [selectedTargetFolder, setSelectedTargetFolder] = useState<string>('');
   const [customNewFolder, setCustomNewFolder] = useState<string>('');
-  const [runtimeInfo, setRuntimeInfo] = useState<ProjectRuntimeInfo | null>(null);
-  const [runtimeRunning, setRuntimeRunning] = useState(false);
-  const [runtimeResult, setRuntimeResult] = useState<{ success: boolean; stdout: string; stderr: string; exitCode: number; error?: string | null; runtime?: string; command?: string } | null>(null);
+
+  // Active Tab: 'files' (File List) vs 'history' (Version Checkpoints, max 15)
+  const [activeTab, setActiveTab] = useState<'files' | 'history'>('files');
+  const [activeSnapshotMenuVersion, setActiveSnapshotMenuVersion] = useState<number | null>(null);
+  const [snapshotToast, setSnapshotToast] = useState<string | null>(null);
 
   // Editable File Modal State
   const [editingFile, setEditingFile] = useState<WorkspaceFile | null>(null);
@@ -261,6 +267,9 @@ export const WorkspaceDrawer: React.FC<WorkspaceDrawerProps> = ({
       if (activeMenuPath && !(e.target as HTMLElement).closest('.file-action-menu')) {
         setActiveMenuPath(null);
       }
+      if (activeSnapshotMenuVersion !== null && !(e.target as HTMLElement).closest('.snapshot-action-menu')) {
+        setActiveSnapshotMenuVersion(null);
+      }
       if (isWorkspaceDropdownOpen && !(e.target as HTMLElement).closest('.workspace-dropdown')) {
         setIsWorkspaceDropdownOpen(false);
       }
@@ -273,7 +282,7 @@ export const WorkspaceDrawer: React.FC<WorkspaceDrawerProps> = ({
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [activeMenuPath, isWorkspaceDropdownOpen, isUploadDropdownOpen, isNewDropdownOpen]);
+  }, [activeMenuPath, activeSnapshotMenuVersion, isWorkspaceDropdownOpen, isUploadDropdownOpen, isNewDropdownOpen]);
 
   // Workspace management state (Rename & Add)
   const [editingWorkspaceId, setEditingWorkspaceId] = useState<string | null>(null);
@@ -315,6 +324,24 @@ export const WorkspaceDrawer: React.FC<WorkspaceDrawerProps> = ({
   const currentWorkspace = useMemo(() => {
     return workspaces.find(w => w.id === activeWorkspaceId) || workspaces[0] || null;
   }, [workspaces, activeWorkspaceId]);
+
+  // All snapshots / checkpoints (maximum 15, per user requirement)
+  const snapshots = useMemo<WorkspaceSnapshot[]>(() => {
+    if (!currentWorkspace) return [];
+    if (currentWorkspace.snapshots && currentWorkspace.snapshots.length > 0) {
+      return currentWorkspace.snapshots;
+    }
+    if (currentWorkspace.originalSnapshot) {
+      return [currentWorkspace.originalSnapshot];
+    }
+    return [];
+  }, [currentWorkspace]);
+
+  // Current active snapshot matching workspace.currentVersion
+  const currentSnapshot = useMemo(() => {
+    if (!currentWorkspace) return null;
+    return snapshots.find(s => s.version === currentWorkspace.currentVersion) || snapshots[snapshots.length - 1] || null;
+  }, [currentWorkspace, snapshots]);
 
   // Build Hierarchical File Tree
   const fileTree = useMemo(() => {
@@ -600,49 +627,72 @@ export const WorkspaceDrawer: React.FC<WorkspaceDrawerProps> = ({
     setConflictFilesList([]);
   };
 
-  const handleProjectCheck = async () => {
-    if (!currentWorkspace || runtimeRunning) return;
-    const info = inspectProjectRuntime(currentWorkspace);
-    setRuntimeInfo(info); setRuntimeRunning(true); setRuntimeResult(null);
-    try {
-      if (info.checkStrategy === 'unsupported' || info.checkCommands.length === 0) {
-        setRuntimeResult({ success: false, stdout: '', stderr: info.signals.join('\\n'), exitCode: -1, error: '当前项目类型没有可用的运行时检查策略。' }); return;
-      }
-      if (info.kind === 'node' && info.packageManager === 'npm') {
-        const nodeState = await getWorkspaceNodeRuntimeState(currentWorkspace.id);
-        if (nodeState && nodeState.packageJsonExists && nodeState.dependenciesInSync === false) {
-          const installResult = await installWorkspaceDependencies(currentWorkspace.id, 120000);
-          if (!installResult.success) { setRuntimeResult(installResult); return; }
-        }
-      }
-      if (info.checkStrategy === 'python_source') {
-        const result = await executeCode({ language: 'python', workspaceId: currentWorkspace.id, timeoutMs: 60000,
-          code: "import compileall\\nok = compileall.compile_dir('.', quiet=1)\\nprint('Python compile check:', 'PASS' if ok else 'FAIL')\\nraise SystemExit(0 if ok else 1)" });
-        setRuntimeResult(result); return;
-      }
-      const command = info.checkCommands[0];
-      const result = await executeCode({ language: 'shell', code: command, workspaceId: currentWorkspace.id, timeoutMs: 120000 });
-      setRuntimeResult({ ...result, command });
-    } catch (error: any) {
-      setRuntimeResult({ success: false, stdout: '', stderr: '', exitCode: -1, error: error?.message || String(error) });
-    } finally { setRuntimeRunning(false); }
+  // 11. Action: 恢复到指定版本（回退档）
+  const handleRestoreSnapshot = (targetVersion: number) => {
+    if (!currentWorkspace) return;
+    const res = restoreWorkspaceSnapshot(currentWorkspace, targetVersion);
+    if (res.success) {
+      onSaveWorkspace(res.workspace);
+      setSnapshotToast(`已恢复至回退档 v${targetVersion}。导出工作区将直接导出此版本代码！`);
+      setTimeout(() => setSnapshotToast(null), 5000);
+    } else {
+      alert(res.message);
+    }
+    setActiveSnapshotMenuVersion(null);
   };
 
-  const handleSendRuntimeResultToAi = () => {
-    if (!currentWorkspace || !runtimeResult || !onSendAiMessage) return;
-    const info = runtimeInfo || inspectProjectRuntime(currentWorkspace);
-    const report = [
-      '请继续处理工作区「' + currentWorkspace.name + '」的项目检查结果。',
-      '项目类型: ' + info.kind, '检查策略: ' + info.checkStrategy,
-      '退出码: ' + runtimeResult.exitCode, '运行时: ' + (runtimeResult.runtime || 'unknown'),
-      runtimeResult.command ? '命令: ' + runtimeResult.command : '',
-      '成功: ' + (runtimeResult.success ? '是' : '否'),
-      'stdout:\\n' + (runtimeResult.stdout || '(空)'),
-      'stderr:\\n' + (runtimeResult.stderr || '(空)'),
-      '错误: ' + (runtimeResult.error || '无'),
-      '请基于这个真实运行结果定位问题；如需修改代码，请直接在当前工作区继续修改，然后再次执行检查。'
-    ].filter(Boolean).join('\\n');
-    onSendAiMessage(report);
+  // 12. Action: 快速恢复至前一个版本
+  const handleRevertToPrevious = () => {
+    if (!currentWorkspace) return;
+    const res = revertToPreviousSnapshot(currentWorkspace);
+    if (res.success) {
+      onSaveWorkspace(res.workspace);
+      setSnapshotToast(res.message);
+      setTimeout(() => setSnapshotToast(null), 5000);
+    } else {
+      alert(res.message);
+    }
+  };
+
+  // 13. Action: 删除指定回退档（由用户决定是否删除，回退并不会强制删除当前版本）
+  const handleDeleteSnapshot = (targetVersion: number, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (!currentWorkspace) return;
+    if (snapshots.length <= 1) {
+      alert('至少需要保留一个回退档，无法删除唯一版本。');
+      return;
+    }
+    if (!confirm(`确定要删除回退档 v${targetVersion} 吗？`)) {
+      return;
+    }
+    const res = deleteWorkspaceSnapshot(currentWorkspace, targetVersion);
+    if (res.success) {
+      onSaveWorkspace(res.workspace);
+      setSnapshotToast(res.message);
+      setTimeout(() => setSnapshotToast(null), 4000);
+    } else {
+      alert(res.message);
+    }
+    setActiveSnapshotMenuVersion(null);
+  };
+
+  // 14. Action: 打包单独导出某个回退档的 ZIP
+  const handleDownloadSnapshotZip = async (snapshot: WorkspaceSnapshot, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    try {
+      const blob = await packageSnapshotToZip(snapshot);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${currentWorkspace?.name || 'workspace'}-v${snapshot.version}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert(`打包下载失败: ${err.message || '未知错误'}`);
+    }
+    setActiveSnapshotMenuVersion(null);
   };
 
   // 11. Action: 打包下载整工作区 ZIP
@@ -1151,17 +1201,9 @@ export const WorkspaceDrawer: React.FC<WorkspaceDrawerProps> = ({
               </div>
             </div>
 
-            {/* Right: Actions (Upload with text removed, Download ZIP, Close) */}
+            {/* Right: Actions (Upload, Download ZIP, Close) */}
             <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-auto w-full sm:w-auto justify-end">
-                          {/* Project runtime check */}
-            <button type="button" onClick={handleProjectCheck} disabled={runtimeRunning || !currentWorkspace}
-              className="workspace-drawer-header-btn h-9 px-2.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800/90 hover:bg-neutral-100 dark:hover:bg-neutral-750 disabled:opacity-50 text-neutral-800 dark:text-neutral-100 transition cursor-pointer shrink-0 shadow-2xs flex items-center justify-center gap-1.5"
-              title="检查当前项目：执行真实运行时检查">
-              {runtimeRunning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />}
-              <span className="hidden sm:inline text-[11px] font-semibold">{runtimeRunning ? '检查中' : '执行检查'}</span>
-            </button>
-
-            {/* Upload Dropdown */}
+              {/* Upload Dropdown */}
               <div className="relative upload-dropdown shrink-0">
                 <button
                   type="button"
@@ -1203,14 +1245,15 @@ export const WorkspaceDrawer: React.FC<WorkspaceDrawerProps> = ({
                 )}
               </div>
 
-              {/* Download ZIP button */}
+              {/* Download ZIP button (exports current active version) */}
               <button
                 type="button"
                 onClick={handleDownloadZip}
-                className="workspace-drawer-header-btn h-9 w-9 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800/90 hover:bg-neutral-100 dark:hover:bg-neutral-750 text-neutral-800 dark:text-neutral-100 transition cursor-pointer shrink-0 shadow-2xs flex items-center justify-center"
-                title="打包下载整工作区 ZIP"
+                className="workspace-drawer-header-btn h-9 px-2.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800/90 hover:bg-neutral-100 dark:hover:bg-neutral-750 text-neutral-800 dark:text-neutral-100 transition cursor-pointer shrink-0 shadow-2xs flex items-center justify-center gap-1.5"
+                title={`打包导出当前版本 (v${currentWorkspace?.currentVersion || 1}) 为 ZIP 文件`}
               >
-                <Download className="w-4 h-4 text-neutral-700 dark:text-neutral-200 stroke-[2] shrink-0" />
+                <Download className="w-4 h-4 text-indigo-600 dark:text-indigo-400 stroke-[2] shrink-0" />
+                <span className="text-[11px] font-semibold hidden sm:inline">导出当前版本</span>
               </button>
 
               {/* Close Button */}
@@ -1225,68 +1268,345 @@ export const WorkspaceDrawer: React.FC<WorkspaceDrawerProps> = ({
             </div>
           </div>
 
-          {/* Search Bar */}
-          <div className="px-6 py-2.5 border-b border-neutral-100 dark:border-neutral-800 bg-white dark:bg-neutral-900 shrink-0">
-            <div className="relative flex items-center">
-              <Search className="w-4 h-4 text-neutral-400 absolute left-3 pointer-events-none" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="搜索工作区文件..."
-                className="w-full pl-9 pr-8 py-2 bg-neutral-100 dark:bg-neutral-800/80 border border-neutral-200/80 dark:border-neutral-700/80 rounded-xl text-xs text-neutral-800 dark:text-neutral-200 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 p-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 cursor-pointer"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
+          {/* Navigation Tab Bar: [项目文件] vs [版本回退档 (15)] */}
+          <div className="px-5 pt-2 pb-0 border-b border-neutral-100 dark:border-neutral-800 bg-neutral-50/40 dark:bg-neutral-900/40 flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveTab('files')}
+                className={`pb-2.5 px-3 font-semibold text-xs transition relative flex items-center gap-1.5 cursor-pointer ${
+                  activeTab === 'files'
+                    ? 'text-indigo-600 dark:text-indigo-400'
+                    : 'text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-200'
+                }`}
+              >
+                <Folder className="w-3.5 h-3.5" />
+                <span>项目文件</span>
+                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-neutral-200/70 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400">
+                  {fileCount}
+                </span>
+                {activeTab === 'files' && (
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600 dark:bg-indigo-400 rounded-full" />
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('history')}
+                className={`pb-2.5 px-3 font-semibold text-xs transition relative flex items-center gap-1.5 cursor-pointer ${
+                  activeTab === 'history'
+                    ? 'text-indigo-600 dark:text-indigo-400'
+                    : 'text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-200'
+                }`}
+              >
+                <History className="w-3.5 h-3.5" />
+                <span>版本回退档</span>
+                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 font-bold">
+                  {snapshots.length}/15
+                </span>
+                {activeTab === 'history' && (
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600 dark:bg-indigo-400 rounded-full" />
+                )}
+              </button>
+            </div>
+
+            {/* Quick status on the right */}
+            <div className="pb-2 text-[11px] text-neutral-400 flex items-center gap-1.5">
+              <Clock className="w-3 h-3 text-neutral-400" />
+              <span>生效: <strong className="text-neutral-700 dark:text-neutral-300 font-mono">v{currentWorkspace?.currentVersion || 1}</strong></span>
             </div>
           </div>
 
-          {/* Runtime result */}
-          {runtimeResult && (
-            <div className="mx-4 mt-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/80 dark:bg-neutral-950/60 overflow-hidden shrink-0">
-              <div className="px-3 py-2 flex items-center gap-2 border-b border-neutral-200 dark:border-neutral-800">
-                <span className={"w-2 h-2 rounded-full " + (runtimeResult.success ? 'bg-emerald-500' : 'bg-red-500')} />
-                <span className="text-xs font-semibold">{runtimeResult.success ? '项目检查通过' : '项目检查失败'}</span>
-                <span className="text-[10px] text-neutral-400 font-mono">exit {runtimeResult.exitCode}</span>
-                <button type="button" onClick={handleSendRuntimeResultToAi} disabled={!onSendAiMessage}
-                  className="ml-auto inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-[10px] font-semibold transition">
-                  <Send className="w-3 h-3" /> 交给 AI
-                </button>
+          {/* Toast Notification Banner */}
+          {snapshotToast && (
+            <div className="mx-4 mt-2.5 px-3.5 py-2 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 rounded-xl flex items-center justify-between text-xs text-emerald-800 dark:text-emerald-300 animate-in fade-in slide-in-from-top-1 shrink-0">
+              <div className="flex items-center gap-2">
+                <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 stroke-[2.5]" />
+                <span className="font-medium">{snapshotToast}</span>
               </div>
-              <div className="max-h-32 overflow-y-auto px-3 py-2 space-y-1.5 text-[10px] font-mono">
-                {runtimeResult.command && <div className="text-neutral-500">命令: {runtimeResult.command}</div>}
-                {runtimeResult.stdout && <pre className="whitespace-pre-wrap text-neutral-700 dark:text-neutral-300">{runtimeResult.stdout}</pre>}
-                {runtimeResult.stderr && <pre className="whitespace-pre-wrap text-red-600 dark:text-red-400">{runtimeResult.stderr}</pre>}
-                {runtimeResult.error && <div className="text-red-600 dark:text-red-400">{runtimeResult.error}</div>}
-              </div>
+              <button
+                type="button"
+                onClick={() => setSnapshotToast(null)}
+                className="p-1 text-emerald-500 hover:text-emerald-700 dark:hover:text-emerald-200 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
           )}
 
-          {/* Category Header "名称" */}
-          <div className="px-6 pt-3 pb-1.5 flex items-center justify-between text-xs font-semibold text-neutral-400 dark:text-neutral-500 select-none">
-            <span>名称</span>
-            <span>共 {fileCount} 个文件</span>
-          </div>
+          {/* TAB 1: File List View */}
+          {activeTab === 'files' && (
+            <>
+              {/* Quick Rollback Ribbon */}
+              {snapshots.length > 1 && (
+                <div className="px-5 py-2 bg-indigo-50/70 dark:bg-indigo-950/40 border-b border-indigo-100/80 dark:border-indigo-900/40 flex items-center justify-between text-xs shrink-0">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <RotateCcw className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                    <span className="text-indigo-950 dark:text-indigo-200 font-medium truncate">
+                      当前版本: <strong>v{currentWorkspace?.currentVersion || 1}</strong>
+                      {currentSnapshot?.label ? ` · ${currentSnapshot.label}` : ''}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={handleRevertToPrevious}
+                      className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-[11px] flex items-center gap-1 shadow-2xs transition cursor-pointer"
+                      title="对 AI 刚才的修改不满意？点击可直接恢复至上一个版本"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      <span>恢复上一版</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('history')}
+                      className="px-2 py-1 rounded-lg border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100/70 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 font-medium text-[11px] transition cursor-pointer"
+                    >
+                      <span>所有回退档 ({snapshots.length})</span>
+                    </button>
+                  </div>
+                </div>
+              )}
 
-          {/* File List Body */}
-          <div className="flex-1 overflow-y-auto px-4 py-1 space-y-1">
-            {fileTree.length === 0 ? (
-              <div className="py-20 text-center text-neutral-400 space-y-2">
-                <Folder className="w-10 h-10 mx-auto opacity-30" />
-                <p className="text-sm font-medium">当前工作区为空</p>
-                <p className="text-xs text-neutral-500">点击上方“上传”或“新建”即可添加代码与文档文件</p>
+              {/* Search Bar */}
+              <div className="px-6 py-2.5 border-b border-neutral-100 dark:border-neutral-800 bg-white dark:bg-neutral-900 shrink-0">
+                <div className="relative flex items-center">
+                  <Search className="w-4 h-4 text-neutral-400 absolute left-3 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="搜索工作区文件..."
+                    className="w-full pl-9 pr-8 py-2 bg-neutral-100 dark:bg-neutral-800/80 border border-neutral-200/80 dark:border-neutral-700/80 rounded-xl text-xs text-neutral-800 dark:text-neutral-200 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-2.5 p-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
-            ) : (
-              fileTree.map(node => renderTreeNode(node, 0))
-            )}
-          </div>
+
+              {/* Category Header "名称" */}
+              <div className="px-6 pt-3 pb-1.5 flex items-center justify-between text-xs font-semibold text-neutral-400 dark:text-neutral-500 select-none shrink-0">
+                <span>文件名称</span>
+                <span>共 {fileCount} 个文件</span>
+              </div>
+
+              {/* File List Body */}
+              <div className="flex-1 overflow-y-auto px-4 py-1 space-y-1">
+                {fileTree.length === 0 ? (
+                  <div className="py-20 text-center text-neutral-400 space-y-2">
+                    <Folder className="w-10 h-10 mx-auto opacity-30" />
+                    <p className="text-sm font-medium">当前工作区为空</p>
+                    <p className="text-xs text-neutral-500">点击上方“上传”或“新建”即可添加代码与文档文件</p>
+                  </div>
+                ) : (
+                  fileTree.map(node => renderTreeNode(node, 0))
+                )}
+              </div>
+            </>
+          )}
+
+          {/* TAB 2: Version Rollback History View (Up to 15 checkpoints) */}
+          {activeTab === 'history' && (
+            <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+              {/* Rollback Information Bar */}
+              <div className="p-4 bg-indigo-50/50 dark:bg-indigo-950/30 border-b border-indigo-100/70 dark:border-indigo-900/40 shrink-0 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <RotateCcw className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                    <h3 className="font-bold text-xs text-neutral-900 dark:text-neutral-100">
+                      工作区版本回退档（最多保留 15 个版本）
+                    </h3>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-neutral-500 font-mono">
+                      已存 {snapshots.length} / 15 回退档
+                    </span>
+                    {snapshots.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={handleRevertToPrevious}
+                        className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs flex items-center gap-1 shadow-2xs transition cursor-pointer"
+                        title="一键撤销并恢复至前一个版本"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        <span>一键恢复上版本</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <p className="text-[11px] text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                  💡 这一轮 AI 修改如果不满意，可随时选择任意前置版本进行恢复。<strong>回退版本后，打包导出的即为该恢复后的版本。</strong>选择回退并不会删除刚才不满意的内容；您可点击右侧三个点「<MoreHorizontal className="inline w-3 h-3 mx-0.5" />」自主决定是否删除该回退档。
+                </p>
+              </div>
+
+              {/* Checkpoint Cards List */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-2.5">
+                {snapshots.length === 0 ? (
+                  <div className="py-20 text-center text-neutral-400 space-y-2">
+                    <History className="w-10 h-10 mx-auto opacity-30" />
+                    <p className="text-sm font-medium">暂无版本回退档</p>
+                    <p className="text-xs text-neutral-500">当 AI 修改工作区文件或手动修改保存时，会自动记录版本快照</p>
+                  </div>
+                ) : (
+                  [...snapshots].reverse().map((s) => {
+                    const isActive = s.version === currentWorkspace?.currentVersion;
+                    const isMenuOpen = activeSnapshotMenuVersion === s.version;
+                    const fileTotal = Object.keys(s.files || {}).length;
+                    const diffCount = s.diffFromPrevious?.length || 0;
+
+                    return (
+                      <div
+                        key={s.version}
+                        className={`p-3.5 rounded-2xl border transition-all ${
+                          isActive
+                            ? 'border-indigo-500 bg-indigo-50/40 dark:bg-indigo-950/30 ring-1 ring-indigo-500/30 shadow-2xs'
+                            : 'border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-850 hover:border-neutral-300 dark:hover:border-neutral-700'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          {/* Left: Version Tag & Label */}
+                          <div className="space-y-1.5 flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`px-2 py-0.5 rounded-md font-mono text-xs font-bold ${
+                                isActive 
+                                  ? 'bg-indigo-600 text-white shadow-2xs' 
+                                  : 'bg-neutral-200 dark:bg-neutral-750 text-neutral-800 dark:text-neutral-200'
+                              }`}>
+                                v{s.version}
+                              </span>
+
+                              {/* Source Badge */}
+                              {s.source === 'agent' ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-950/70 text-purple-700 dark:text-purple-300 text-[10px] font-semibold">
+                                  <Bot className="w-3 h-3 text-purple-600 dark:text-purple-400" />
+                                  <span>AI 修改</span>
+                                </span>
+                              ) : s.source === 'upload' ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 text-[10px] font-semibold">
+                                  <Archive className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                                  <span>初始上传</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 text-[10px] font-semibold">
+                                  <span>手动保存</span>
+                                </span>
+                              )}
+
+                              {/* Active Badge */}
+                              {isActive && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/10 dark:bg-emerald-400/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[10px] font-bold">
+                                  <Check className="w-3 h-3 stroke-[2.5]" />
+                                  <span>当前生效版本（导出以此为准）</span>
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Label */}
+                            <div className="text-xs font-semibold text-neutral-800 dark:text-neutral-100 break-all">
+                              {s.label}
+                            </div>
+
+                            {/* Metadata */}
+                            <div className="flex items-center gap-3 text-[11px] text-neutral-400 flex-wrap">
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                <span>{formatRelativeTime(s.timestamp)}</span>
+                              </span>
+                              <span>共 {fileTotal} 个文件</span>
+                              {diffCount > 0 && (
+                                <span className="text-indigo-600 dark:text-indigo-400 font-medium">
+                                  ({diffCount} 个文件变动)
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Right: Actions */}
+                          <div className="flex items-center gap-1.5 shrink-0 pt-0.5 relative">
+                            {/* Direct Restore button if not active */}
+                            {!isActive && (
+                              <button
+                                type="button"
+                                onClick={() => handleRestoreSnapshot(s.version)}
+                                className="px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+                                title="恢复至此版本，所有文件将还原为此版本状态"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5" />
+                                <span>恢复此版本</span>
+                              </button>
+                            )}
+
+                            {/* 3-Dots Button `...` (Three dots menu for user choice) */}
+                            <div className="relative">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveSnapshotMenuVersion(isMenuOpen ? null : s.version);
+                                }}
+                                className="p-1.5 rounded-lg border border-neutral-200/80 dark:border-neutral-700/80 hover:bg-neutral-100 dark:hover:bg-neutral-750 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 transition cursor-pointer"
+                                title="回退档选项（恢复、导出、删除）"
+                              >
+                                <MoreHorizontal className="w-4 h-4" />
+                              </button>
+
+                              {/* 3-Dots Popup Dropdown Menu */}
+                              {isMenuOpen && (
+                                <div className="snapshot-action-menu absolute right-0 top-8 z-50 w-48 bg-white dark:bg-neutral-800 rounded-2xl shadow-2xl border border-neutral-200 dark:border-neutral-700 py-1.5 text-xs animate-in fade-in zoom-in-95">
+                                  {/* 恢复至此版本 */}
+                                  {!isActive && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRestoreSnapshot(s.version)}
+                                      className="w-full text-left px-3.5 py-2.5 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 flex items-center gap-2.5 text-indigo-600 dark:text-indigo-400 font-medium transition-colors"
+                                    >
+                                      <RotateCcw className="w-3.5 h-3.5" />
+                                      <span>恢复至此版本</span>
+                                    </button>
+                                  )}
+
+                                  {/* 导出此版本 ZIP */}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => handleDownloadSnapshotZip(s, e)}
+                                    className="w-full text-left px-3.5 py-2.5 hover:bg-neutral-100 dark:hover:bg-neutral-700 flex items-center gap-2.5 text-neutral-700 dark:text-neutral-200 font-medium transition-colors"
+                                  >
+                                    <Download className="w-3.5 h-3.5 text-neutral-500" />
+                                    <span>导出此版本 ZIP</span>
+                                  </button>
+
+                                  <div className="my-1 border-t border-neutral-100 dark:border-neutral-700" />
+
+                                  {/* 删除此回退档 */}
+                                  <button
+                                    type="button"
+                                    disabled={snapshots.length <= 1}
+                                    onClick={(e) => handleDeleteSnapshot(s.version, e)}
+                                    className="w-full text-left px-3.5 py-2.5 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-600 dark:text-red-400 font-medium flex items-center gap-2.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                    title={snapshots.length <= 1 ? '至少需要保留一个回退档' : '删除该回退档'}
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                                    <span>删除此回退档</span>
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
