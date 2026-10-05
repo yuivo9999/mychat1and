@@ -1034,14 +1034,35 @@ export default function App() {
     const projectMemoryEnabled = settings.enableProjectMemory ?? true;
     const workspaceContextEnabled = !!wsToOperate && (agentMode || workspaceIntent.shouldAccessWorkspace);
     const workspaceAgentEnabled = agentMode && !!wsToOperate;
-    let agentTaskPlan = createAgentTaskPlan(text);
+    const existingAgentTask = targetConv.agentTask;
+    const isResumingWaitingAgent = workspaceAgentEnabled && existingAgentTask?.status === 'waiting_user';
+    let agentTaskPlan = isResumingWaitingAgent && existingAgentTask
+      ? {
+          goal: existingAgentTask.goal,
+          definitionOfDone: [...existingAgentTask.definitionOfDone],
+          checklist: existingAgentTask.checklist.map(item => ({ ...item })),
+          research: existingAgentTask.research ? { ...existingAgentTask.research } : undefined,
+        }
+      : createAgentTaskPlan(text);
     const maxAgentTurns = workspaceAgentEnabled
-      ? 12
+      ? (isResumingWaitingAgent ? Math.max(1, existingAgentTask?.maxRounds || 12) : 12)
       : (historySearchEnabled || (projectMemoryEnabled && !!targetConv.projectId))
         ? 6
         : 1;
     let agentLoopState: AgentLoopState = createAgentLoopState(maxAgentTurns);
-    const agentTaskId = workspaceAgentEnabled ? `agent_${Date.now()}_${Math.random().toString(36).slice(2, 8)}` : null;
+    if (isResumingWaitingAgent && existingAgentTask) {
+      agentLoopState = {
+        ...agentLoopState,
+        phase: (existingAgentTask.phase as AgentLoopState['phase']) || 'planning',
+        round: Math.min(existingAgentTask.round || 0, maxAgentTurns),
+        phaseRound: Math.min(existingAgentTask.round || 0, maxAgentTurns),
+        progressKind: 'idle',
+        noProgressRounds: 0,
+      };
+    }
+    const agentTaskId = workspaceAgentEnabled
+      ? (isResumingWaitingAgent ? existingAgentTask?.taskId || `agent_${Date.now()}_${Math.random().toString(36).slice(2, 8)}` : `agent_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`)
+      : null;
     agentTaskIdRef.current = agentTaskId;
 
     try {
@@ -1121,9 +1142,12 @@ export default function App() {
       }
 
       if (workspaceAgentEnabled) {
-        effectiveSystemPrompt = effectiveSystemPrompt
-          ? effectiveSystemPrompt + '\n\n' + buildAgentTaskPlanPrompt(text, agentTaskPlan.research)
+        const taskPromptGoal = isResumingWaitingAgent
+          ? `原 Agent 任务目标：\n${agentTaskPlan.goal}\n\n用户刚刚针对 Agent 的中途提问给出了新的决策/补充：\n${text}\n\n这是同一个 Agent 任务的继续输入。必须把这条用户输入作为真实的新证据/决策使用，继续执行原工作区任务，不要重新从“写方案”开始。`
           : buildAgentTaskPlanPrompt(text, agentTaskPlan.research);
+        effectiveSystemPrompt = effectiveSystemPrompt
+          ? effectiveSystemPrompt + '\n\n' + taskPromptGoal
+          : taskPromptGoal;
       }
 
       setStatusMessage(
@@ -1246,7 +1270,7 @@ export default function App() {
 
       const systemNotices = '';
 
-      let turn = 0;
+      let turn = isResumingWaitingAgent ? Math.min(agentLoopState.round, maxAgentTurns) : 0;
       // The Agent now has a real staged loop: 12 total turns is the hard ceiling for one
       // Agent task, including the bounded project-memory audit. We no longer spend extra
       // hidden turns beyond the advertised limit.
@@ -1711,7 +1735,35 @@ export default function App() {
               });
             }
 
-            if (shouldProtectAgainstNoProgress(agentLoopState)) {
+            if (implementationGateTriggered) {
+              toolResultsForPrompt.push(
+                '### Agent 实施门禁：必须真正修改工作区\\n' +
+                '当前用户任务明确要求修改/创建/删除工作区文件，但本轮没有执行任何 patch_file、write_file、create_file、delete_file 或 rename_file。' +
+                '下一轮禁止继续输出方案性长文本；必须基于当前真实文件证据调用 read_file 后立即执行必要的修改工具。' +
+                '如果你认为无需修改，必须用真实工作区证据说明为什么用户目标已经完成，而不是重复写计划。'
+              );
+            }
+
+            if (asksForUserDecision) {
+              if (agentTaskId) {
+                await persistAgentTaskState(targetConv.id, {
+                  taskId: agentTaskId,
+                  status: 'waiting_user',
+                  phase: agentLoopState.phase,
+                  round: agentLoopState.round,
+                  maxRounds: maxAgentTurns,
+                  ...agentTaskPlan,
+                  ...getAgentTaskStepText({ ...agentLoopState, phase: 'waiting_user' }),
+                  progressSummary: 'Agent 正在等待用户决策',
+                  pauseReason: '模型明确请求用户选择/确认，等待用户回复后继续同一任务',
+                  updatedAt: Date.now(),
+                });
+              }
+              setStatusMessage('Agent 正在等待你的选择/确认；请直接在下方输入并发送，回复会继续当前 Agent 任务。');
+              break;
+            }
+
+            if (shouldProtectAgainstNoProgress(agentLoopState) && !implementationGateTriggered) {
               toolResultsForPrompt.push(
                 '### Agent 防空转保护已触发\\n连续多个阶段没有产生新的可验证进展。请停止重复搜索/重复工具调用，整理当前证据并总结阻塞点；只有出现新的证据或用户输入后才能继续。'
               );
@@ -2926,6 +2978,7 @@ export default function App() {
           onToggleWebAccess={handleToggleWebAccess}
           agentMode={agentMode}
           onToggleAgentMode={handleToggleAgentMode}
+          agentTaskStatus={currentConversation?.agentTask?.status}
           pendingAttachments={pendingAttachments}
           onClearPendingAttachments={() => setPendingAttachments(null)}
           pendingPrompt={pendingPrompt}
