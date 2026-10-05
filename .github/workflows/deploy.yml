@@ -7,13 +7,16 @@ on:
       - master
   workflow_dispatch:
 
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages and writing to branches
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
+# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
+# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
 concurrency:
-  group: 'pages'
+  group: "pages"
   cancel-in-progress: false
 
 jobs:
@@ -28,23 +31,34 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
+          cache: 'npm'
 
       - name: Install dependencies
-        run: npm install --legacy-peer-deps
+        run: npm install --no-audit --no-fund --legacy-peer-deps || npm install --legacy-peer-deps
 
       - name: Build project
         run: npm run build
 
-      - name: Create 404.html and .nojekyll fallback for SPA routing
+      - name: Create fallback files for SPA and Jekyll
         run: |
           cp dist/index.html dist/404.html
           touch dist/.nojekyll
 
-      - name: Upload Pages artifact
+      - name: Upload Pages artifact (for official GitHub Actions deployment)
         uses: actions/upload-pages-artifact@v3
         with:
           path: './dist'
+
+      - name: Deploy to gh-pages branch (fallback for branch-based deployment)
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          keep_files: false
+          force_orphan: true
+          user_name: 'github-actions[bot]'
+          user_email: 'github-actions[bot]@users.noreply.github.com'
 
   deploy:
     environment:
@@ -52,7 +66,12 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     needs: build
+    # If the user hasn't enabled "GitHub Actions" as the source in Settings -> Pages, 
+    # this job might fail. We use continue-on-error to let the workflow finish as "success" 
+    # if the gh-pages branch deployment succeeded above.
+    continue-on-error: true
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
