@@ -448,8 +448,19 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
             const colorClasses = getHeadingClasses(titleText);
             return (
               <div key={idx} className="my-3">
-                <span className={`inline-block px-3 py-1 rounded-none font-bold border shadow-xs transition-colors duration-150 ${colorClasses}`}>
-                  {titleText}
+                <span className={`inline-block px-1.5 py-0.5 rounded-none font-bold border shadow-xs transition-colors duration-150 ${colorClasses}`}>
+                  <span
+                    className="inline-block"
+                    style={{
+                      backgroundImage: 'linear-gradient(90deg, #6366f1 0%, #a855f7 50%, #ec4899 100%)',
+                      backgroundClip: 'text',
+                      WebkitBackgroundClip: 'text',
+                      color: 'transparent',
+                      WebkitTextFillColor: 'transparent',
+                    }}
+                  >
+                    {titleText}
+                  </span>
                 </span>
               </div>
             );
