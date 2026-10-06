@@ -156,7 +156,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   // Code fences are a structural display feature, not optional prose formatting.
   // Even when general Markdown is disabled, fenced code must still enter the
   // Markdown renderer so the dedicated code-block renderer can create its UI.
-  const hasFencedCode = /(?:^|\\n)\\s*(?:```|~~~)/.test(mainContent);
+  const hasFencedCode = /(?:^|\n)\s*(?:```|~~~)/.test(mainContent);
   const shouldRenderMarkdown =
     (settings.enableMarkdown ?? true) ||
     (settings.onlyParseMarkdownTables ?? false) ||
