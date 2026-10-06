@@ -247,7 +247,7 @@ export function renderMarkdown(content: string, options: MarkdownOptions = {}): 
         // Standalone bold text is the plain-text title style. Keep inline bold text
         // unchanged and give only these title paragraphs the gradient treatment.
         const normalized = typeof text === 'string' ? text.trim() : '';
-        const isPlainBoldTitle = /^<strong>(?:[\\s\\S]+)<\\/strong>$/.test(normalized);
+        const isPlainBoldTitle = /^<strong>(?:[\s\S]+)<\/strong>$/.test(normalized);
         const titleClass = isPlainBoldTitle ? ' markdown-plain-bold-title' : '';
         return `<p class="markdown-paragraph ai-content-unit${titleClass}" data-content-unit="paragraph">${text}</p>`;
       },
