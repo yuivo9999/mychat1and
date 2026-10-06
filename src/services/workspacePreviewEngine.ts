@@ -32,7 +32,7 @@ export function detectWorkspaceRunnableType(workspace: Workspace | null): Worksp
       const deps = { ...(manifest.dependencies || {}), ...(manifest.devDependencies || {}) };
       const scripts = manifest.scripts || {};
       if (deps.vite || deps['@vitejs/plugin-react'] || scripts.dev?.includes('vite') || scripts.build?.includes('vite')) {
-        const viteEntry = paths.find(p => /^src\\/(main|index)\\.(tsx?|jsx?)$/.test(p)) || 'index.html';
+        const viteEntry = paths.find(p => /^src\/(main|index)\.(tsx?|jsx?)$/.test(p)) || 'index.html';
         return {
           hasRunnableEntry: true,
           entryType: 'vite',
