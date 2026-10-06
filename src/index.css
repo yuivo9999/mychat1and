@@ -1299,16 +1299,14 @@ html.theme-classic2 .param-toggle-dot,
   margin-bottom: 0.62rem;
   font-weight: 700;
   line-height: 1.45;
+}
+
+.markdown-body .markdown-plain-bold-title strong {
   background-image: linear-gradient(90deg, var(--md-title-gradient-start, #6366f1) 0%, var(--md-title-gradient-mid, #a855f7) 50%, var(--md-title-gradient-end, #ec4899) 100%);
   background-clip: text;
   -webkit-background-clip: text;
   color: transparent !important;
-  -webkit-text-fill-color: transparent;
-}
-
-.markdown-body .markdown-plain-bold-title strong {
-  color: inherit !important;
-  -webkit-text-fill-color: inherit;
+  -webkit-text-fill-color: transparent !important;
 }
 
 .markdown-body .code-block-wrapper {
