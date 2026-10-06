@@ -1774,6 +1774,17 @@ export default function App() {
                   ...getAgentTaskStepText(agentLoopState),
                   progressSummary: validationFailureCount >= 3 ? '验证失败保护已触发' : '连续无有效进展，等待新的用户指示',
                   pauseReason: validationFailureCount >= 3 ? '项目检查连续失败达到保护阈值' : '连续多个阶段没有产生新的可验证进展',
+                  waitingStrategy: buildAgentWaitingStrategy({
+                    goal: agentTaskPlan.goal,
+                    phase: agentLoopState.phase,
+                    round: agentLoopState.round,
+                    maxRounds: maxAgentTurns,
+                    checklist: agentTaskPlan.checklist,
+                    currentStep: getAgentTaskStepText(agentLoopState).currentStep,
+                    nextStep: getAgentTaskStepText(agentLoopState).nextStep,
+                    progressSummary: validationFailureCount >= 3 ? '验证失败保护已触发' : '连续无有效进展',
+                    pauseReason: validationFailureCount >= 3 ? '项目检查连续失败达到保护阈值' : '连续多个阶段没有产生新的可验证进展',
+                  }),
                   updatedAt: Date.now(),
                 });
               }
@@ -1944,6 +1955,17 @@ export default function App() {
             ...getAgentTaskStepText(agentLoopState),
             progressSummary: (validationFailureCount >= 3 || shouldProtectAgainstNoProgress(agentLoopState)) ? '等待新的用户指示' : 'Agent 任务完成',
             pauseReason: (validationFailureCount >= 3 || shouldProtectAgainstNoProgress(agentLoopState)) ? '自动循环已安全停止，需要新的证据、决策或用户指示' : undefined,
+            waitingStrategy: (validationFailureCount >= 3 || shouldProtectAgainstNoProgress(agentLoopState)) ? buildAgentWaitingStrategy({
+              goal: agentTaskPlan.goal,
+              phase: agentLoopState.phase,
+              round: agentLoopState.round,
+              maxRounds: maxAgentTurns,
+              checklist: agentTaskPlan.checklist,
+              currentStep: getAgentTaskStepText(agentLoopState).currentStep,
+              nextStep: getAgentTaskStepText(agentLoopState).nextStep,
+              progressSummary: '等待新的用户指示',
+              pauseReason: '自动循环已安全停止，需要新的证据、决策或用户指示',
+            }) : undefined,
             updatedAt: Date.now(),
           } : c.agentTask,
           updatedAt: Date.now() 
@@ -1977,6 +1999,17 @@ export default function App() {
           ...getAgentTaskStepText(needsUser ? agentLoopState : { ...agentLoopState, phase: 'completed' }),
           progressSummary: needsUser ? '等待新的用户指示' : 'Agent 任务完成',
           pauseReason: needsUser ? '自动循环已安全停止，需要新的证据、决策或用户指示' : undefined,
+          waitingStrategy: needsUser ? buildAgentWaitingStrategy({
+            goal: agentTaskPlan.goal,
+            phase: agentLoopState.phase,
+            round: agentLoopState.round,
+            maxRounds: maxAgentTurns,
+            checklist: agentTaskPlan.checklist,
+            currentStep: getAgentTaskStepText(agentLoopState).currentStep,
+            nextStep: getAgentTaskStepText(agentLoopState).nextStep,
+            progressSummary: '等待新的用户指示',
+            pauseReason: '自动循环已安全停止，需要新的证据、决策或用户指示',
+          }) : undefined,
           updatedAt: Date.now(),
         });
       }
