@@ -701,10 +701,10 @@ export default function App() {
     attachments: Attachment[],
     conversationOverride?: Conversation,
   ) => {
-    const waitingForAgentUser = (conversationOverride || currentConversation)?.agentTask?.status === 'waiting_user';
-    // Agent waiting_user is a paused checkpoint, not an active model generation.
-    // It must accept the user's reply so the same task can resume.
-    if (isGenerating && !waitingForAgentUser) return;
+    // A generation in flight always owns the composer. A waiting_user checkpoint
+    // becomes sendable only after the previous Agent turn has fully unwound and
+    // setIsGenerating(false). This prevents two Agent turns from running concurrently.
+    if (isGenerating) return;
     if (!currentModel) {
       alert('当前没有可用模型，请先进入设置检查模型配置。');
       setIsModelConfigOpen(true);
