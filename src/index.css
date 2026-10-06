@@ -1295,14 +1295,20 @@ html.theme-classic2 .param-toggle-dot,
 /* 标题文字后面的渐变背景：渐变只作用于标题背景，不改变文字本身颜色。
    保持四个直角，并通过极小内边距让背景紧贴标题文字。 */
 .gradient-title-frame {
+  --title-gradient-start: var(--md-title-gradient-start, #6366f1);
+  --title-gradient-mid: var(--md-title-gradient-mid, #a855f7);
+  --title-gradient-end: var(--md-title-gradient-end, #ec4899);
   background: linear-gradient(
     90deg,
-    var(--md-title-gradient-start, #6366f1) 0%,
-    var(--md-title-gradient-mid, #a855f7) 50%,
-    var(--md-title-gradient-end, #ec4899) 100%
+    var(--title-gradient-start) 0%,
+    var(--title-gradient-mid) 50%,
+    var(--title-gradient-end) 100%
   ) !important;
-  border: 0 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.38) !important;
   border-radius: 0 !important;
+  box-sizing: border-box;
 }
 
 .markdown-body .markdown-plain-bold-title {
@@ -1315,15 +1321,15 @@ html.theme-classic2 .param-toggle-dot,
 .markdown-body .markdown-plain-bold-title strong {
   display: inline-block;
   padding: 0.125rem 0.375rem;
-  color: inherit !important;
-  -webkit-text-fill-color: currentColor !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
   background: linear-gradient(
     90deg,
     var(--md-title-gradient-start, #6366f1) 0%,
     var(--md-title-gradient-mid, #a855f7) 50%,
     var(--md-title-gradient-end, #ec4899) 100%
   ) !important;
-  border: 0 !important;
+  border: 1px solid rgba(255, 255, 255, 0.38) !important;
   border-radius: 0 !important;
 }
 
