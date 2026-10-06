@@ -448,7 +448,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
             const colorClasses = getHeadingClasses(titleText);
             return (
               <div key={idx} className="my-3">
-                <span className={`inline-block px-1.5 py-0.5 rounded-none font-bold border border-transparent shadow-xs transition-colors duration-150 gradient-title-frame ${colorClasses}`}>
+                <span className={`inline-block px-1.5 py-0.5 rounded-none font-bold shadow-xs transition-colors duration-150 gradient-title-frame ${colorClasses}`}>
                   {titleText}
                 </span>
               </div>
