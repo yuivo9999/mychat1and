@@ -111,6 +111,10 @@ function processMarkdownWithLatex(content: string, renderLatex: boolean): string
   // Protect code blocks and inline code from LaTeX parsing
   const codeBlocks: string[] = [];
   let processed = normalizedContent.replace(/(```[\s\S]*?```|`[^`\n]+`)/g, (match) => {
+    const placeholder = `__MATH_CODE_TOKEN_${codeBlocks.length}__`;
+    codeBlocks.push(match);
+    return placeholder;
+  });
 
   // Render LaTeX formulas
   processed = renderLatexInText(processed);
