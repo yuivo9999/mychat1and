@@ -1347,7 +1347,7 @@ export default function App() {
 
       if (baseParams.enableMultiModelSubtask) {
         if (!agentMode && !targetConv.isSubtask) {
-          const subtaskInstruction = `\n## ⛓️ 多模型次级任务拆解与分发协议 (Architect Mode):\n当前已开启“多模型次级任务拆解与分发”协议。你当前作为【主方案规划与架构AI模型】（不启用 Agent 工具运行，可以只读查看工作区文件）。\n请认真阅读并分析用户需求，设计一套完整的、可执行的长方案。\n接着，请将该长方案拆解为若干个（通常为 2~3 个）内聚且边界清晰的、各自可以在 3~4 轮内完成的“次级短任务” (Subtasks)。\n\n**重要：你必须在回复的最末尾，使用特定的 XML 格式对这些拆解出来的次级短任务进行标记包装（每一个 <subtask> 内为子任务的标题和具体要分发给子任务 Agent 的执行指令/上下文，其会被系统自动识别并分发到全新独立的 Agent 执行窗口中）：**\n\n\`\`\`xml\n<subtasks>\n  <subtask title="设计数据库Schema并创建对应的文件">\n    【子任务 1 描述与指令】\n    目标：在 src/db/schema.ts 中创建用户表和日志表。\n    修改要求：...\n  </subtask>\n  <subtask title="实现前端页面逻辑和API调用">\n    【子任务 2 描述与指令】\n    目标：在 src/components/Dashboard.tsx 中实现状态渲染与 API 请求。\n    修改要求：...\n  </subtask>\n</subtasks>\n\`\`\`\n请确保输出格式严谨正确，以便系统完美提取。`;
+          const subtaskInstruction = `\n## ⛓️ 多模型次级任务拆解与分发协议 (Architect Mode):\n当前已开启“多模型次级任务拆解与分发”协议。你当前作为【主方案规划与架构AI模型】（不启用 Agent 工具运行，可以只读查看工作区文件）。\n请认真阅读并分析用户需求，设计一套完整的、可执行的长方案。\n\n**核心硬约束（7000 Tokens 颗粒度限制）：**\n你分出的每一个次级短任务 (Subtasks)，**必须是确保在 7000 tokens 以内可以完全闭环独立完成的微型短任务**。如果某个功能模块较大，你**绝不能**堆在一个任务里，而必须将其**递归下分成更多个更短、更单点的次级短任务**（例如拆分为 3~4 个精细化的小步骤）。每一个子任务都必须在 3~4 个 Agent 执行轮次内安全搞定。\n\n**重要：你必须在回复的最末尾，使用特定的 XML 格式对这些拆解出来的次级短任务进行标记包装（每一个 <subtask> 内为子任务的标题和具体要分发给子任务 Agent 的执行指令/上下文，其会被系统自动识别并分发到全新独立的 Agent 执行窗口中）：**\n\n\`\`\`xml\n<subtasks>\n  <subtask title="设计数据库Schema并创建对应的文件">\n    【子任务 1 描述与指令】\n    目标：在 src/db/schema.ts 中创建用户表和日志表。\n    修改要求：...\n  </subtask>\n  <subtask title="实现前端页面逻辑和API调用">\n    【子任务 2 描述与指令】\n    目标：在 src/components/Dashboard.tsx 中实现状态渲染与 API 请求。\n    修改要求：...\n  </subtask>\n</subtasks>\n\`\`\`\n请确保输出格式严谨正确，以便系统完美提取。`;
           effectiveSystemPrompt = effectiveSystemPrompt ? `${effectiveSystemPrompt}\n\n${subtaskInstruction}` : subtaskInstruction;
         } else if (targetConv.isSubtask) {
           const subtaskWarning = `\n## 🚨 当前子任务执行约束 (Subtask Execution Constraint):\n你当前是【次级短任务AI模型】（已启用 Agent，拥有工作区读写修改权限）。\n请【仅关注】并【仅执行】分配给你的当前子任务指令。不要尝试实现主方案中其他子任务的内容。\n系统限制了你的单次对话 context/payload 不得超过 7000 tokens。你只有极紧凑的 3~4 轮执行轮数。\n任务结束后，系统会自动总结你的修改要点并传递给下一个子任务！请务必进行验证核对（可以使用 run_project_check 等验证），确保编译正常！`;
@@ -1541,6 +1541,34 @@ export default function App() {
         // Token Budget Guard: Prune deep tool outputs from earlier turns to prevent quadratic token growth
         const prunedMessagesForTurn = pruneAgentLoopHistory(currentHistoryMessages, turn);
 
+        let finalMessagesForApi = prunedMessagesForTurn;
+        if (baseParams.enableMultiModelSubtask && targetConv.isSubtask) {
+          // Cap total prompt character length at 18000 (~6000 tokens) to ensure the next turn stays within the 7000 tokens budget
+          let totalLen = (effectiveSystemPrompt || '').length;
+          const keptMessages: Message[] = [];
+          
+          const firstMsg = prunedMessagesForTurn[0];
+          const middleMessages = prunedMessagesForTurn.slice(1);
+          
+          for (let i = middleMessages.length - 1; i >= 0; i--) {
+            const msg = middleMessages[i];
+            const msgLen = (msg.content || '').length;
+            if (totalLen + msgLen > 18000) {
+              if (keptMessages.length === 0) {
+                const truncatedContent = (msg.content || '').slice(0, 15000) + '\n\n...[已自动精简截断以维持 7000 Tokens 预算]...';
+                keptMessages.unshift({ ...msg, content: truncatedContent });
+              }
+              continue;
+            }
+            keptMessages.unshift(msg);
+            totalLen += msgLen;
+          }
+          if (firstMsg && !keptMessages.includes(firstMsg)) {
+            keptMessages.unshift(firstMsg);
+          }
+          finalMessagesForApi = keptMessages;
+        }
+
         // Strict TPM Limit: single request cannot exceed 8000 total tokens (prompt + maxTokens)
         const effectiveMaxTokens = (workspaceAgentEnabled && isTpmRateLimitEnabled)
           ? Math.min(currentModel.maxTokens || 2048, 2048)
@@ -1556,7 +1584,7 @@ export default function App() {
               {
                 model: currentModel,
                 apiKeyConfig: currentApiKey,
-                messages: prunedMessagesForTurn,
+                messages: finalMessagesForApi,
                 systemPrompt: effectiveSystemPrompt,
                 temperature: currentModel.temperature,
                 maxTokens: effectiveMaxTokens,
@@ -1967,9 +1995,14 @@ export default function App() {
               toolResultsForPrompt.join('\n\n') + mobileSelfTestInstruction,
               agentTaskPlan,
             );
-            const feedbackInstruction = isDiagnosisMode
+            let feedbackInstruction = isDiagnosisMode
               ? `[代码诊断工具执行结果反馈 · ${getAgentPhaseLabel(agentLoopState.phase)}]\n${toolResultsForPrompt.join('\n\n')}\n\n${getAgentPhaseInstruction(agentLoopState)}\n\n请继续严格遵循只读诊断协议；若已完成 10 步调查，请输出结构化诊断报告并停止工具调用。`
               : phaseFeedback;
+
+            if (baseParams.enableMultiModelSubtask && targetConv.isSubtask) {
+              // Ensure that any round's injected feedback itself is strictly under 7000 tokens (approx 15000 characters for safety)
+              feedbackInstruction = truncateToTokenLimit(feedbackInstruction, 5000);
+            }
 
             currentHistoryMessages.push({
               id: `msg_tool_feedback_${turn}_${Date.now()}`,
