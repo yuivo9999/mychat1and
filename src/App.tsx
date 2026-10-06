@@ -682,7 +682,7 @@ export default function App() {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
-    if (currentConversation?.agentTask && isGenerating) {
+    if (currentConversation?.agentTask && (isGenerating || currentConversation.agentTask.status === 'waiting_user')) {
       void persistAgentTaskState(currentConversation.id, {
         ...currentConversation.agentTask,
         status: 'stopped',
@@ -701,7 +701,10 @@ export default function App() {
     attachments: Attachment[],
     conversationOverride?: Conversation,
   ) => {
-    if (isGenerating) return;
+    const waitingForAgentUser = (conversationOverride || currentConversation)?.agentTask?.status === 'waiting_user';
+    // Agent waiting_user is a paused checkpoint, not an active model generation.
+    // It must accept the user's reply so the same task can resume.
+    if (isGenerating && !waitingForAgentUser) return;
     if (!currentModel) {
       alert('当前没有可用模型，请先进入设置检查模型配置。');
       setIsModelConfigOpen(true);
