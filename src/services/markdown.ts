@@ -102,11 +102,12 @@ function renderLatexInText(text: string): string {
 }
 
 function processMarkdownWithLatex(content: string, renderLatex: boolean): string {
-  if (!renderLatex || !content) return content;
+  if (!content) return content;
 
-  // Protect code blocks and inline code from LaTeX parsing
-  // Normalize first so malformed/truncated fences are still recognized as code.
+  // Always normalize code fences, even when LaTeX rendering is disabled.
+  // Otherwise incomplete/variant fences can bypass the code-box renderer.
   const normalizedContent = normalizeCodeFences(content);
+  if (!renderLatex) return normalizedContent;
 
   // Protect code blocks and inline code from LaTeX parsing
   const codeBlocks: string[] = [];
