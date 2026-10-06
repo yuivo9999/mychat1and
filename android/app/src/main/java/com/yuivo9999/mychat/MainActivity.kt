@@ -67,6 +67,10 @@ class MainActivity : Activity() {
             }
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
+            // The app shell is served from WebViewAssetLoader (HTTPS) while live
+            // workspace projects intentionally run on 127.0.0.1 over HTTP. Allow
+            // this local mixed-content iframe so real Vite previews are visible.
+            settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
             settings.allowFileAccess = true
             settings.allowContentAccess = true
             // The web app owns its complete theme palette. Do not let Android/WebView
