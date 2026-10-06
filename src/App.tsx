@@ -101,7 +101,7 @@ import { ArchiveProjectModal } from './components/ArchiveProjectModal';
 import { WorkspacePreviewModal } from './components/WorkspacePreviewModal';
 import { AiFileAuditModal } from './components/AiFileAuditModal';
 import { recordAiFileModifications, backfillAuditRecordsFromConversations } from './services/aiFileAuditService';
-import { createAgentLoopState, advanceAgentLoopState, classifyAgentProgress, getAgentPhaseLabel, getAgentPhaseInstruction, getAgentPauseDelayMs, shouldProtectAgainstNoProgress, buildAgentLoopFeedback, buildAgentTaskPlanPrompt, shouldAgentResearchTask, parseAgentTaskPlan, parseAgentTaskReplan, applyAgentTaskProgress, areAgentTaskRequirementsMet, stripAgentPlanBlock, stripAgentProgressBlock, stripAgentReplanBlock, createAgentTaskPlan, updateAgentTaskChecklist, getAgentTaskStepText, type AgentLoopState } from './services/agentOrchestrator';
+import { createAgentLoopState, advanceAgentLoopState, classifyAgentProgress, getAgentPhaseLabel, getAgentPhaseInstruction, getAgentPauseDelayMs, shouldProtectAgainstNoProgress, buildAgentLoopFeedback, buildAgentTaskPlanPrompt, shouldAgentResearchTask, parseAgentTaskPlan, parseAgentTaskReplan, applyAgentTaskProgress, areAgentTaskRequirementsMet, stripAgentPlanBlock, stripAgentProgressBlock, stripAgentReplanBlock, createAgentTaskPlan, updateAgentTaskChecklist, getAgentTaskStepText, buildAgentWaitingStrategy, type AgentLoopState } from './services/agentOrchestrator';
 
 const DEFAULT_PARAMETERS: ModelParameters = {
   enableReasoning: false,
@@ -1034,14 +1034,33 @@ export default function App() {
     const projectMemoryEnabled = settings.enableProjectMemory ?? true;
     const workspaceContextEnabled = !!wsToOperate && (agentMode || workspaceIntent.shouldAccessWorkspace);
     const workspaceAgentEnabled = agentMode && !!wsToOperate;
-    let agentTaskPlan = createAgentTaskPlan(text);
+    const existingAgentTask = targetConv.agentTask;
+    const resumingWaitingAgent = workspaceAgentEnabled && existingAgentTask?.status === 'waiting_user';
+    let agentTaskPlan = resumingWaitingAgent && existingAgentTask
+      ? {
+          goal: existingAgentTask.goal,
+          definitionOfDone: existingAgentTask.definitionOfDone,
+          checklist: existingAgentTask.checklist,
+          research: existingAgentTask.research,
+        }
+      : createAgentTaskPlan(text);
     const maxAgentTurns = workspaceAgentEnabled
-      ? 12
+      ? (resumingWaitingAgent ? (existingAgentTask?.maxRounds || 12) : 12)
       : (historySearchEnabled || (projectMemoryEnabled && !!targetConv.projectId))
         ? 6
         : 1;
     let agentLoopState: AgentLoopState = createAgentLoopState(maxAgentTurns);
-    const agentTaskId = workspaceAgentEnabled ? `agent_${Date.now()}_${Math.random().toString(36).slice(2, 8)}` : null;
+    if (resumingWaitingAgent && existingAgentTask) {
+      agentLoopState = {
+        ...agentLoopState,
+        phase: existingAgentTask.phase as AgentLoopState['phase'],
+        round: existingAgentTask.round,
+        phaseRound: 0,
+      };
+    }
+    const agentTaskId = workspaceAgentEnabled
+      ? (resumingWaitingAgent && existingAgentTask ? existingAgentTask.taskId : `agent_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`)
+      : null;
     agentTaskIdRef.current = agentTaskId;
 
     try {
@@ -1096,6 +1115,9 @@ export default function App() {
           historySearchEnabled,
           isVisionSupported
         );
+        if (resumingWaitingAgent && existingAgentTask?.waitingStrategy) {
+          effectiveSystemPrompt += `\\n\\n${existingAgentTask.waitingStrategy}\\n\\n## 本轮续作硬性要求\\n这是一次 waiting_user 任务续接。用户刚刚发送的新消息是对暂停原因的补充。先判断它解决了哪个阻塞点，再严格按上面的交接协议继续；不要创建一个全新的任务计划，不要重复已完成步骤。`;
+        }
       } else {
         // Pure chat mode / Agent OFF: only append chat's own private memory if present AND enabled, ZERO workspace tools protocol or directory trees
         const chatMemory = (settings.enableChatContextMemory ?? false) ? formatChatContextPrompt(targetConv.chatContext) : '';
