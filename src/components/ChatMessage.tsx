@@ -346,13 +346,24 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 
   const jumpToOutlineItem = (outlineIndex: number) => {
     const root = messageContentRef.current;
-    if (!root) return;
+    const item = responseOutline[outlineIndex];
+    if (!root || !item) return;
+
+    // Match by the actual rendered title first. This is more reliable than relying
+    // on heading indexes when Markdown injects nested elements or extra headings.
     const headings = Array.from(root.querySelectorAll('h1, h2, h3')) as HTMLElement[];
-    const target = headings[outlineIndex];
+    const target = headings.find((heading) =>
+      (heading.textContent || '').replace(/\\s+/g, ' ').trim() === item.title
+    ) || headings[outlineIndex];
+
     if (!target) return;
 
     setActiveOutlineIndex(outlineIndex);
-    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    // Make the heading itself the scroll target. scrollIntoView works with both
+    // the page and the app's internal scroll container, unlike window.scrollTo.
+    target.style.scrollMarginTop = '118px';
+    target.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' });
   };
 
   const handleCopy = () => {
