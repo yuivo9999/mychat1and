@@ -241,12 +241,48 @@ export const Sidebar: React.FC<SidebarProps> = ({
             />
           ) : (
             <div className="flex flex-col min-w-0 flex-1">
-              <span className="truncate text-[13px] leading-tight" title={conv.title}>
-                {conv.title || '新对话'}
-              </span>
-              <span className="text-[10px] text-neutral-400 dark:text-neutral-500 truncate font-mono mt-0.5">
-                {getModelName(conv.modelId)}
-              </span>
+              <div className="flex items-center gap-1 min-w-0">
+                {conv.isArchitect && (
+                  <span className="shrink-0 text-[10px] px-1 py-0.2 rounded font-medium bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200/40">
+                    方案规划
+                  </span>
+                )}
+                {conv.isSubtask && (
+                  <span className={`shrink-0 text-[10px] px-1 py-0.2 rounded font-medium border ${
+                    conv.subtaskStatus === 'completed'
+                      ? 'bg-green-100 text-green-700 border-green-200/40 dark:bg-green-950/60 dark:text-green-300'
+                      : conv.subtaskStatus === 'running'
+                        ? 'bg-amber-100 text-amber-700 border-amber-200/40 dark:bg-amber-950/60 dark:text-amber-300 animate-pulse'
+                        : 'bg-neutral-100 text-neutral-600 border-neutral-200/40 dark:bg-neutral-800 dark:text-neutral-400'
+                  }`}>
+                    子任务 {conv.subtaskIndex !== undefined && conv.subtaskCount ? `${conv.subtaskIndex + 1}/${conv.subtaskCount}` : ''}
+                  </span>
+                )}
+                <span className="truncate text-[13px] leading-tight" title={conv.title}>
+                  {conv.title || '新对话'}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className="text-[10px] text-neutral-400 dark:text-neutral-500 truncate font-mono">
+                  {getModelName(conv.modelId)}
+                </span>
+                {conv.isArchitect && (
+                  <span className="text-[9px] text-blue-500/80 dark:text-blue-400/70 font-sans">
+                    • 规划(不使用Agent)
+                  </span>
+                )}
+                {conv.isSubtask && (
+                  <span className={`text-[9px] font-sans ${
+                    conv.subtaskStatus === 'completed'
+                      ? 'text-green-500'
+                      : conv.subtaskStatus === 'running'
+                        ? 'text-amber-500'
+                        : 'text-neutral-400'
+                  }`}>
+                    • {conv.subtaskStatus === 'completed' ? '已完成' : conv.subtaskStatus === 'running' ? '执行中' : '等候中'} {"(<7000t)"}
+                  </span>
+                )}
+              </div>
             </div>
           )}
         </div>

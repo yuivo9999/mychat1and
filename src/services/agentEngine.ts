@@ -200,7 +200,8 @@ export function buildAgentSystemPrompt(
   isDiagnosisMode?: boolean,
   executeScriptEnabled?: boolean,
   historySearchEnabled?: boolean,
-  visionAvailable: boolean = true
+  visionAvailable: boolean = true,
+  enableMultiModelSubtask?: boolean
 ): string {
   const customPrompt = baseSystemPrompt || '你是一个专业严谨的高级全栈编程助手与代码架构师。';
 
@@ -280,12 +281,16 @@ ${getWorkspaceDirectoryTree(workspace).slice(0, 1500)}${Object.keys(workspace.fi
 ${executeScriptEnabled ? '- run_command({ command })\n- run_python({ code })' : ''}
 `;
 
+  const multiModelSubtaskPrompt = enableMultiModelSubtask
+    ? `\n## ⛓️ 多模型次级任务拆解与分发协议 (Multi-Model Subtask Orchestration Protocol):\n当前已开启多模型任务拆解与分步执行开关！系统仅为你分配了极度紧凑的 3 至 4 轮执行预算：\n1. **第 1 轮 (方案规划模型角色)**：你作为主方案架构模型，核心任务是分析用户的复杂任务，将其拆解成不超过 3 个高内聚、边界清晰的“次级短任务” (Subtasks)。你需要在回答中写明完整的次级任务计划，并立即调用工具（如 read_file 或 search_code）开始第一个次级短任务，严禁闲聊拖延！\n2. **第 2 与 3 轮 (次级模型分发角色)**：系统将模拟不同的次级专家模型实例分别领受你的次级短任务，针对性修改对应的代码。你必须保持专注，针对拆解出来的任务目标高效率地调用修改工具，精准编辑工作区。\n3. **第 4 轮 (安全核查验证角色)**：这是最后也是最关键的安全自检轮。你必须对改动过的全部文件进行一次全面的代码核查（如有必要，配合 run_project_check、read_file 进行验证），保证改动文件全部编译运行成功，代码缩进及语法无误。\n通过以上 3~4 轮的紧凑安全闭环，绝对保证任务万无一失并完美通过核查。\n`
+    : '';
+
   return `${customPrompt}
 
 ${workspaceSummary}
 ${chatPrivateMemory}
 ${coreWorkflow}
-`;
+${multiModelSubtaskPrompt}`;
 }
 
 // Format tool execution outcome into clean, structured markdown for AI model ingestion

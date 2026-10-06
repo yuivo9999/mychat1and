@@ -62,6 +62,8 @@ interface WorkspaceDrawerProps {
   onDeleteWorkspace: (id: string) => void;
   onSendAiMessage?: (prompt: string, attachments?: Attachment[]) => void;
   aiStatusText?: string;
+  initialOpenFilePath?: string | null;
+  onClearInitialOpenFilePath?: () => void;
 }
 
 // Hierarchical File Tree Node
@@ -222,6 +224,8 @@ export const WorkspaceDrawer: React.FC<WorkspaceDrawerProps> = ({
   onDeleteWorkspace,
   onSendAiMessage,
   aiStatusText,
+  initialOpenFilePath,
+  onClearInitialOpenFilePath,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeMenuPath, setActiveMenuPath] = useState<string | null>(null);
@@ -324,6 +328,19 @@ export const WorkspaceDrawer: React.FC<WorkspaceDrawerProps> = ({
   const currentWorkspace = useMemo(() => {
     return workspaces.find(w => w.id === activeWorkspaceId) || workspaces[0] || null;
   }, [workspaces, activeWorkspaceId]);
+
+  // Open initial file if specified from outside
+  useEffect(() => {
+    if (isOpen && initialOpenFilePath && currentWorkspace) {
+      const file = currentWorkspace.files[initialOpenFilePath];
+      if (file) {
+        setEditingFile(file);
+        if (onClearInitialOpenFilePath) {
+          onClearInitialOpenFilePath();
+        }
+      }
+    }
+  }, [isOpen, initialOpenFilePath, currentWorkspace, onClearInitialOpenFilePath]);
 
   // All snapshots / checkpoints (maximum 15, per user requirement)
   const snapshots = useMemo<WorkspaceSnapshot[]>(() => {

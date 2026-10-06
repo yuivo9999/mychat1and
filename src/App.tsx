@@ -114,6 +114,7 @@ const DEFAULT_PARAMETERS: ModelParameters = {
   presencePenalty: 0,
   stop: '',
   seed: 0,
+  enableMultiModelSubtask: false,
 };
 
 export default function App() {
@@ -154,6 +155,7 @@ export default function App() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | undefined>(undefined);
   const [isWorkspaceOpen, setIsWorkspaceOpen] = useState(false);
+  const [initialOpenFilePath, setInitialOpenFilePath] = useState<string | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
   const [agentMode, setAgentMode] = useState(false);
@@ -738,6 +740,159 @@ export default function App() {
     void handleStopAgentTask();
   };
 
+  // ⛓️ Multi-Model Subtask Orchestration Helpers
+  const truncateToTokenLimit = (text: string, tokenLimit: number = 7000): string => {
+    const maxChars = tokenLimit * 3;
+    if (text.length > maxChars) {
+      return text.slice(0, maxChars) + "\n\n...[由于 7000 Tokens 预算限制，此处已自动精简截断]...";
+    }
+    return text;
+  };
+
+  const parseAndTriggerSubtasks = async (
+    parentConv: Conversation,
+    assistantText: string,
+    workspaceId: string
+  ) => {
+    const subtaskRegex = /<subtask\s+title="([^"]+)">([\s\S]+?)<\/subtask>/g;
+    const subtasks: { title: string; prompt: string }[] = [];
+    let match;
+    while ((match = subtaskRegex.exec(assistantText)) !== null) {
+      subtasks.push({
+        title: match[1].trim(),
+        prompt: match[2].trim(),
+      });
+    }
+
+    if (subtasks.length === 0) return;
+
+    let projectId = parentConv.projectId;
+    if (!projectId) {
+      const newProjId = `project_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+      const newProj = {
+        id: newProjId,
+        name: `分发项目：${parentConv.title}`,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        memoryMode: 'default' as const,
+        description: `多模型短任务拆解分发项目（主方案：${parentConv.title}）`,
+      };
+      projectId = newProjId;
+      setProjects(prev => [newProj, ...prev]);
+      await saveProject(newProj);
+      
+      parentConv.projectId = newProjId;
+    }
+
+    parentConv.isArchitect = true;
+    parentConv.subtasksList = subtasks;
+    await saveConversation(parentConv);
+
+    setConversations(prev => prev.map(c => c.id === parentConv.id ? { ...parentConv, projectId: projectId, isArchitect: true, subtasksList: subtasks } : c));
+
+    const createdSubtaskConvs: Conversation[] = [];
+    for (let i = 0; i < subtasks.length; i++) {
+      const task = subtasks[i];
+      const subtaskConv: Conversation = {
+        id: `conv_sub_${Date.now()}_${i}_${Math.random().toString(36).substring(2, 6)}`,
+        title: `[子任务 ${i + 1}/${subtasks.length}] ${task.title}`,
+        createdAt: Date.now() + (i + 1) * 1000,
+        updatedAt: Date.now() + (i + 1) * 1000,
+        modelId: parentConv.modelId,
+        providerId: parentConv.providerId,
+        apiKeyId: parentConv.apiKeyId,
+        projectId: projectId,
+        parameters: {
+          ...parentConv.parameters,
+          enableMultiModelSubtask: true,
+          limitMaxTokens: true,
+          maxTokens: 2000,
+        },
+        webAccessEnabled: parentConv.webAccessEnabled,
+        agentMode: true,
+        workspaceId: workspaceId,
+        messages: [],
+        isSubtask: true,
+        parentConversationId: parentConv.id,
+        subtaskIndex: i,
+        subtaskCount: subtasks.length,
+        subtaskPrompt: task.prompt,
+        subtaskStatus: 'pending',
+      };
+
+      createdSubtaskConvs.push(subtaskConv);
+      await saveConversation(subtaskConv);
+    }
+
+    setConversations(prev => {
+      const filtered = prev.filter(c => c.parentConversationId !== parentConv.id);
+      return [...createdSubtaskConvs, ...filtered];
+    });
+
+    if (createdSubtaskConvs.length > 0) {
+      const firstSubtask = createdSubtaskConvs[0];
+      setActiveConversationId(firstSubtask.id);
+
+      setTimeout(() => {
+        const injectedPrompt = `【子任务 1/${subtasks.length}】：${subtasks[0].title}\n\n【任务指令内容】：\n${subtasks[0].prompt}\n\n请使用 Agent 模式（可修改工作区）在 3~4 轮内安全执行该任务，并在完成后自动移交给下一个子任务！`;
+        const truncatedPrompt = truncateToTokenLimit(injectedPrompt, 7000);
+        handleSendMessage(truncatedPrompt, [], firstSubtask);
+      }, 1000);
+    }
+  };
+
+  const handleNextSubtaskTrigger = async (
+    completedSubtask: Conversation,
+    modifiedFiles: string[],
+    executionSummary: string
+  ) => {
+    completedSubtask.subtaskStatus = 'completed';
+    await saveConversation(completedSubtask);
+
+    setConversations(prev => prev.map(c => c.id === completedSubtask.id ? { ...c, subtaskStatus: 'completed' } : c));
+
+    let freshConvs = conversations;
+    try {
+      const dbConvs = await getConversations();
+      if (dbConvs.length > 0) freshConvs = dbConvs;
+    } catch (e) {
+      console.warn('Failed to fetch db conversations:', e);
+    }
+
+    const parentId = completedSubtask.parentConversationId;
+    if (!parentId) return;
+
+    const siblings = freshConvs
+      .filter(c => c.parentConversationId === parentId && c.isSubtask)
+      .sort((a, b) => (a.subtaskIndex ?? 0) - (b.subtaskIndex ?? 0));
+
+    const nextIndex = (completedSubtask.subtaskIndex ?? 0) + 1;
+    const nextSubtask = siblings.find(c => c.subtaskIndex === nextIndex);
+
+    if (nextSubtask) {
+      nextSubtask.subtaskStatus = 'running';
+      await saveConversation(nextSubtask);
+      setConversations(prev => prev.map(c => c.id === nextSubtask.id ? { ...c, subtaskStatus: 'running' } : c));
+
+      setActiveConversationId(nextSubtask.id);
+
+      setTimeout(() => {
+        const injectedPrompt = `【上一步进展】：上一个子任务【子任务 ${completedSubtask.subtaskIndex! + 1}/${siblings.length}】已执行完成。\n\n【修改的文件】：\n${modifiedFiles.map(f => `- \`${f}\``).join('\n') || '（通过命令操作，无直接文件修改）'}\n\n【上一步修改简报】：\n${executionSummary.slice(0, 1000)}${executionSummary.length > 1000 ? '...' : ''}\n\n【当前子任务任务指令】：\n${nextSubtask.subtaskPrompt}\n\n请以此为基础，开启 Agent 模式在 3~4 轮内执行当前子任务并进行最终核实验证！`;
+        const truncatedPrompt = truncateToTokenLimit(injectedPrompt, 7000);
+        handleSendMessage(truncatedPrompt, [], nextSubtask);
+      }, 1000);
+    } else {
+      const parentConv = freshConvs.find(c => c.id === parentId);
+      if (parentConv) {
+        parentConv.subtaskStatus = 'completed';
+        await saveConversation(parentConv);
+        setConversations(prev => prev.map(c => c.id === parentConv.id ? { ...c, subtaskStatus: 'completed' } : c));
+      }
+
+      alert("🎉 所有次级任务已全部自动串联执行完毕，且已完成最终安全核查！");
+    }
+  };
+
   // Send Message Core Engine
   const handleSendMessage = async (
     text: string,
@@ -1102,17 +1257,19 @@ export default function App() {
     const workspaceContextEnabled = !!wsToOperate && (agentMode || workspaceIntent.shouldAccessWorkspace);
     const workspaceAgentEnabled = agentMode && !!wsToOperate;
     let agentTaskPlan = createAgentTaskPlan(text);
-    const maxAgentTurns = workspaceAgentEnabled
-      ? 12
-      : (historySearchEnabled || (projectMemoryEnabled && !!targetConv.projectId))
-        ? 6
-        : 1;
+    const baseParams = targetConv?.parameters || parameters;
+    const maxAgentTurns = (workspaceAgentEnabled && baseParams.enableMultiModelSubtask)
+      ? 4
+      : workspaceAgentEnabled
+        ? 12
+        : (historySearchEnabled || (projectMemoryEnabled && !!targetConv.projectId))
+          ? 6
+          : 1;
     let agentLoopState: AgentLoopState = createAgentLoopState(maxAgentTurns);
     const agentTaskId = workspaceAgentEnabled ? `agent_${Date.now()}_${Math.random().toString(36).slice(2, 8)}` : null;
     agentTaskIdRef.current = agentTaskId;
 
     try {
-      const baseParams = updatedConv.parameters || parameters;
       const activeParams: ModelParameters = {
         ...baseParams,
         // Only send enableReasoning to model if the model actually supports reasoning mode
@@ -1161,7 +1318,8 @@ export default function App() {
           isDiagnosisMode,
           activeParams.executeScript,
           historySearchEnabled,
-          isVisionSupported
+          isVisionSupported,
+          activeParams.enableMultiModelSubtask
         );
       } else {
         // Pure chat mode / Agent OFF: only append chat's own private memory if present AND enabled, ZERO workspace tools protocol or directory trees
@@ -1184,6 +1342,16 @@ export default function App() {
               effectiveSystemPrompt = effectiveSystemPrompt ? `${effectiveSystemPrompt}\n\n${projPrompt}` : projPrompt;
             }
           }
+        }
+      }
+
+      if (baseParams.enableMultiModelSubtask) {
+        if (!agentMode && !targetConv.isSubtask) {
+          const subtaskInstruction = `\n## ⛓️ 多模型次级任务拆解与分发协议 (Architect Mode):\n当前已开启“多模型次级任务拆解与分发”协议。你当前作为【主方案规划与架构AI模型】（不启用 Agent 工具运行，可以只读查看工作区文件）。\n请认真阅读并分析用户需求，设计一套完整的、可执行的长方案。\n接着，请将该长方案拆解为若干个（通常为 2~3 个）内聚且边界清晰的、各自可以在 3~4 轮内完成的“次级短任务” (Subtasks)。\n\n**重要：你必须在回复的最末尾，使用特定的 XML 格式对这些拆解出来的次级短任务进行标记包装（每一个 <subtask> 内为子任务的标题和具体要分发给子任务 Agent 的执行指令/上下文，其会被系统自动识别并分发到全新独立的 Agent 执行窗口中）：**\n\n\`\`\`xml\n<subtasks>\n  <subtask title="设计数据库Schema并创建对应的文件">\n    【子任务 1 描述与指令】\n    目标：在 src/db/schema.ts 中创建用户表和日志表。\n    修改要求：...\n  </subtask>\n  <subtask title="实现前端页面逻辑和API调用">\n    【子任务 2 描述与指令】\n    目标：在 src/components/Dashboard.tsx 中实现状态渲染与 API 请求。\n    修改要求：...\n  </subtask>\n</subtasks>\n\`\`\`\n请确保输出格式严谨正确，以便系统完美提取。`;
+          effectiveSystemPrompt = effectiveSystemPrompt ? `${effectiveSystemPrompt}\n\n${subtaskInstruction}` : subtaskInstruction;
+        } else if (targetConv.isSubtask) {
+          const subtaskWarning = `\n## 🚨 当前子任务执行约束 (Subtask Execution Constraint):\n你当前是【次级短任务AI模型】（已启用 Agent，拥有工作区读写修改权限）。\n请【仅关注】并【仅执行】分配给你的当前子任务指令。不要尝试实现主方案中其他子任务的内容。\n系统限制了你的单次对话 context/payload 不得超过 7000 tokens。你只有极紧凑的 3~4 轮执行轮数。\n任务结束后，系统会自动总结你的修改要点并传递给下一个子任务！请务必进行验证核对（可以使用 run_project_check 等验证），确保编译正常！`;
+          effectiveSystemPrompt = effectiveSystemPrompt ? `${effectiveSystemPrompt}\n\n${subtaskWarning}` : subtaskWarning;
         }
       }
 
@@ -1295,6 +1463,10 @@ export default function App() {
 
       // 🕒 时间间隔提醒：仅在开启时向 API-facing history 注入轻量 system marker。
       let currentHistoryMessages = [...effectiveMessages, apiUserMessage];
+      if (baseParams.enableMultiModelSubtask && targetConv.isSubtask) {
+        // Subtasks strictly limit history context to keep the payload under 7000 tokens
+        currentHistoryMessages = currentHistoryMessages.slice(-4);
+      }
       if (settings.enableTimeGapHints ?? true) {
         currentHistoryMessages = injectTimeGapHints(currentHistoryMessages);
       }
@@ -2027,6 +2199,17 @@ export default function App() {
       }
       setConnectionStatus('success');
       setStatusMessage('响应完成');
+
+      // ⛓️ Multi-Model Subtask Orchestration Integration
+      if (baseParams.enableMultiModelSubtask) {
+        if (!agentMode && !targetConv.isSubtask) {
+          // Architect mode completes, trigger subtask breakdown & parsing
+          await parseAndTriggerSubtasks(targetConv, cleanedFinalAnswer, wsToOperate?.id || activeWorkspaceId || '');
+        } else if (targetConv.isSubtask) {
+          // Sibling sub-task finishes, trigger the next one in sequence
+          await handleNextSubtaskTrigger(targetConv, Array.from(modifiedPaths), cleanedFinalAnswer);
+        }
+      }
     } catch (err: any) {
       if (err.name === 'AbortError' || err.message?.includes('停止生成')) {
         // User aborted
@@ -2073,7 +2256,11 @@ export default function App() {
               errorMessage: errMsg,
             };
           });
-          const finalConv = { ...c, messages: finalMessages };
+          const finalConv = { 
+            ...c, 
+            messages: finalMessages,
+            subtaskStatus: c.isSubtask ? 'failed' as const : c.subtaskStatus
+          };
           saveConversation(finalConv);
           return finalConv;
         }));
@@ -3111,16 +3298,19 @@ export default function App() {
           }
         }}
         aiStatusText={isGenerating ? (statusMessage || 'AI 正在处理...') : undefined}
+        initialOpenFilePath={initialOpenFilePath}
+        onClearInitialOpenFilePath={() => setInitialOpenFilePath(null)}
       />
 
       {/* Workspace Web Project Live Preview Modal */}
-      <WorkspacePreviewModal isOpen={isPreviewOpen} onClose={() => setIsPreviewOpen(false)} workspaces={workspaces} initialWorkspaceId={currentWorkspace?.id} onSaveWorkspace={handleSaveWorkspaceState} onRequestAgentAudit={() => void handleSendMessage('请对当前手机项目执行 AI 预览检查：获取 390×780 真实截图，结合截图、Console、运行时证据与代码检查布局溢出、遮挡、空白、手机响应式、交互和 Accessibility；发现明确问题直接修复并重新截图验证；最多 2 轮；不要检查 Network、电脑或平板端。',[])} onRequestAgentMobileSelfTest={() => void handleSendMessage('请对当前手机项目执行一键手机自测：调用 auto_test_mobile_preview。只测试手机 390×780；先发现真实交互元素并生成关键路径，执行真实点击、输入、等待、滚动并逐步截图；结合 baseline 与最终截图判断页面是否真的响应，重点检查键盘遮挡、固定头尾覆盖、横向溢出、按钮可见性、弹窗越界、滚动和提交后状态；发现明确问题直接修复，并最多复验 1 轮。不要检查 Network、电脑或平板。',[])} />
+      <WorkspacePreviewModal isOpen={isPreviewOpen} onClose={() => setIsPreviewOpen(false)} workspaces={workspaces} initialWorkspaceId={currentWorkspace?.id} onSaveWorkspace={handleSaveWorkspaceState} onRequestAgentAudit={() => void handleSendMessage('请对当前手机项目执行 AI 预览检查：获取 390×780 真实截图，结合截图、Console、运行时证据与代码检查布局溢出、遮挡、空白、手机响应式、交互 and Accessibility；发现明确问题直接修复并重新截图验证；最多 2 轮；不要检查 Network、电脑或平板端。',[])} onRequestAgentMobileSelfTest={() => void handleSendMessage('请对当前手机项目执行一键手机自测：调用 auto_test_mobile_preview。只测试手机 390×780；先发现真实交互元素并生成关键路径，执行真实点击、输入、等待、滚动并逐步截图；结合 baseline 与最终截图判断页面是否真的响应，重点检查键盘遮挡、固定头尾覆盖、横向溢出、按钮可见性、弹窗越界、滚动和提交后状态；发现明确问题直接修复，并最多复验 1 轮。不要检查 Network、电脑或平板。',[])} />
 
       {/* Workspace AI File Modification Audit Modal (up to 1000 records) */}
       <AiFileAuditModal
         isOpen={isAuditModalOpen}
         onClose={() => setIsAuditModalOpen(false)}
         onOpenFileInWorkspace={(path) => {
+          setInitialOpenFilePath(path);
           setIsAuditModalOpen(false);
           setIsWorkspaceOpen(true);
         }}

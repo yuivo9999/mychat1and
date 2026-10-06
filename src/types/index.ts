@@ -120,6 +120,7 @@ export interface ModelParameters {
   presencePenalty?: number; // 存在惩罚 (Presence Penalty)
   stop?: string; // 停止词 (Stop)
   seed?: number; // 随机种子 (Seed)
+  enableMultiModelSubtask?: boolean; // 多模型次级任务拆解与分发框架开关
 }
 
 export type ProjectMemoryMode = 'default' | 'isolated';
@@ -222,6 +223,14 @@ export interface Conversation {
   workspaceId?: string; // 关联绑定的工作区 ID (Chat A 和 Chat B 可绑定同一工作区，但聊天记忆严格隔离)
   chatContext?: ChatContext; // 当前 Chat 独占的会话上下文记忆（工作笔记、任务状态、需求，不与其它 Chat 共享）
   messages: Message[];
+  isSubtask?: boolean; // 是否是多模型子任务
+  isArchitect?: boolean; // 是否是主方案规划模型
+  subtaskIndex?: number; // 子任务序号
+  subtaskCount?: number; // 子任务总数
+  parentConversationId?: string; // 父级规划对话 ID
+  subtaskPrompt?: string; // 子任务原始指令
+  subtaskStatus?: 'pending' | 'running' | 'completed' | 'failed'; // 子任务执行状态
+  subtasksList?: { title: string; prompt: string }[]; // 子任务列表备份
 }
 
 export interface SearchEngineItem {

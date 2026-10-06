@@ -165,6 +165,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
     context7: '开启后会调用 Context7 官方 Search API，检索与当前问题相关的最新官方技术文档和代码示例，并把结果作为回答依据。',
     uiUxSkill: '开启后 AI 同时承担产品设计、UI/UX、移动端/Android 设计与 UI Review 职责。执行界面任务时必须先做信息架构与设计决策，再实现并进行视觉与响应式自检。',
     executeScript: '开启后允许 Agent 运行终端 Shell 命令行及执行脚本（如编译打包、运行测试、Python 或 Node 数据处理等）。提供极致完整的全自动编码体验！',
+    enableMultiModelSubtask: '多模型次级任务拆解与分发框架：开启后，方案规划模型先将一个长任务划分成若干个高内聚的次级短任务，分别调用不同模型实例，配合3~4轮安全执行与验证自检，实现高安全、自愈式的快速分步执行。',
     maxTokens: '单次回复允许生成的最大 Token 限制（4096 约合 2000 个汉字）。',
     temperature: '控制回答的多样性。0.0~0.3 严谨确定（代码/数学）；0.7~1.0 丰富发散（创意/写作）。',
     latex: '自动通过 KaTeX 引擎将数学公式/物理符号/微积分渲染为学术级排版。',
@@ -180,6 +181,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
   const context7Val = parameters.context7 ?? false;
   const uiUxSkillVal = parameters.uiUxSkill ?? false;
   const executeScriptVal = parameters.executeScript ?? false;
+  const enableMultiModelSubtaskVal = parameters.enableMultiModelSubtask ?? false;
 
   return (
     <div className="parameters-modal fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 select-none animate-in fade-in duration-150">
@@ -463,6 +465,46 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
                 <div
                   className={`param-toggle-dot bg-white dark:bg-black w-4 h-4 rounded-full shadow-md transform transition-transform ${
                     executeScriptVal ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* 多模型次级任务拆解与分发框架 (Subtask Orchestration Framework) */}
+            <div className="flex items-center justify-between p-2.5 rounded-xl bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 shadow-2xs">
+              <div className="space-y-0.5 pr-2">
+                <div className="flex items-center gap-1.5 relative">
+                  <span className="param-item-label text-xs font-semibold text-neutral-900 dark:text-neutral-100">多模型短任务拆解分发</span>
+                  <button
+                    type="button"
+                    onMouseEnter={() => setActiveTooltip('enableMultiModelSubtask')}
+                    onMouseLeave={() => setActiveTooltip(null)}
+                    onClick={() => setActiveTooltip(activeTooltip === 'enableMultiModelSubtask' ? null : 'enableMultiModelSubtask')}
+                    className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
+                  >
+                    <Info className="w-3.5 h-3.5" />
+                  </button>
+                  {activeTooltip === 'enableMultiModelSubtask' && (
+                    <div className="absolute left-0 top-6 z-20 w-56 p-2 bg-neutral-900 border border-neutral-700 text-[11px] text-neutral-300 rounded-xl shadow-xl">
+                      {tooltips.enableMultiModelSubtask}
+                    </div>
+                  )}
+                </div>
+                <p className="param-item-sub text-[11px] text-neutral-500 dark:text-neutral-400">方案模型拆解为次级短任务分发执行与安全核查</p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  updateParam('enableMultiModelSubtask', !enableMultiModelSubtaskVal);
+                }}
+                className={`param-toggle w-10 h-5 flex items-center rounded-full p-0.5 cursor-pointer transition-colors shrink-0 ${
+                  enableMultiModelSubtaskVal ? 'bg-[#84cc16] bg-lime-500' : 'bg-neutral-300 dark:bg-neutral-800'
+                }`}
+              >
+                <div
+                  className={`param-toggle-dot bg-white dark:bg-black w-4 h-4 rounded-full shadow-md transform transition-transform ${
+                    enableMultiModelSubtaskVal ? 'translate-x-5' : 'translate-x-0'
                   }`}
                 />
               </button>
