@@ -317,14 +317,7 @@ export const TopBar: React.FC<TopBarProps> = ({
         {/* Compact Agent task controls: keep task actions without the persistent phase/round status bar. */}
         {(agentTaskStatus === 'running' || agentTaskStatus === 'paused' || agentTaskStatus === 'waiting_user') && (
           <div className="hidden sm:flex items-center gap-1 rounded-xl border border-purple-200/70 dark:border-purple-800/70 bg-purple-50/70 dark:bg-purple-950/30 px-1 py-1">
-                {agentTaskStatus === 'waiting_user' ? (
-              <span
-                className="px-2 py-1 rounded-lg text-xs font-medium text-purple-700 dark:text-purple-300"
-                title="Agent 正在等待你在输入框中发送选择或补充信息"
-              >
-                等待你的回复
-              </span>
-            ) : agentTaskStatus === 'paused' && onResumeAgent ? (
+            {(agentTaskStatus === 'paused' || agentTaskStatus === 'waiting_user') && onResumeAgent ? (
               <button
                 type="button"
                 onClick={onResumeAgent}
