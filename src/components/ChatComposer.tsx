@@ -28,7 +28,7 @@ import {
   ChevronRight,
   ChevronLeft
 } from 'lucide-react';
-import { Attachment, ModelItem, ProviderDefinition, ApiKeyConfig, UserSettings, ModelParameters, Project } from '../types';
+import { Attachment, ModelItem, ProviderDefinition, ApiKeyConfig, UserSettings, ModelParameters, Project, AgentTaskStatus } from '../types';
 import { parseFileToAttachment, formatFileSize } from '../services/fileParser';
 import { isModelWebSearchSupported, isModelVisionCapable } from '../services/modelUtils';
 
@@ -36,6 +36,8 @@ interface ChatComposerProps {
   onSendMessage: (content: string, attachments: Attachment[]) => void;
   isGenerating: boolean;
   onStopGeneration: () => void;
+  onStopAgent?: () => void;
+  agentTaskStatus?: AgentTaskStatus;
   currentModel: ModelItem | undefined;
   currentApiKey: ApiKeyConfig | undefined;
   models?: ModelItem[];
@@ -73,6 +75,8 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   onSendMessage,
   isGenerating,
   onStopGeneration,
+  onStopAgent,
+  agentTaskStatus,
   currentModel,
   currentApiKey,
   models = [],
@@ -1011,43 +1015,59 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
             )}
           </div>
 
-          {/* Right Action: Send or Stop */}
-          <div className="flex items-center gap-2">
+          {/* Right Action: Send and Stop Agent Buttons */}
+          <div className="flex items-center gap-2 shrink-0">
             {content.length > 0 && (
               <span className="text-xs text-neutral-400 font-mono hidden sm:inline mr-1">
                 {content.length} 字
               </span>
             )}
 
-            {isGenerating ? (
+            {/* 停止 Agent / 停止生成 按钮 */}
+            {(isGenerating || agentTaskStatus === 'waiting_user' || agentTaskStatus === 'running' || agentTaskStatus === 'paused' || (agentMode && Boolean(agentTaskStatus && agentTaskStatus !== 'completed' && agentTaskStatus !== 'stopped'))) && (
               <button
                 type="button"
-                onClick={onStopGeneration}
-                className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl bg-red-600 hover:bg-red-700 text-white text-xs font-semibold shadow-xs transition active:scale-95 cursor-pointer animate-pulse"
-                title="停止生成"
+                onClick={() => {
+                  if (onStopAgent) {
+                    onStopAgent();
+                  } else {
+                    onStopGeneration();
+                  }
+                }}
+                className="flex items-center gap-1.5 px-3 py-2.5 rounded-2xl border border-red-500/40 bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900/60 text-red-600 dark:text-red-400 text-xs font-semibold shadow-2xs transition active:scale-95 cursor-pointer shrink-0"
+                title={agentMode || agentTaskStatus ? "停止当前 Agent 流程" : "停止生成"}
               >
-                <Square className="w-5 h-5 fill-current" />
-                <span>停止</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={handleSend}
-                disabled={!canSend}
-                className={`p-2.5 rounded-2xl flex items-center justify-center transition-all shadow-xs ${
-                  canSend
-                    ? 'bg-neutral-900 hover:bg-neutral-800 dark:bg-neutral-100 dark:hover:bg-white text-white dark:text-neutral-900 active:scale-95 cursor-pointer'
-                    : 'bg-neutral-200 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-600 cursor-not-allowed'
-                }`}
-                title={isProcessingFiles ? '正在解析上传文件...' : (canSend ? '发送消息' : '请输入内容')}
-              >
-                {isProcessingFiles ? (
-                  <RefreshCw className="w-6 h-6 stroke-[2.2] animate-spin text-neutral-400 dark:text-neutral-500" />
-                ) : (
-                  <ArrowUp className="w-6 h-6 stroke-[2.2]" />
-                )}
+                <Square className="w-4 h-4 fill-current" />
+                <span className="whitespace-nowrap">{agentMode || agentTaskStatus ? '停止 Agent' : '停止'}</span>
               </button>
             )}
+
+            {/* 发送按钮：始终存在，方便用户在 Agent 等待回消息时发送回复 */}
+            <button
+              type="button"
+              onClick={handleSend}
+              disabled={!canSend}
+              className={`p-2.5 rounded-2xl flex items-center justify-center transition-all shadow-xs shrink-0 ${
+                canSend
+                  ? 'bg-neutral-900 hover:bg-neutral-800 dark:bg-neutral-100 dark:hover:bg-white text-white dark:text-neutral-900 active:scale-95 cursor-pointer'
+                  : 'bg-neutral-200 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-600 cursor-not-allowed'
+              }`}
+              title={
+                isProcessingFiles
+                  ? '正在解析上传文件...'
+                  : isGenerating
+                  ? 'AI 正在回复中，可点击左侧按钮停止 Agent'
+                  : canSend
+                  ? '发送消息'
+                  : '请输入内容'
+              }
+            >
+              {isProcessingFiles ? (
+                <RefreshCw className="w-6 h-6 stroke-[2.2] animate-spin text-neutral-400 dark:text-neutral-500" />
+              ) : (
+                <ArrowUp className="w-6 h-6 stroke-[2.2]" />
+              )}
+            </button>
           </div>
         </div>
       </div>

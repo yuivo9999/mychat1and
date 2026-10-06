@@ -314,41 +314,6 @@ export const TopBar: React.FC<TopBarProps> = ({
           </button>
         )}
 
-        {/* Compact Agent task controls: keep task actions without the persistent phase/round status bar. */}
-        {(agentTaskStatus === 'running' || agentTaskStatus === 'paused' || agentTaskStatus === 'waiting_user') && (
-          <div className="hidden sm:flex items-center gap-1 rounded-xl border border-purple-200/70 dark:border-purple-800/70 bg-purple-50/70 dark:bg-purple-950/30 px-1 py-1">
-            {(agentTaskStatus === 'paused' || agentTaskStatus === 'waiting_user') && onResumeAgent ? (
-              <button
-                type="button"
-                onClick={onResumeAgent}
-                className="px-2 py-1 rounded-lg text-xs font-medium text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/50 transition"
-                title="继续 Agent 任务"
-              >
-                继续
-              </button>
-            ) : onPauseAgent ? (
-              <button
-                type="button"
-                onClick={onPauseAgent}
-                className="px-2 py-1 rounded-lg text-xs text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/50 transition"
-                title="在安全轮次边界暂停 Agent"
-              >
-                暂停
-              </button>
-            ) : null}
-            {onStopAgent && (
-              <button
-                type="button"
-                onClick={onStopAgent}
-                className="px-2 py-1 rounded-lg text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition"
-                title="停止当前 Agent 任务"
-              >
-                停止
-              </button>
-            )}
-          </div>
-        )}
-
         {/* Workspace Web Preview Button (放置在“我的工作区”左侧) */}
         {onOpenPreview && (
           <button

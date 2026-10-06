@@ -343,7 +343,9 @@ export default function App() {
     if (currentConversation?.agentMode !== undefined) {
       setAgentMode(currentConversation.agentMode);
     } else {
-      setAgentMode(false);
+      if (currentConversation && currentConversation.messages.length > 0) {
+        setAgentMode(false);
+      }
     }
     if (currentConversation?.workspaceId) {
       setActiveWorkspaceId(currentConversation.workspaceId);
@@ -406,11 +408,37 @@ export default function App() {
     }
   };
 
-  const handleToggleAgentMode = (enabled: boolean) => {
+  const handleToggleAgentMode = async (enabled: boolean) => {
     setAgentMode(enabled);
+
+    // 1. If turning on Agent mode, ensure a workspace exists and is bound to the conversation
+    let wsId = currentConversation?.workspaceId || activeWorkspaceId;
+    if (enabled) {
+      if (!wsId || workspaces.length === 0) {
+        let ws = workspaces[0];
+        if (!ws) {
+          ws = createEmptyWorkspace('我的工作区');
+          await saveWorkspace(ws);
+          setWorkspaces([ws]);
+        }
+        wsId = ws.id;
+        setActiveWorkspaceId(ws.id);
+      }
+    } else {
+      // 2. If turning off Agent mode while an agent task is active or waiting, stop it cleanly
+      if (currentConversation?.agentTask && (currentConversation.agentTask.status === 'running' || currentConversation.agentTask.status === 'waiting_user' || currentConversation.agentTask.status === 'paused')) {
+        await handleStopAgentTask();
+      }
+    }
+
     if (currentConversation) {
-      const updated = { ...currentConversation, agentMode: enabled, updatedAt: Date.now() };
-      saveConversation(updated);
+      const updated: Conversation = { 
+        ...currentConversation, 
+        agentMode: enabled, 
+        workspaceId: wsId || currentConversation.workspaceId,
+        updatedAt: Date.now() 
+      };
+      await saveConversation(updated);
       setConversations(prev => prev.map(c => c.id === updated.id ? updated : c));
     }
   };
@@ -672,8 +700,8 @@ export default function App() {
     }
   };
 
-  // Stop Generation
-  const handleStopGeneration = () => {
+  // Stop Agent Task & Generation
+  const handleStopAgentTask = async () => {
     agentPauseRequestedRef.current = false;
     const waiter = agentResumeWaiterRef.current;
     agentResumeWaiterRef.current = null;
@@ -682,17 +710,32 @@ export default function App() {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
-    if (currentConversation?.agentTask && isGenerating) {
-      void persistAgentTaskState(currentConversation.id, {
+    const taskId = agentTaskIdRef.current || currentConversation?.agentTask?.taskId;
+    if (taskId) {
+      requestAgentStop(taskId);
+    }
+    if (currentConversation) {
+      const updatedTask = currentConversation.agentTask ? {
         ...currentConversation.agentTask,
-        status: 'stopped',
-        pauseReason: '用户手动停止 Agent',
+        status: 'stopped' as const,
+        pauseReason: '用户手动停止 Agent 任务',
         updatedAt: Date.now(),
-      });
+      } : undefined;
+      const updatedConv: Conversation = {
+        ...currentConversation,
+        agentTask: updatedTask,
+        updatedAt: Date.now(),
+      };
+      await saveConversation(updatedConv);
+      setConversations(prev => prev.map(c => c.id === updatedConv.id ? updatedConv : c));
     }
     setIsGenerating(false);
     setConnectionStatus('configured');
     agentTaskIdRef.current = null;
+  };
+
+  const handleStopGeneration = () => {
+    void handleStopAgentTask();
   };
 
   // Send Message Core Engine
@@ -717,6 +760,18 @@ export default function App() {
     let targetConv = conversationOverride || currentConversation;
     // Auto-create conversation if none exists
     if (!targetConv) {
+      let targetWsId = activeWorkspaceId;
+      if (agentMode && (!targetWsId || workspaces.length === 0)) {
+        let ws = workspaces[0];
+        if (!ws) {
+          ws = createEmptyWorkspace('我的工作区');
+          await saveWorkspace(ws);
+          setWorkspaces([ws]);
+        }
+        targetWsId = ws.id;
+        setActiveWorkspaceId(ws.id);
+      }
+
       const newConv: Conversation = {
         id: `conv_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
         title: text.slice(0, 24) || '新对话',
@@ -726,11 +781,15 @@ export default function App() {
         providerId: currentModel.providerId,
         apiKeyId: selectedApiKeyId,
         parameters,
+        webAccessEnabled,
+        agentMode,
+        workspaceId: targetWsId || currentWorkspace?.id,
         messages: [],
       };
       targetConv = newConv;
       setConversations(prev => [newConv, ...prev]);
       setActiveConversationId(newConv.id);
+      await saveConversation(newConv);
     }
 
     // On-demand Workspace Files Resolution:
@@ -1026,9 +1085,17 @@ export default function App() {
     } catch (error) {
       console.warn('Agent workspace refresh failed; using in-memory workspace state:', error);
     }
-    const freshWorkspace = boundWorkspaceId
+    let freshWorkspace = boundWorkspaceId
       ? freshWorkspaces.find(w => w.id === boundWorkspaceId) || null
-      : currentWorkspace;
+      : (freshWorkspaces[0] || currentWorkspace);
+
+    if (agentMode && !freshWorkspace) {
+      freshWorkspace = createEmptyWorkspace('我的工作区');
+      await saveWorkspace(freshWorkspace);
+      setWorkspaces(prev => [freshWorkspace!, ...prev]);
+      setActiveWorkspaceId(freshWorkspace.id);
+    }
+
     let wsToOperate: Workspace | null = freshWorkspace ? JSON.parse(JSON.stringify(freshWorkspace)) : null;
     const historySearchEnabled = settings.enableHistorySearch ?? false;
     const projectMemoryEnabled = settings.enableProjectMemory ?? true;
@@ -2832,7 +2899,7 @@ export default function App() {
           agentTaskStatus={currentConversation?.agentTask?.status}
           onPauseAgent={handlePauseAgent}
           onResumeAgent={handleResumeAgent}
-          onStopAgent={isGenerating ? handleStopGeneration : undefined}
+          onStopAgent={handleStopAgentTask}
         />
 
         {/* Top Inverted Ink Wave Pattern (顶部工具栏下方垂直翻转淡墨色波浪纹，与底部加减号后波浪纹对齐呼应) */}
@@ -2893,6 +2960,8 @@ export default function App() {
           onSendMessage={handleSendMessage}
           isGenerating={isGenerating}
           onStopGeneration={handleStopGeneration}
+          onStopAgent={handleStopAgentTask}
+          agentTaskStatus={currentConversation?.agentTask?.status}
           currentModel={currentModel}
           currentApiKey={currentApiKey}
           models={models}
