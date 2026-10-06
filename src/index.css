@@ -1329,8 +1329,10 @@ html.theme-classic2 .param-toggle-dot,
     var(--md-title-gradient-mid, #a855f7) 50%,
     var(--md-title-gradient-end, #ec4899) 100%
   ) !important;
-  border: 1px solid rgba(255, 255, 255, 0.38) !important;
+  border: 1px solid #000000 !important;
   border-radius: 0 !important;
+  clip-path: polygon(3px 0, calc(100% - 3px) 0, 100% 3px, 100% calc(100% - 3px), calc(100% - 3px) 100%, 3px 100%, 0 calc(100% - 3px), 0 3px);
+  box-shadow: 0 0 0 1px #000000 !important;
 }
 
 .markdown-body .code-block-wrapper {
