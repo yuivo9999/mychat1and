@@ -153,7 +153,14 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
     };
   }, [message.content, mainContent, thinkingText, isUser]);
 
-  const shouldRenderMarkdown = (settings.enableMarkdown ?? true) || (settings.onlyParseMarkdownTables ?? false);
+  // Code fences are a structural display feature, not optional prose formatting.
+  // Even when general Markdown is disabled, fenced code must still enter the
+  // Markdown renderer so the dedicated code-block renderer can create its UI.
+  const hasFencedCode = /(?:^|\\n)\\s*(?:```|~~~)/.test(mainContent);
+  const shouldRenderMarkdown =
+    (settings.enableMarkdown ?? true) ||
+    (settings.onlyParseMarkdownTables ?? false) ||
+    hasFencedCode;
 
   const htmlContent = useMemo(() => {
     if (isUser || !shouldRenderMarkdown) {
