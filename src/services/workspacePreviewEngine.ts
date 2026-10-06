@@ -2,7 +2,7 @@ import { Workspace, WorkspaceFile } from '../types/workspace';
 
 export interface WorkspaceRunnableInfo {
   hasRunnableEntry: boolean;
-  entryType: 'html' | 'react' | 'none';
+  entryType: 'html' | 'react' | 'vite' | 'none';
   entryPath: string;
   totalFiles: number;
   runnableFiles: string[];
@@ -22,6 +22,29 @@ export function detectWorkspaceRunnableType(workspace: Workspace | null): Worksp
 
   const paths = Object.keys(workspace.files);
   const totalFiles = paths.length;
+
+  // A package-managed Vite app must never be mistaken for a plain index.html demo.
+  // Its ESM imports, CSS imports and npm dependencies require the real project runtime.
+  const packageJson = workspace.files['package.json'];
+  if (packageJson && !packageJson.isBinary) {
+    try {
+      const manifest = JSON.parse(packageJson.content);
+      const deps = { ...(manifest.dependencies || {}), ...(manifest.devDependencies || {}) };
+      const scripts = manifest.scripts || {};
+      if (deps.vite || deps['@vitejs/plugin-react'] || scripts.dev?.includes('vite') || scripts.build?.includes('vite')) {
+        const viteEntry = paths.find(p => /^src\\/(main|index)\\.(tsx?|jsx?)$/.test(p)) || 'index.html';
+        return {
+          hasRunnableEntry: true,
+          entryType: 'vite',
+          entryPath: viteEntry,
+          totalFiles,
+          runnableFiles: paths,
+        };
+      }
+    } catch {
+      // Fall through to ordinary HTML/React detection so malformed manifests still get a useful preview.
+    }
+  }
 
   // 1. Look for standard HTML entry points
   const htmlEntryCandidates = [
@@ -175,6 +198,10 @@ export function generatePreviewHtml(workspace: Workspace | null): string {
 
   if (info.entryType === 'react') {
     return buildReactProjectBundle(workspace, info.entryPath);
+  }
+
+  if (info.entryType === 'vite') {
+    return generateViteRuntimeGuidanceHtml(workspace, info.entryPath);
   }
 
   return generateGuidanceHtml(workspace);
@@ -421,6 +448,21 @@ function buildReactProjectBundle(workspace: Workspace, entryPath: string): strin
 }
 
 // Fallback HTML when workspace has no recognizable runnable web entry
+function generateViteRuntimeGuidanceHtml(workspace: Workspace, entryPath: string): string {
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<style>
+body{font-family:system-ui,-apple-system,sans-serif;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f8fafc;color:#334155}
+.card{width:min(680px,calc(100% - 32px));box-sizing:border-box;background:#fff;border:1px solid #e2e8f0;border-radius:18px;padding:28px;box-shadow:0 12px 40px rgba(15,23,42,.08)}
+h2{margin:0 0 10px;font-size:19px;color:#0f172a}p{font-size:13px;line-height:1.7;margin:8px 0;color:#64748b}.ok{margin-top:16px;padding:12px 14px;border-radius:10px;background:#eff6ff;color:#1d4ed8;font-size:12px}.mono{font-family:ui-monospace,SFMono-Regular,monospace}
+</style></head><body><section class="card">
+<h2>正在准备真实 Vite 项目预览</h2>
+<p>检测到标准 Node/Vite 工程（入口 <span class="mono">${entryPath}</span>）。预览不会再把完整工程错误地当成单文件 HTML 执行。</p>
+<div class="ok">MyChat 将使用 Android Node Runtime 安装依赖并启动项目；如果启动失败，错误会显示在“运行控制台”，不会再出现无原因的空白页。</div>
+</section></body></html>`;
+}
+
 function generateGuidanceHtml(workspace: Workspace): string {
   const filesList = Object.keys(workspace.files).map(p => `<li>${p}</li>`).join('');
 
