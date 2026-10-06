@@ -1027,7 +1027,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
               </span>
             )}
 
-            {isAgentWaitingForUser ? (
+            {isAgentWaitingForUser && !isGenerating ? (
               <>
                 <button
                   type="button"
