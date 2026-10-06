@@ -404,38 +404,20 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
       return false;
     })();
 
-    // Helper to select stable, colorful contrast-aware classes for headings based on text hash
-    const getHeadingClasses = (text: string) => {
+    // Stable per-title gradients. Same title => same gradient; different titles => varied gradients.
+    const getHeadingStyle = (text: string): React.CSSProperties => {
       let hash = 0;
-      for (let i = 0; i < text.length; i++) {
-        hash = text.charCodeAt(i) + ((hash << 5) - hash);
-      }
-      const index = Math.abs(hash);
-
-      const lightPalette = [
-        'bg-emerald-100 text-emerald-950 border-emerald-200/60 shadow-emerald-100/10',
-        'bg-sky-100 text-sky-950 border-sky-200/60 shadow-sky-100/10',
-        'bg-indigo-100 text-indigo-950 border-indigo-200/60 shadow-indigo-100/10',
-        'bg-rose-100 text-rose-950 border-rose-200/60 shadow-rose-100/10',
-        'bg-amber-100 text-amber-950 border-amber-200/60 shadow-amber-100/10',
-        'bg-fuchsia-100 text-fuchsia-950 border-fuchsia-200/60 shadow-fuchsia-100/10',
-        'bg-teal-100 text-teal-950 border-teal-200/60 shadow-teal-100/10',
-        'bg-violet-100 text-violet-950 border-violet-200/60 shadow-violet-100/10',
+      for (let i = 0; i < text.length; i++) hash = text.charCodeAt(i) + ((hash << 5) - hash);
+      const palettes = [
+        ['#2563eb', '#7c3aed', '#db2777'], ['#0891b2', '#2563eb', '#4f46e5'],
+        ['#059669', '#0d9488', '#0891b2'], ['#ca8a04', '#ea580c', '#dc2626'],
+        ['#db2777', '#9333ea', '#4f46e5'], ['#7c3aed', '#2563eb', '#06b6d4'],
+        ['#16a34a', '#0d9488', '#2563eb'], ['#ea580c', '#db2777', '#7c3aed'],
+        ['#4f46e5', '#9333ea', '#ec4899'], ['#0f766e', '#2563eb', '#7c3aed'],
+        ['#b45309', '#c026d3', '#7c3aed'], ['#be123c', '#ea580c', '#ca8a04'],
       ];
-
-      const darkPalette = [
-        'bg-emerald-950/80 text-emerald-100 border-emerald-800/40 shadow-emerald-950/20',
-        'bg-sky-950/80 text-sky-100 border-sky-800/40 shadow-sky-950/20',
-        'bg-indigo-950/80 text-indigo-100 border-indigo-800/40 shadow-indigo-950/20',
-        'bg-rose-950/80 text-rose-100 border-rose-800/40 shadow-rose-950/20',
-        'bg-amber-950/80 text-amber-100 border-amber-800/40 shadow-amber-950/20',
-        'bg-fuchsia-950/80 text-fuchsia-100 border-fuchsia-800/40 shadow-fuchsia-950/20',
-        'bg-teal-950/80 text-teal-100 border-teal-800/40 shadow-teal-950/20',
-        'bg-violet-950/80 text-violet-100 border-violet-800/40 shadow-violet-950/20',
-      ];
-
-      const palette = isDark ? darkPalette : lightPalette;
-      return palette[index % palette.length];
+      const [start, mid, end] = palettes[Math.abs(hash) % palettes.length];
+      return { '--title-gradient-start': start, '--title-gradient-mid': mid, '--title-gradient-end': end } as React.CSSProperties;
     };
 
     const lines = content.split('\n');
@@ -445,10 +427,12 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
           const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
           if (headingMatch) {
             const titleText = headingMatch[2];
-            const colorClasses = getHeadingClasses(titleText);
             return (
               <div key={idx} className="my-3">
-                <span className={`inline-block px-1.5 py-0.5 rounded-none font-bold shadow-xs transition-colors duration-150 gradient-title-frame ${colorClasses}`}>
+                <span
+                  className="inline-block px-1.5 py-0.5 rounded-none font-bold shadow-xs transition-colors duration-150 gradient-title-frame"
+                  style={getHeadingStyle(titleText)}
+                >
                   {titleText}
                 </span>
               </div>
