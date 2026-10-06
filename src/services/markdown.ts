@@ -244,7 +244,12 @@ export function renderMarkdown(content: string, options: MarkdownOptions = {}): 
         return `<h${safeDepth} class="${headingClass}" data-heading-depth="${safeDepth}">${text}</h${safeDepth}>`;
       },
       paragraph({ text }: { text: string }) {
-        return `<p class="markdown-paragraph ai-content-unit" data-content-unit="paragraph">${text}</p>`;
+        // Standalone bold text is the plain-text title style. Keep inline bold text
+        // unchanged and give only these title paragraphs the gradient treatment.
+        const normalized = typeof text === 'string' ? text.trim() : '';
+        const isPlainBoldTitle = /^<strong>(?:[\\s\\S]+)<\\/strong>$/.test(normalized);
+        const titleClass = isPlainBoldTitle ? ' markdown-plain-bold-title' : '';
+        return `<p class="markdown-paragraph ai-content-unit${titleClass}" data-content-unit="paragraph">${text}</p>`;
       },
       hr() {
         return '<hr class="markdown-divider ai-content-unit" data-content-unit="divider" />';
