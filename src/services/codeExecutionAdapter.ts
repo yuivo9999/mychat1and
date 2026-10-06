@@ -9,7 +9,19 @@
  * 2. Web/server /api/execute-script fallback
  */
 
-export type CodeLanguage = 'python' | 'shell' | 'javascript' | 'typescript';
+import { getUserSettings } from './db';
+
+async function getEffectiveEndpoint(): Promise<string> {
+  try {
+    const s = await getUserSettings();
+    if (s?.serverlessEndpointUrl && s.serverlessEndpointUrl.trim()) {
+      return s.serverlessEndpointUrl.trim();
+    }
+  } catch (e) {
+    // fallback
+  }
+  return '/api/execute-script';
+}
 
 export interface CodeExecutionRequest {
   language: CodeLanguage;
@@ -240,10 +252,11 @@ if (transpiled.diagnostics && transpiled.diagnostics.length) {
 
   if (request.language === 'shell') {
     try {
-      const res = await fetch('/api/execute-script', {
+      const endpoint = await getEffectiveEndpoint();
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ command: request.code }),
+        body: JSON.stringify({ language: request.language, command: request.code, code: request.code, workspaceId: request.workspaceId }),
       });
       const payload = await res.json().catch(() => null);
       return {
@@ -267,29 +280,45 @@ if (transpiled.diagnostics && transpiled.diagnostics.length) {
   }
 
   if (request.language === 'javascript' || request.language === 'typescript') {
-    return {
-      success: false,
-      stdout: '',
-      stderr: '',
-      exitCode: -1,
-      error: `Android Node.js runtime unavailable for ${request.language}; web runtime must provide /api/execute-script.`,
-      runtime: 'server',
-    };
+    try {
+      const endpoint = await getEffectiveEndpoint();
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ language: request.language, code: request.code, workspaceId: request.workspaceId }),
+      });
+      const payload = await res.json().catch(() => null);
+      return {
+        success: !!payload?.success && res.ok,
+        stdout: String(payload?.stdout ?? ''),
+        stderr: String(payload?.stderr ?? ''),
+        exitCode: Number(payload?.exitCode ?? (res.ok ? 0 : -1)),
+        error: payload?.error ?? (!res.ok ? `执行后端返回 HTTP ${res.status}` : null),
+        runtime: 'server',
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        stdout: '',
+        stderr: '',
+        exitCode: -1,
+        error: error?.message || String(error),
+        runtime: 'server',
+      };
+    }
   }
 
   if (request.language !== 'python') {
     throw new Error(`不支持的执行语言: ${request.language}`);
   }
 
-  // Server fallback: write Python source into a shell-safe python -c invocation.
-  // The model never needs to know this platform detail.
-  const command = `python3 -c ${JSON.stringify(request.code)}`;
-
+  // Server fallback: Python execution via Serverless Cloud Function
   try {
-    const res = await fetch('/api/execute-script', {
+    const endpoint = await getEffectiveEndpoint();
+    const res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ command }),
+      body: JSON.stringify({ language: 'python', code: request.code, command: `python3 -c ${JSON.stringify(request.code)}`, workspaceId: request.workspaceId }),
     });
 
     const payload = await res.json().catch(() => null);

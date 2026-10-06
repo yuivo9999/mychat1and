@@ -163,6 +163,66 @@ async function startServer() {
     return q.replace(/[，。！？、\n\r\t]/g, ' ').replace(/\s+/g, ' ').trim();
   }
 
+  // NVIDIA & Cross-Origin API Proxy Endpoint to bypass browser CORS restrictions
+  app.post('/api/proxy/chat', async (req, res) => {
+    try {
+      const { endpoint, apiKey, body, headers: customHeaders } = req.body;
+      if (!endpoint) {
+        return res.status(400).json({ error: 'Missing endpoint' });
+      }
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Authorization': apiKey ? (apiKey.startsWith('Bearer ') ? apiKey : `Bearer ${apiKey}`) : '',
+        ...(customHeaders || {}),
+      };
+
+      const isStreaming = body?.stream === true;
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        return res.status(response.status).json({ error: errorText || response.statusText });
+      }
+
+      if (isStreaming) {
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+
+        if (response.body) {
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              const chunk = decoder.decode(value, { stream: true });
+              res.write(chunk);
+            }
+          } catch (streamErr) {
+            console.warn('Proxy streaming error:', streamErr);
+          } finally {
+            res.end();
+          }
+        } else {
+          res.end();
+        }
+      } else {
+        const data = await response.json();
+        return res.json(data);
+      }
+    } catch (err: any) {
+      console.error('Backend proxy error:', err);
+      return res.status(500).json({ error: err.message || 'Proxy request failed' });
+    }
+  });
+
   // 1. Ultra-Fast Parallel Web Search Endpoint (< 2.5s Timeout, Bing & Google Priority)
   app.post('/api/web-search', async (req, res) => {
     const { query, urls = [], searchEngines, activeSearchEngineId } = req.body;

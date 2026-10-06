@@ -840,6 +840,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
                   </div>
 
+                  <div className="space-y-1.5 pt-2 pb-2">
+                    <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                      外部 Serverless 云函数运行时 API 地址 (支持 Python / Node.js 执行)
+                    </label>
+                    <input
+                      type="text"
+                      value={settings.serverlessEndpointUrl || ''}
+                      onChange={(e) => onSaveSettings({ ...settings, serverlessEndpointUrl: e.target.value.trim() })}
+                      placeholder="https://your-serverless-fn.run.app/api/execute"
+                      className="w-full h-9 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 px-3 text-xs font-mono outline-hidden focus:border-indigo-500"
+                    />
+                    <p className="text-[10px] text-neutral-400">
+                      适用于 NVIDIA API 或受控云环境：前端通过 API 发送计算请求至外部 Serverless 云函数执行 Python/Node 计算，并将 stdout 回传前端展示。
+                    </p>
+                  </div>
+
                   <div className="p-4 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-800/30 space-y-2">
                     <h4 className="text-xs font-bold text-neutral-800 dark:text-neutral-200 flex items-center gap-1.5">
                       <HardDrive className="w-4 h-4 text-indigo-500" />

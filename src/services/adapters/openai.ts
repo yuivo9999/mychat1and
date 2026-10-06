@@ -217,14 +217,34 @@ export class OpenAIAdapter implements BaseAdapter {
       abortSignal.addEventListener('abort', onUserAbort);
     }
 
+    let fetchUrl = endpoint;
+    let fetchOptions: RequestInit = {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(bodyPayload),
+      signal: controller.signal,
+    };
+
+    if (apiKeyConfig.providerId === 'nvidia') {
+      fetchUrl = '/api/proxy/chat';
+      fetchOptions = {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          endpoint,
+          apiKey: apiKeyConfig.apiKey,
+          body: bodyPayload,
+          headers,
+        }),
+        signal: controller.signal,
+      };
+    }
+
     let response: Response;
     try {
-      response = await executeFetch(endpoint, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(bodyPayload),
-        signal: controller.signal,
-      });
+      response = await executeFetch(fetchUrl, fetchOptions);
     } catch (err: any) {
       clearTimeout(timeoutId);
       if (err.name === 'AbortError') {
