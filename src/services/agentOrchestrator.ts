@@ -106,6 +106,64 @@ export function cleanupAgentStopRequest(taskId?: string | null): void {
 }
 
 
+/**
+ * Build a durable handoff protocol for the next Agent turn.
+ * This is intentionally deterministic: the waiting state must tell the next model
+ * what is known, what is blocked, what must not be repeated, and exactly where to resume.
+ */
+export function buildAgentWaitingStrategy(input: {
+  goal: string;
+  phase: string;
+  round: number;
+  maxRounds: number;
+  checklist: AgentTaskChecklistItem[];
+  currentStep?: string;
+  nextStep?: string;
+  progressSummary?: string;
+  pauseReason?: string;
+}): string {
+  const completed = input.checklist.filter(item => item.status === 'completed');
+  const blocked = input.checklist.filter(item => item.status === 'blocked');
+  const pending = input.checklist.filter(item => item.status !== 'completed' && item.status !== 'blocked');
+  const line = (value: unknown) => String(value || '').replace(/\\s+/g, ' ').trim();
+  const formatItems = (items: AgentTaskChecklistItem[]) => items.length
+    ? items.map(item => {
+        const criteria = (item.acceptanceCriteria || []).slice(0, 4).map(line).filter(Boolean).join('；');
+        const evidence = line(item.evidence);
+        return `- [${item.id}] ${line(item.title)}${criteria ? ` | 验收: ${criteria}` : ''}${evidence ? ` | 证据: ${evidence}` : ''}`;
+      }).join('\\n')
+    : '- 无';
+
+  return [
+    '## Agent 等待用户阶段·下一轮续作修改策略（权威交接协议）',
+    '版本：1',
+    '规则：下一轮 Agent 必须优先读取并遵守本策略；不得根据旧对话重新猜测任务状态。',
+    '',
+    `### 任务目标\\n${line(input.goal)}`,
+    `### 当前检查点\\n阶段：${line(input.phase)}；轮次：${input.round}/${input.maxRounds}`,
+    `当前步骤：${line(input.currentStep) || '未记录'}\\n下一步骤：${line(input.nextStep) || '先根据用户新信息确认恢复点'}`,
+    `### 为什么暂停\\n${line(input.pauseReason) || '等待用户提供新的决策、证据或指示'}`,
+    `### 已完成工作（禁止无理由重复）\\n${formatItems(completed)}`,
+    `### 被阻塞/需要用户处理\\n${formatItems(blocked)}`,
+    `### 尚未完成工作\\n${formatItems(pending)}`,
+    `### 上一阶段摘要\\n${line(input.progressSummary) || '无'}`,
+    '',
+    '### 下一轮强制执行顺序',
+    '1. 先读取当前工作区真实状态与本交接协议。',
+    '2. 把用户本轮回复视为对“为什么暂停”的直接补充；先判断它解决了哪个阻塞点。',
+    '3. 保留已完成任务及其证据，不重复已验证步骤，除非用户新证据明确推翻它们。',
+    '4. 从“下一步骤”或第一个仍满足依赖的未完成任务继续；修改代码前重新读取真实文件。',
+    '5. 修改后必须做针对性验证；验证失败先修复再继续，不能用文字宣称完成。',
+    '6. 如果再次需要用户决策，更新本策略后再次进入 waiting_user；如果完成，则明确标记任务 completed。',
+    '',
+    '### 禁止事项',
+    '- 禁止把“等待用户”误判成“任务完成”。',
+    '- 禁止因为上下文缺失而重新从规划阶段开始。',
+    '- 禁止重复已经有明确证据的修改/验证。',
+    '- 禁止在没有读取真实代码的情况下直接 patch。',
+  ].join('\\n');
+}
+
 export function shouldAgentResearchTask(goal: string): boolean {
   return goal.length > 180 || /(最新|版本|依赖|报错|重构|架构|构建|迁移|第三方|api|sdk|android|react|typescript|node|npm|python)/i.test(goal);
 }
