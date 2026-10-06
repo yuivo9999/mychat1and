@@ -434,6 +434,9 @@ export function installProjectDependencies(workspaceId: string): { success: bool
   try {
     const raw = bridge.installWorkspaceDependencies(workspaceId, 120000);
     const p = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (p?.success === true && bridge?.markWorkspaceDependenciesInstalled) {
+      try { bridge.markWorkspaceDependenciesInstalled(workspaceId); } catch {}
+    }
     return { success: p?.success === true, error: p?.error, stdout: p?.stdout, stderr: p?.stderr };
   } catch (e: any) { return { success: false, error: e?.message || String(e) }; }
 }
