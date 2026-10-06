@@ -44,17 +44,17 @@ function normalizeCodeFences(content: string): string {
 
   let normalized = content
     .replace(/｀/g, '`')
-    .replace(/^([ \\t]*)~~~([^\\n]*)$/gm, '$1```$2')
-    .replace(/^([ \\t]*)~~~[ \\t]*$/gm, '$1```');
+    .replace(/^([ \t]*)~~~([^\n]*)$/gm, '$1```$2')
+    .replace(/^([ \t]*)~~~[ \t]*$/gm, '$1```');
 
-  const lines = normalized.split('\\n');
+  const lines = normalized.split('\n');
   let fenceOpen = false;
   for (const line of lines) {
-    if (!/^\\s*```/.test(line)) continue;
+    if (!/^\s*```/.test(line)) continue;
     fenceOpen = !fenceOpen;
   }
 
-  if (fenceOpen) normalized += normalized.endsWith('\\n') ? '```' : '\\n```';
+  if (fenceOpen) normalized += normalized.endsWith('\n') ? '```' : '\n```';
   return normalized;
 }
 function renderLatexInText(text: string): string {
