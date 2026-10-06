@@ -234,6 +234,17 @@ export function renderMarkdown(content: string, options: MarkdownOptions = {}): 
       },
       heading({ text, depth }: { text: string; depth: number }) {
         const safeDepth = Math.min(Math.max(depth || 1, 1), 6);
+        let hash = 0;
+        for (let i = 0; i < text.length; i++) hash = text.charCodeAt(i) + ((hash << 5) - hash);
+        const gradients = [
+          ['#2563eb', '#7c3aed', '#db2777'], ['#0891b2', '#2563eb', '#4f46e5'],
+          ['#059669', '#0d9488', '#0891b2'], ['#ca8a04', '#ea580c', '#dc2626'],
+          ['#db2777', '#9333ea', '#4f46e5'], ['#7c3aed', '#2563eb', '#06b6d4'],
+          ['#16a34a', '#0d9488', '#2563eb'], ['#ea580c', '#db2777', '#7c3aed'],
+          ['#4f46e5', '#9333ea', '#ec4899'], ['#0f766e', '#2563eb', '#7c3aed'],
+          ['#b45309', '#c026d3', '#7c3aed'], ['#be123c', '#ea580c', '#ca8a04'],
+        ];
+        const [gradientStart, gradientMid, gradientEnd] = gradients[Math.abs(hash) % gradients.length];
         const headingClass = safeDepth === 1
           ? 'markdown-heading markdown-heading-1'
           : safeDepth === 2
@@ -241,7 +252,7 @@ export function renderMarkdown(content: string, options: MarkdownOptions = {}): 
             : safeDepth === 3
               ? 'markdown-heading markdown-heading-3'
               : 'markdown-heading markdown-heading-sub';
-        return `<h${safeDepth} class="${headingClass}" data-heading-depth="${safeDepth}">${text}</h${safeDepth}>`;
+        return `<h${safeDepth} class="${headingClass} gradient-title-frame" style="--title-gradient-start:${gradientStart};--title-gradient-mid:${gradientMid};--title-gradient-end:${gradientEnd}" data-heading-depth="${safeDepth}">${text}</h${safeDepth}>`;
       },
       paragraph({ text }: { text: string }) {
         // Standalone bold text is the plain-text title style. Keep inline bold text
