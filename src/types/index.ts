@@ -199,6 +199,12 @@ export interface AgentTaskState {
   nextStep?: string;
   progressSummary?: string;
   pauseReason?: string;
+  /**
+   * Durable handoff instructions written when Agent enters waiting_user.
+   * The next Agent turn must treat this as the authoritative continuation strategy
+   * instead of reconstructing the plan from conversational context alone.
+   */
+  waitingStrategy?: string;
   updatedAt: number;
 }
 
