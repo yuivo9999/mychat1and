@@ -24,6 +24,7 @@ import {
   getNodeDependencyState,
   installProjectDependencies,
   buildProjectStartCommand,
+  inspectProjectRuntime,
 } from '../services/projectRuntimeService';
 import { 
   generatePreviewHtml, 
@@ -132,6 +133,55 @@ export const WorkspacePreviewModal: React.FC<WorkspacePreviewModalProps> = ({
     }, 1000);
     return () => window.clearInterval(timer);
   }, [activeWorkspace?.id, refreshKey]);
+
+  // Standard Vite/Node workspaces must use the real Android Node runtime. The old
+  // srcDoc module shim cannot correctly run ESM imports, CSS imports, or npm packages.
+  // Start the real project automatically when the preview opens; keep static mode only
+  // for projects which do not expose a Node web runtime.
+  useEffect(() => {
+    if (!isOpen || !activeWorkspace || runtimeBusy) return;
+    const info = inspectProjectRuntime(activeWorkspace);
+    const command = buildProjectStartCommand(activeWorkspace);
+    if (info.kind !== 'node' || !command) return;
+    const current = getProjectRuntimeState(activeWorkspace.id);
+    if (current.running && current.port) {
+      setRuntimeState(current);
+      setRuntimeMode('live');
+      return;
+    }
+
+    let cancelled = false;
+    setRuntimeBusy(true);
+    const start = async () => {
+      try {
+        const deps = getNodeDependencyState(activeWorkspace.id);
+        if (!deps.inSync) {
+          const install = installProjectDependencies(activeWorkspace.id);
+          if (!install.success) {
+            if (!cancelled) {
+              setRuntimeState({ supported: true, running: false, status: 'error', command, stderr: install.stderr || install.error || '依赖安装失败' });
+              setShowConsole(true);
+            }
+            return;
+          }
+        }
+        const state = startProjectRuntime(activeWorkspace);
+        if (!cancelled) {
+          setRuntimeState(state);
+          if (state.port) {
+            setRuntimeMode('live');
+            window.setTimeout(() => {
+              if (!cancelled) handleCheckRuntime();
+            }, 350);
+          }
+        }
+      } finally {
+        if (!cancelled) setRuntimeBusy(false);
+      }
+    };
+    void start();
+    return () => { cancelled = true; };
+  }, [isOpen, activeWorkspace?.id]);
 
   useEffect(() => {
     if (!isOpen && activeWorkspace?.id) stopProjectRuntime(activeWorkspace.id);
