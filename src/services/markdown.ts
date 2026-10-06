@@ -34,6 +34,29 @@ function escapeHtml(str: string): string {
     .replace(/'/g, '&#39;');
 }
 
+/**
+ * Normalize common AI code-fence variants before Markdown parsing.
+ * This keeps ~~~ fences, full-width backticks, and truncated/unclosed fences
+ * renderable as the same code-box component.
+ */
+function normalizeCodeFences(content: string): string {
+  if (!content) return content;
+
+  let normalized = content
+    .replace(/｀/g, '`')
+    .replace(/^([ \\t]*)~~~([^\\n]*)$/gm, '$1```$2')
+    .replace(/^([ \\t]*)~~~[ \\t]*$/gm, '$1```');
+
+  const lines = normalized.split('\\n');
+  let fenceOpen = false;
+  for (const line of lines) {
+    if (!/^\\s*```/.test(line)) continue;
+    fenceOpen = !fenceOpen;
+  }
+
+  if (fenceOpen) normalized += normalized.endsWith('\\n') ? '```' : '\\n```';
+  return normalized;
+}
 function renderLatexInText(text: string): string {
   if (!text) return '';
 
@@ -82,12 +105,12 @@ function processMarkdownWithLatex(content: string, renderLatex: boolean): string
   if (!renderLatex || !content) return content;
 
   // Protect code blocks and inline code from LaTeX parsing
+  // Normalize first so malformed/truncated fences are still recognized as code.
+  const normalizedContent = normalizeCodeFences(content);
+
+  // Protect code blocks and inline code from LaTeX parsing
   const codeBlocks: string[] = [];
-  let processed = content.replace(/(```[\s\S]*?```|`[^`\n]+`)/g, (match) => {
-    const placeholder = `__MATH_CODE_TOKEN_${codeBlocks.length}__`;
-    codeBlocks.push(match);
-    return placeholder;
-  });
+  let processed = normalizedContent.replace(/(```[\\s\\S]*?```|`[^`\\n]+`)/g, (match) => {
 
   // Render LaTeX formulas
   processed = renderLatexInText(processed);
