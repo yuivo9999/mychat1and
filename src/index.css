@@ -54,10 +54,15 @@ body, html, input, textarea, select, button, .markdown-body {
 }
 
 /* Markdown Typography styling */
-.markdown-body {
+.markdown-body, .chat-message-content {
   line-height: 1.7;
   font-size: var(--chat-font-size, 0.95rem);
+  font-family: var(--app-font-family, inherit) !important;
   word-break: break-word;
+}
+
+.chat-message-content * {
+  font-family: var(--app-font-family, inherit) !important;
 }
 
 .markdown-body h1 {

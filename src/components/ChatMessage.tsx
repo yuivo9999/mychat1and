@@ -153,7 +153,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
     };
   }, [message.content, mainContent, thinkingText, isUser]);
 
-  const shouldRenderMarkdown = settings.enableMarkdown || settings.onlyParseMarkdownTables;
+  const shouldRenderMarkdown = (settings.enableMarkdown ?? true) || (settings.onlyParseMarkdownTables ?? false);
 
   const htmlContent = useMemo(() => {
     if (isUser || !shouldRenderMarkdown) {
@@ -903,7 +903,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
         ) : (
           <div 
             ref={messageContentRef}
-            className="text-neutral-900 dark:text-neutral-100 leading-relaxed overflow-hidden"
+            className="text-neutral-900 dark:text-neutral-100 leading-relaxed overflow-hidden chat-message-content"
             style={{ fontSize: 'var(--chat-font-size, 15px)' }}
           >
             {/* Thinking Log (Collapsible reasoning steps for DeepSeek R1 / Reasoning models) */}
