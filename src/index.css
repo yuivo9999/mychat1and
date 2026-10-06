@@ -1292,8 +1292,18 @@ html.theme-classic2 .param-toggle-dot,
   font-weight: 700;
 }
 
-/* 加粗纯文本标题：在保留粗体的基础上增加主题感渐变文字效果。
-   仅由 Markdown 渲染器标记的独立标题段落命中，不影响正文内的普通加粗文字。 */
+/* 标题外框渐变：渐变只作用于标题的四边框，不改变文字本身颜色。
+   保持四个直角，并通过极小内边距让外框紧贴标题文字。 */
+.gradient-title-frame {
+  border: 1px solid transparent !important;
+  border-image: linear-gradient(
+    90deg,
+    var(--md-title-gradient-start, #6366f1) 0%,
+    var(--md-title-gradient-mid, #a855f7) 50%,
+    var(--md-title-gradient-end, #ec4899) 100%
+  ) 1 !important;
+}
+
 .markdown-body .markdown-plain-bold-title {
   margin-top: 1.05rem;
   margin-bottom: 0.62rem;
@@ -1302,11 +1312,8 @@ html.theme-classic2 .param-toggle-dot,
 }
 
 .markdown-body .markdown-plain-bold-title strong {
-  background-image: linear-gradient(90deg, var(--md-title-gradient-start, #6366f1) 0%, var(--md-title-gradient-mid, #a855f7) 50%, var(--md-title-gradient-end, #ec4899) 100%);
-  background-clip: text;
-  -webkit-background-clip: text;
-  color: transparent !important;
-  -webkit-text-fill-color: transparent !important;
+  color: inherit !important;
+  -webkit-text-fill-color: currentColor !important;
 }
 
 .markdown-body .code-block-wrapper {
