@@ -107,7 +107,7 @@ export function cleanupAgentStopRequest(taskId?: string | null): void {
 
 
 export function shouldAgentResearchTask(goal: string): boolean {
-  return goal.length > 180 || /(最新|版本|依赖|报错|重构|架构|构建|迁移|第三方|api|sdk|android|react|typescript|node|npm|python)/i.test(goal);
+  return false;
 }
 
 function normalizePlanString(value: unknown, fallback: string): string {
@@ -124,16 +124,13 @@ function normalizePlanStringList(value: unknown, fallback: string[]): string[] {
 }
 
 export function buildAgentTaskPlanPrompt(goal: string, research?: AgentResearchState): string {
-  const gate = research?.required
-    ? (research.completed
-      ? '研究已完成。证据：' + (research.evidence || '已获得研究结果') + '\\n主要来源：' + ((research.sources || []).slice(0, 8).join(' | ') || '未提供') + '\\n统计：总来源 ' + (research.sourceCount ?? 0) + '，主要来源 ' + (research.primarySourceCount ?? 0) + '，冲突提示 ' + (research.conflictHints ?? 0) + '。实施决策必须引用这些证据，冲突必须先验证。'
-      : '研究门禁已开启：研究完成前禁止实施代码修改，必须先完成研究并记录可追溯来源。原因：' + research.reason)
-    : '当前任务不强制外部研究；执行中遇到版本、依赖、API、Android 或第三方行为不确定性时，必须主动研究而不是猜测。';
+  const gate = research?.completed
+    ? '研究已完成。主要来源：' + ((research.sources || []).slice(0, 8).join(' | ') || '未提供') + '。实施决策可结合这些证据。'
+    : '你已被完全授权直接读取、搜索和修改工作区文件。严禁声称无法修改，严禁只输出修改步骤让用户自行修改。';
   return '[Agent 动态任务规划协议]\\n用户目标：\\n' + goal + '\\n\\n' + gate + '\\n\\n' +
     '请输出机器可读的 <agent_plan> JSON。checklist 最多 ' + MAX_DYNAMIC_CHECKLIST_ITEMS + ' 项，按真实依赖顺序排列；每项必须有 acceptanceCriteria。' +
-    (research?.required && !research.completed ? ' 必须包含一个“研究”子任务，并让所有实施任务依赖它。' : '') +
     '\\n格式：<agent_plan>{"goal":"最终目标","definitionOfDone":["可验证条件"],"checklist":[{"id":"稳定ID","title":"具体子任务","required":true,"dependsOn":[],"acceptanceCriteria":["可验证事实"]}]}</agent_plan>\\n' +
-    '规划后继续执行，不要因输出规划块而结束任务。';
+    '规划后立即调用相应工具（如 read_file 或 patch_file/write_file）实施代码修改，不要因输出规划块而停下。';
 }
 
 export function parseAgentTaskPlan(text: string, fallbackGoal: string, research?: AgentResearchState): AgentTaskPlan | null {
@@ -629,23 +626,16 @@ export function buildAgentLoopFeedback(
     buildAgentReplanPrompt(plan || createAgentTaskPlan('未明确任务'), '结合上一轮工具结果判断当前计划是否仍然成立') + '\\n\\n' +
     '请根据真实证据决定下一步：\\n' +
     '1. 优先执行“下一项可执行任务”；如果任务有未完成 dependsOn，不得抢跑；\\n' +
-    '1.1 研究门禁开启且研究未完成时，禁止实施代码修改；\\n' +
-    '2. 每完成一个子任务，必须让其 acceptanceCriteria 有真实证据支撑；\\n' +
-    '3. 修改后必须优先验证；\\n' +
-    '4. 验证失败 → 定位根因、修复、再验证；\\n' +
-    '5. 所有 required 子任务和 Definition of Done 都满足后，才停止调用工具并总结；\\n' +
-    '6. 只有确实缺少用户才能提供的信息才进入等待用户，不要因为“暂停一下”而人为停止任务。\\n' +
+    '2. 必须直接调用工具（如 read_file, patch_file, write_file, create_file）亲自动手操作工作区代码，严禁声称无法修改工作区，严禁指导用户自行修改！\\n' +
+    '3. 每完成一个子任务，必须让其 acceptanceCriteria 有真实证据支撑；\\n' +
+    '4. 修改后必须优先验证；\\n' +
+    '5. 验证失败 → 定位根因、修复、再验证；\\n' +
+    '6. 所有 required 子任务和 Definition of Done 都满足后，才停止调用工具并总结；\\n' +
+    '7. 只有确实缺少用户才能提供的信息才进入等待用户，不要因为“暂停一下”而人为停止任务。\\n' +
     '\\n每轮结束时必须输出一个 <agent_progress> JSON；只报告有真实证据支持的状态，不要猜测。\\n' +
     '格式固定为：<agent_progress>{"round":本轮编号,"maxRounds":最大轮数,"phase":"planning|exploring|implementing|verifying|fixing|reverifying|memory_audit|waiting_user|completed","status":"running|blocked|waiting_user|completed","summary":"本轮最核心进展","currentStep":"当前正在做什么","result":"本轮真实结果","nextStep":"下一步","completed":["已完成子任务ID"],"inProgress":["正在执行子任务ID"],"blocked":[{"id":"阻塞子任务ID","evidence":"阻塞证据"}],"evidence":[{"id":"子任务ID","text":"真实证据"}]}<\\/agent_progress>。\\n\\n' +
-    '## 用户可见的 Agent 核心进度输出协议（重要）\\n' +
-    '当前已启用“核心内容 + 操作步骤”式 Agent 进度表达。你给用户看的自然语言回复必须是高信息密度的工作快照，而不是长篇过程记录。\\n' +
-    '固定优先顺序：\\n' +
-    '【当前状态】一句话说明现在处于什么阶段、这一轮发生了什么。\\n' +
-    '【核心内容】1-3 句话说明本轮最重要的发现、判断、修改结果或验证结果。\\n' +
-    '【操作步骤】列出本轮实际完成或正在执行的关键步骤，使用 1、2、3…；不要把内部推理过程写给用户。\\n' +
-    '【结果】明确写“已完成 / 验证通过 / 发现问题 / 被阻塞”等真实结果；没有结果时不要编造。\\n' +
-    '【下一步】只写接下来真正要做的一步或两步，让用户一眼知道 Agent 正在往哪里走。\\n' +
-    '每轮只突出增量信息：已经在上一轮说过且没有变化的内容不要重复；文件修改、验证结果、错误、阻塞、重要决策必须保留。\\n' +
-    '验证失败时优先表达为“问题 → 原因/证据 → 已采取动作 → 下一步”；等待用户时优先表达为“已完成什么 → 为什么必须等你 → 需要你提供/决定什么”。\\n' +
-    '如果任务已经完成，只输出最终完成状态、关键成果、验证结果和必要的后续建议，不再输出无意义的阶段过程。';
+    '## 核心行为准则（绝对遵守）：\\n' +
+    '1. 你已被赋予工作区的完全写权限。严禁声称“我无法修改文件”或“我无法访问工作区”！\\n' +
+    '2. 严禁只在文字中给用户列出修改指南或代码片段让用户自己改，你必须直接发起 tool_call 将代码保存到工作区！\\n' +
+    '3. 如果任务已经完成，输出清晰简明的修改成果总结；若未完成，立即输出 tool_call 代码块继续执行。';
 }

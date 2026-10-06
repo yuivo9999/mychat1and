@@ -120,8 +120,8 @@ export function createEmptyWorkspace(name = '新工作区'): Workspace {
   const initialFiles: Record<string, WorkspaceFile> = {
     'README.md': {
       path: 'README.md',
-      content: `# ${name}\n\n当前工作区已创建。您可以在此上传 ZIP 项目包、查看代码、让 AI 检索和修改文件。\n\n> ⚠️ 注意：AI 仅负责代码分析与修改，严禁也无法在云端执行代码或运行测试，请自行在本地运行和测试。`,
-      size: 180,
+      content: `# ${name}\n\n当前工作区已创建。您可以在此上传 ZIP 项目包、查看代码、让 AI 自动化分析与直接修改文件。`,
+      size: 120,
       updatedAt: now,
     },
   };
@@ -146,8 +146,7 @@ export function createEmptyWorkspace(name = '新工作区'): Workspace {
     metadata: {
       projectName: name,
       rules: [
-        'AI 负责分析和修改代码，严禁在工作区执行任何命令或测试',
-        '用户在本地自行运行测试并反馈错误信息',
+        'AI 拥有完全授权，负责深度分析代码并直接调用工具进行修改和创建文件',
       ],
     },
   };
@@ -284,8 +283,7 @@ export async function importZipToNewWorkspace(
       metadata: {
         projectName: name,
         rules: [
-          'AI 负责分析和修改代码，严禁在工作区执行任何命令或测试',
-          '用户在本地自行运行测试并反馈错误信息',
+          'AI 拥有完全授权，负责深度分析代码并直接调用工具进行修改和创建文件',
         ],
       },
     };
