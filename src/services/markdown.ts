@@ -310,15 +310,31 @@ export function renderMarkdown(content: string, options: MarkdownOptions = {}): 
         const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
         return `<a class="markdown-link" href="${href || '#'}" target="_blank" rel="noopener noreferrer"${titleAttr}>${text || href || ''}</a>`;
       },
-      table({ header, rows }: { header: string; rows: string }) {
+      table(token: any) {
+        // Marked 18 passes structured table tokens, not pre-rendered HTML.
+        // Treating header/rows as strings turns their token objects into
+        // "[object Object]" and corrupts every table cell.
+        const renderCell = (cell: any, isHeader: boolean) => {
+          const text = this.parser.parseInline(cell?.tokens || []);
+          const tag = isHeader ? 'th' : 'td';
+          const align = cell?.align ? ` align="${escapeHtml(String(cell.align))}"` : '';
+          return `<${tag}${align}>${text}</${tag}>`;
+        };
+        const headerHtml = (token?.header || [])
+          .map((cell: any) => renderCell(cell, true))
+          .join('');
+        const rowsHtml = (token?.rows || [])
+          .map((row: any[]) => `<tr>${(row || []).map((cell: any) => renderCell(cell, false)).join('')}</tr>`)
+          .join('');
+
         return `
           <div class="ai-content-unit ai-table-unit overflow-x-auto my-3.5 rounded-lg border border-neutral-200 dark:border-neutral-800" data-content-unit="table">
             <table class="w-full text-left border-collapse text-sm">
               <thead class="bg-neutral-100 dark:bg-neutral-800/80 font-medium text-neutral-700 dark:text-neutral-200 border-b border-neutral-200 dark:border-neutral-800">
-                ${header}
+                <tr>${headerHtml}</tr>
               </thead>
               <tbody class="divide-y divide-neutral-200 dark:divide-neutral-800 bg-white dark:bg-neutral-900/40">
-                ${rows}
+                ${rowsHtml}
               </tbody>
             </table>
           </div>
