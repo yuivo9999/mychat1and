@@ -1292,8 +1292,8 @@ html.theme-classic2 .param-toggle-dot,
   font-weight: 700;
 }
 
-/* 标题文字后面的渐变背景：渐变只作用于标题背景，不改变文字本身颜色。
-   保持四个直角，并通过极小内边距让背景紧贴标题文字。 */
+/* 标题文字后面的渐变背景：只作用于标题背景，不改变文字本身颜色。
+   四个角等量切掉，形成真正的八边形背景；边框也随外轮廓一起切角。 */
 .gradient-title-frame {
   --title-gradient-start: var(--md-title-gradient-start, #6366f1);
   --title-gradient-mid: var(--md-title-gradient-mid, #a855f7);
@@ -1308,6 +1308,16 @@ html.theme-classic2 .param-toggle-dot,
   -webkit-text-fill-color: #ffffff !important;
   border: 1px solid rgba(255, 255, 255, 0.38) !important;
   border-radius: 0 !important;
+  clip-path: polygon(
+    4px 0,
+    calc(100% - 4px) 0,
+    100% 4px,
+    100% calc(100% - 4px),
+    calc(100% - 4px) 100%,
+    4px 100%,
+    0 calc(100% - 4px),
+    0 4px
+  );
   box-sizing: border-box;
 }
 
