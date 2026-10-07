@@ -1151,18 +1151,18 @@ html.theme-classic2 .param-toggle-dot,
 
 /* 默认皮肤：运行参数中代码框能力到 AI 回复展示之间的浅色子卡片统一改为深蓝色 */
 .parameters-modal .bg-neutral-50,
-.parameters-modal .bg-neutral-50\\/50,
-.parameters-modal .bg-neutral-50\\/30,
-.parameters-modal .bg-neutral-50\\/70 {
+.parameters-modal .bg-neutral-50\/50,
+.parameters-modal .bg-neutral-50\/30,
+.parameters-modal .bg-neutral-50\/70 {
   background-color: #0d2340 !important;
   border-color: #183b62 !important;
   color: #e7f0fb !important;
 }
 
 .parameters-modal .bg-neutral-50:hover,
-.parameters-modal .bg-neutral-50\\/50:hover,
-.parameters-modal .bg-neutral-50\\/30:hover,
-.parameters-modal .bg-neutral-50\\/70:hover {
+.parameters-modal .bg-neutral-50\/50:hover,
+.parameters-modal .bg-neutral-50\/30:hover,
+.parameters-modal .bg-neutral-50\/70:hover {
   background-color: #123052 !important;
   border-color: #24517e !important;
 }
