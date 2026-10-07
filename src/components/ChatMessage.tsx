@@ -178,7 +178,6 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
       useCodeBox: settings.useCodeBox ?? true,
       useTextBox: settings.useTextBox ?? true,
       onlyParseMarkdownTables: settings.onlyParseMarkdownTables ?? false,
-      mdTables: settings.mdTables ?? true,
       mdHeadings: settings.mdHeadings ?? true,
       mdTextStyle: settings.mdTextStyle ?? true,
       mdListsAndQuotes: settings.mdListsAndQuotes ?? true,
