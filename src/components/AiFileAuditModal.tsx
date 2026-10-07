@@ -83,10 +83,27 @@ export const AiFileAuditModal: React.FC<AiFileAuditModalProps> = ({
     });
   }, [records, searchQuery, selectedModel]);
 
-  const handleCopyPath = (id: string, path: string) => {
-    navigator.clipboard.writeText(path);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 1500);
+  const handleCopyPath = async (id: string, path: string) => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(path);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = path;
+        textarea.setAttribute('readonly', '');
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        const copied = document.execCommand('copy');
+        textarea.remove();
+        if (!copied) throw new Error('当前环境不支持复制');
+      }
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 1500);
+    } catch (error) {
+      console.warn('Failed to copy audit file path:', error);
+    }
   };
 
   const handleDeleteItem = (id: string) => {
