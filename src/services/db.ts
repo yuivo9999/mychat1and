@@ -508,6 +508,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   enableAgentTpmRateLimit: true,
   enableChatContextMemory: false,
   enableHistorySearch: true,
+  mdTables: true,
   onlyParseMarkdownTables: false,
   codeShowCopyBtn: true,
   codeShowDownloadBtn: true,
