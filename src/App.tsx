@@ -159,6 +159,8 @@ export default function App() {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
   const [agentMode, setAgentMode] = useState(false);
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
+  const scrollToLatestRef = useRef<(() => void) | null>(null);
 
   // Pending Attachments & Prompt injected into ChatComposer from Workspace Drawer
   const [pendingAttachments, setPendingAttachments] = useState<Attachment[] | null>(null);
@@ -3185,6 +3187,8 @@ export default function App() {
           currentWorkspace={currentWorkspace}
           onSaveWorkspace={handleSaveWorkspaceState}
           onOpenWorkspace={() => setIsWorkspaceOpen(true)}
+          onScrollBottomVisibilityChange={setShowScrollBottom}
+          scrollToLatestRef={scrollToLatestRef}
         />
 
         {/* Large AI Composer Input Area */}
@@ -3202,6 +3206,8 @@ export default function App() {
           selectedModelId={selectedModelId}
           onSelectModel={handleSelectModel}
           onDeleteModel={handleDeleteModelItem}
+          showScrollBottom={showScrollBottom}
+          onScrollToLatest={() => scrollToLatestRef.current?.()}
           settings={settings}
           onSaveSettings={handleSaveSettingsObj}
           onOpenSettings={(tab) => {
