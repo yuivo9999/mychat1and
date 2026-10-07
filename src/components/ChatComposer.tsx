@@ -69,6 +69,8 @@ interface ChatComposerProps {
   onClearPendingPrompt?: () => void;
   onSaveSettings?: (settings: UserSettings) => void;
   onDeleteModel?: (id: string) => void;
+  showScrollBottom?: boolean;
+  onScrollToLatest?: () => void;
 }
 
 export const ChatComposer: React.FC<ChatComposerProps> = ({
@@ -590,9 +592,20 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
         )}
 
         {/* Half-height streamlined toolbar (Icon-only, no text clutter) */}
-        <div className="flex items-center justify-between px-3 py-1 border-b border-neutral-100 dark:border-neutral-800/80 bg-neutral-50/70 dark:bg-neutral-900/60 rounded-t-2xl">
+        <div className="relative flex items-center justify-between px-3 py-1 border-b border-neutral-100 dark:border-neutral-800/80 bg-neutral-50/70 dark:bg-neutral-900/60 rounded-t-2xl">
           {/* Left: Thinking Mode (Reasoning) Toggle & Agent Toggle */}
           <div className="flex items-center gap-3">
+            {showScrollBottom && (
+              <button
+                type="button"
+                onClick={onScrollToLatest}
+                className="absolute left-8 top-1/2 -translate-y-1/2 z-30 w-7 h-7 inline-flex items-center justify-center rounded-lg bg-white/95 dark:bg-neutral-900/95 text-indigo-500 dark:text-indigo-400 border border-neutral-200/90 dark:border-neutral-700 shadow-lg hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-all cursor-pointer backdrop-blur-md active:scale-90 animate-in fade-in duration-150"
+                title="回到最新消息"
+                aria-label="回到最新消息"
+              >
+                <ArrowDown className="w-3.5 h-3.5 stroke-[2.5]" />
+              </button>
+            )}
             {/* Reasoning Toggle: Minimalist switch */}
             <div 
               onClick={() => {
