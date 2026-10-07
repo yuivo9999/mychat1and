@@ -726,6 +726,19 @@ html.theme-sangtian-shanhe body {
   border-color: #A9362D !important;
 }
 
+/* 桑田山河主题 AI 模型配置辅助文字高对比度：浅灰文字统一压到深墨色 */
+.theme-sangtian-shanhe .model-config-modal .text-neutral-300,
+.theme-sangtian-shanhe .model-config-modal .text-neutral-400,
+.theme-sangtian-shanhe .model-config-modal .text-neutral-500,
+.theme-sangtian-shanhe .model-config-modal .text-neutral-600 {
+  color: #30271F !important;
+}
+
+.theme-sangtian-shanhe .model-config-modal .placeholder-neutral-400::placeholder,
+.theme-sangtian-shanhe .model-config-modal .placeholder-neutral-500::placeholder {
+  color: #51463B !important;
+}
+
 /* 测试连接按钮适配 */
 .theme-sangtian-shanhe .test-conn-btn {
   background-color: #EAD8AD !important;
