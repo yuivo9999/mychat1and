@@ -160,6 +160,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   const shouldRenderMarkdown =
     (settings.enableMarkdown ?? true) ||
     (settings.onlyParseMarkdownTables ?? false) ||
+    (settings.mdTables ?? true) ||
     hasFencedCode;
 
   const htmlContent = useMemo(() => {
@@ -177,6 +178,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
       useCodeBox: settings.useCodeBox ?? true,
       useTextBox: settings.useTextBox ?? true,
       onlyParseMarkdownTables: settings.onlyParseMarkdownTables ?? false,
+      mdTables: settings.mdTables ?? true,
       mdHeadings: settings.mdHeadings ?? true,
       mdTextStyle: settings.mdTextStyle ?? true,
       mdListsAndQuotes: settings.mdListsAndQuotes ?? true,
@@ -201,7 +203,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
     settings.codeShowAddToWorkspaceBtn,
     settings.useCodeBox,
     settings.useTextBox,
-    settings.onlyParseMarkdownTables
+    settings.onlyParseMarkdownTables,
+    settings.mdTables
   ]);
 
   // Long-response navigation: derive a compact outline from Markdown headings.
