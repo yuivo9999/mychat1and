@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowDown } from 'lucide-react';
 import { AgentTaskState, Message, ModelItem, UserSettings } from '../types';
 import { subscribeConversationChanges } from '../services/db';
 import { ChatMessage } from './ChatMessage';
@@ -21,6 +20,8 @@ interface MessageListProps {
   onSaveWorkspace?: (workspace: any) => void;
   onOpenWorkspace?: () => void;
   agentTaskState?: AgentTaskState | null;
+  onScrollBottomVisibilityChange?: (visible: boolean) => void;
+  scrollToLatestRef?: React.MutableRefObject<(() => void) | null>;
 }
 
 export const MessageList: React.FC<MessageListProps> = ({
@@ -40,6 +41,8 @@ export const MessageList: React.FC<MessageListProps> = ({
   onSaveWorkspace,
   onOpenWorkspace,
   agentTaskState,
+  onScrollBottomVisibilityChange,
+  scrollToLatestRef,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -67,7 +70,9 @@ export const MessageList: React.FC<MessageListProps> = ({
     if (!containerRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
     const isNearBottom = scrollHeight - scrollTop - clientHeight < 120;
-    setShowScrollBottom(!isNearBottom);
+    const shouldShow = !isNearBottom;
+    setShowScrollBottom(shouldShow);
+    onScrollBottomVisibilityChange?.(shouldShow);
   };
 
   // Dismiss keyboard when user swipes or touches the message list
@@ -81,6 +86,14 @@ export const MessageList: React.FC<MessageListProps> = ({
   const scrollToBottom = (smooth = true) => {
     bottomRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' });
   };
+
+  useEffect(() => {
+    if (!scrollToLatestRef) return;
+    scrollToLatestRef.current = () => scrollToBottom(true);
+    return () => {
+      scrollToLatestRef.current = null;
+    };
+  }, [scrollToLatestRef]);
 
   useEffect(() => {
     if (settings.autoScroll) {
@@ -127,18 +140,7 @@ export const MessageList: React.FC<MessageListProps> = ({
         </div>
       )}
 
-      {/* Floating Scroll to Bottom Button (居中悬浮，绝不遮挡右上角/左上角任何工具栏按钮) */}
-      {showScrollBottom && (
-        <button
-          type="button"
-          onClick={() => scrollToBottom(true)}
-          className="absolute bottom-3 sm:bottom-4 left-1/2 -translate-x-1/2 z-30 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/95 dark:bg-neutral-850/95 text-neutral-800 dark:text-neutral-100 border border-neutral-200/90 dark:border-neutral-750 shadow-xl hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-all cursor-pointer text-xs font-medium backdrop-blur-md active:scale-95 animate-in fade-in slide-in-from-bottom-2 duration-150"
-          title="点击一键回到最新消息"
-        >
-          <ArrowDown className="w-3.5 h-3.5 text-indigo-500 stroke-[2.5]" />
-          <span>回到最新消息</span>
-        </button>
-      )}
+
     </div>
   );
 };
