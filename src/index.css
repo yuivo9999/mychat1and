@@ -53,6 +53,96 @@ body, html, input, textarea, select, button, .markdown-body {
   background: rgba(156, 163, 175, 0.5);
 }
 
+
+/* Prompt Perfect 独立便签纸：与普通 AI 文本形成明确视觉层级。颜色由组件按消息稳定随机注入。 */
+.prompt-perfect-note {
+  position: relative;
+  background: linear-gradient(135deg, var(--pp-note-bg) 0%, var(--pp-note-bg-soft) 100%) !important;
+  border: 1px solid var(--pp-note-border) !important;
+  border-radius: 3px 10px 10px 10px !important;
+  color: var(--pp-note-text) !important;
+  box-shadow: 2px 4px 10px rgba(48, 39, 31, 0.10), 0 1px 2px rgba(48, 39, 31, 0.08) !important;
+  transform: rotate(-0.18deg);
+  transform-origin: 12px 8px;
+}
+.prompt-perfect-note::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 42px;
+  height: 3px;
+  background: var(--pp-note-accent);
+  opacity: 0.72;
+  border-radius: 3px 0 4px 0;
+}
+.prompt-perfect-note-pin {
+  position: absolute;
+  top: 7px;
+  right: 12px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--pp-note-accent);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.18);
+  opacity: 0.82;
+}
+.prompt-perfect-note-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 8px 10px 7px 12px;
+  border-bottom: 1px dashed color-mix(in srgb, var(--pp-note-border) 72%, transparent);
+}
+.prompt-perfect-note-title {
+  color: var(--pp-note-text) !important;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.prompt-perfect-note-subtitle {
+  color: color-mix(in srgb, var(--pp-note-text) 62%, transparent) !important;
+  font-size: 0.625rem;
+}
+.prompt-perfect-note-copy {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 4px 8px;
+  border: 1px solid color-mix(in srgb, var(--pp-note-border) 80%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--pp-note-bg) 72%, white 28%);
+  color: var(--pp-note-text) !important;
+  font-size: 0.625rem;
+  font-weight: 600;
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+.prompt-perfect-note-copy:hover {
+  background: color-mix(in srgb, var(--pp-note-bg-soft) 82%, white 18%);
+  transform: translateY(-1px);
+}
+.prompt-perfect-note-content {
+  margin: 0 !important;
+  max-height: 18rem;
+  overflow: auto;
+  padding: 10px 12px 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--pp-note-text) !important;
+  background: transparent !important;
+  font: 500 0.6875rem/1.7 var(--app-font-family, sans-serif) !important;
+  user-select: text;
+}
+.dark .prompt-perfect-note {
+  box-shadow: 2px 4px 12px rgba(0,0,0,0.22) !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .prompt-perfect-note { transform: none; }
+}
+
 /* Markdown Typography styling */
 .markdown-body, .chat-message-content {
   line-height: 1.7;
