@@ -379,7 +379,19 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Prompt Perfect 便签颜色：按消息 ID 稳定随机，避免重新渲染时颜色跳变。桑田山河使用暖纸色系，避免紫色与主题冲突。\n  const getPromptPerfectNoteStyle = (): React.CSSProperties => {\n    let hash = 0;\n    const seed = message.id || message.promptPerfectOutput || 'prompt-perfect';\n    for (let i = 0; i < seed.length; i++) hash = seed.charCodeAt(i) + ((hash << 5) - hash);\n    const isSangtian = settings.theme === 'sangtian-shanhe';\n    const isDark = settings.theme === 'dark' || settings.theme === 'classic2';\n    const palettes = isSangtian ? [['#FFF5DC','#F4E8C8','#C5A873','#3A261A','#A9362D'],['#F6ECD1','#EAD8AD','#B18A4A','#4A3422','#86271F'],['#F1E2C0','#E7D8B7','#C7AA73','#35291F','#A9362D'],['#FFF1D2','#EAD8AD','#B58E55','#3D2B1C','#86271F']] : isDark ? [['#302A38','#292330','#665A72','#F3EAF8','#D8B4FE'],['#2D3230','#252A28','#58655F','#E8F5EE','#86EFAC'],['#332C24','#2B251F','#6B5A46','#F7EBDD','#FDBA74'],['#2A3038','#242A32','#586675','#E8F2FF','#93C5FD']] : [['#FFF7C2','#FFF3A8','#E7D77A','#4A3F16','#A16207'],['#DFF7EA','#CFF1DE','#9AD5B5','#17452E','#15803D'],['#E3F2FF','#D5EBFF','#A8CFF2','#193A5A','#2563EB'],['#FCE4EC','#FAD7E3','#E8AFC2','#5B2638','#BE185D'],['#EEE5FF','#E5D8FF','#C5B0EE','#3F2A62','#7C3AED']];\n    const palette = palettes[Math.abs(hash) % palettes.length];\n    return {'--pp-note-bg':palette[0],'--pp-note-bg-soft':palette[1],'--pp-note-border':palette[2],'--pp-note-text':palette[3],'--pp-note-accent':palette[4]} as React.CSSProperties;\n  };\n\n  const handleCopyPromptPerfect = async () => {
+  // Prompt Perfect 便签颜色：按消息 ID 稳定随机，避免重新渲染时颜色跳变。桑田山河使用暖纸色系，避免紫色与主题冲突。
+  const getPromptPerfectNoteStyle = (): React.CSSProperties => {
+    let hash = 0;
+    const seed = message.id || message.promptPerfectOutput || 'prompt-perfect';
+    for (let i = 0; i < seed.length; i++) hash = seed.charCodeAt(i) + ((hash << 5) - hash);
+    const isSangtian = settings.theme === 'sangtian-shanhe';
+    const isDark = settings.theme === 'dark' || settings.theme === 'classic2';
+    const palettes = isSangtian ? [['#FFF5DC','#F4E8C8','#C5A873','#3A261A','#A9362D'],['#F6ECD1','#EAD8AD','#B18A4A','#4A3422','#86271F'],['#F1E2C0','#E7D8B7','#C7AA73','#35291F','#A9362D'],['#FFF1D2','#EAD8AD','#B58E55','#3D2B1C','#86271F']] : isDark ? [['#302A38','#292330','#665A72','#F3EAF8','#D8B4FE'],['#2D3230','#252A28','#58655F','#E8F5EE','#86EFAC'],['#332C24','#2B251F','#6B5A46','#F7EBDD','#FDBA74'],['#2A3038','#242A32','#586675','#E8F2FF','#93C5FD']] : [['#FFF7C2','#FFF3A8','#E7D77A','#4A3F16','#A16207'],['#DFF7EA','#CFF1DE','#9AD5B5','#17452E','#15803D'],['#E3F2FF','#D5EBFF','#A8CFF2','#193A5A','#2563EB'],['#FCE4EC','#FAD7E3','#E8AFC2','#5B2638','#BE185D'],['#EEE5FF','#E5D8FF','#C5B0EE','#3F2A62','#7C3AED']];
+    const palette = palettes[Math.abs(hash) % palettes.length];
+    return {'--pp-note-bg':palette[0],'--pp-note-bg-soft':palette[1],'--pp-note-border':palette[2],'--pp-note-text':palette[3],'--pp-note-accent':palette[4]} as React.CSSProperties;
+  };
+
+  const handleCopyPromptPerfect = async () => {
     if (!message.promptPerfectOutput) return;
     try {
       await navigator.clipboard.writeText(message.promptPerfectOutput);
@@ -754,7 +766,25 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
           />
         )}
 
-        {/* Prompt Perfect：独立便签纸视觉，按消息稳定随机配色。 */}\n        {!isUser && message.promptPerfectOutput && (\n          <div className="prompt-perfect-note mb-3 overflow-hidden animate-in fade-in" style={getPromptPerfectNoteStyle()}>\n            <div className="prompt-perfect-note-pin" aria-hidden="true" />\n            <div className="prompt-perfect-note-header">\n              <div className="min-w-0 flex items-center gap-2">\n                <span className="prompt-perfect-note-title">Prompt Perfect 优化结果</span>\n                <span className="prompt-perfect-note-subtitle">实际发送给模型的提示词</span>\n              </div>\n              <button type="button" onClick={handleCopyPromptPerfect} className="prompt-perfect-note-copy" title="复制 Prompt Perfect 实际生成的提示词">\n                {promptPerfectCopied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}\n                <span>{promptPerfectCopied ? '已复制' : '一键复制'}</span>\n              </button>\n            </div>\n            <pre className="prompt-perfect-note-content">{message.promptPerfectOutput}</pre>\n          </div>\n        )}\n\n        {/* Web Search Sources — grouped summary + readable source cards */}
+        {/* Prompt Perfect：独立便签纸视觉，按消息稳定随机配色。 */}
+        {!isUser && message.promptPerfectOutput && (
+          <div className="prompt-perfect-note mb-3 overflow-hidden animate-in fade-in" style={getPromptPerfectNoteStyle()}>
+            <div className="prompt-perfect-note-pin" aria-hidden="true" />
+            <div className="prompt-perfect-note-header">
+              <div className="min-w-0 flex items-center gap-2">
+                <span className="prompt-perfect-note-title">Prompt Perfect 优化结果</span>
+                <span className="prompt-perfect-note-subtitle">实际发送给模型的提示词</span>
+              </div>
+              <button type="button" onClick={handleCopyPromptPerfect} className="prompt-perfect-note-copy" title="复制 Prompt Perfect 实际生成的提示词">
+                {promptPerfectCopied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                <span>{promptPerfectCopied ? '已复制' : '一键复制'}</span>
+              </button>
+            </div>
+            <pre className="prompt-perfect-note-content">{message.promptPerfectOutput}</pre>
+          </div>
+        )}
+
+        {/* Web Search Sources — grouped summary + readable source cards */}
         {!isUser && message.webSearchResults && message.webSearchResults.length > 0 && (
           <div className="response-sources mb-3 rounded-xl border border-blue-500/15 bg-blue-500/[0.035] dark:bg-blue-950/15 overflow-hidden animate-in fade-in">
             <div className="px-3 py-2 border-b border-blue-500/10 flex flex-wrap items-center gap-2">
