@@ -146,6 +146,8 @@ export function renderMarkdown(content: string, options: MarkdownOptions = {}): 
   try {
     const textWithLatex = processMarkdownWithLatex(content, renderLatex);
 
+    let markdownParser: Marked | null = null;
+
     const customRenderer: any = {
       code({ text, lang }: { text: string; lang?: string }) {
         const displayLang = (lang || 'TEXT').toLowerCase();
@@ -323,7 +325,7 @@ export function renderMarkdown(content: string, options: MarkdownOptions = {}): 
         // Treating header/rows as strings turns their token objects into
         // "[object Object]" and corrupts every table cell.
         const renderCell = (cell: any, isHeader: boolean) => {
-          const text = this.parser.parseInline(cell?.tokens || []);
+          const text = markdownParser?.parseInline(cell?.tokens || []) || escapeHtml(String(cell?.text ?? cell?.raw ?? ''));
           const tag = isHeader ? 'th' : 'td';
           const align = cell?.align ? ` align="${escapeHtml(String(cell.align))}"` : '';
           return `<${tag}${align}>${text}</${tag}>`;
@@ -390,6 +392,7 @@ export function renderMarkdown(content: string, options: MarkdownOptions = {}): 
       gfm: true,
       breaks: true,
     });
+    markdownParser = customMarked;
     customMarked.use({ renderer: customRenderer });
 
     return customMarked.parse(textWithLatex) as string;
