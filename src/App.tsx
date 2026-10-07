@@ -2126,19 +2126,31 @@ export default function App() {
 
         // Record in Workspace AI File Modification Audit Log (up to 1000 items)
         recordAiFileModifications(
-          modifiedList.map(filePath => ({
-            filePath,
-            modelId: currentModel.id,
-            modelName: currentModel.name || currentModel.id,
-            providerId: currentModel.providerId,
-            workspaceId: wsToOperate?.id,
-            workspaceName: wsToOperate?.name || '当前工作区',
-            conversationId: targetConv.id,
-            conversationTitle: targetConv.title || '当前会话',
-            actionType: 'patch',
-            actionDetail: `AI 协同修改工作区文件: ${filePath}`,
-            timestamp: Date.now(),
-          }))
+          modifiedList.map(filePath => {
+            const changeTool = executedToolCalls.find(
+              call => call.diff?.path === filePath && ['patch_file', 'write_file', 'create_file', 'delete_file'].includes(call.toolName)
+            );
+            const actionType = changeTool?.toolName === 'create_file'
+              ? 'create' as const
+              : changeTool?.toolName === 'delete_file'
+                ? 'delete' as const
+                : changeTool?.toolName === 'write_file'
+                  ? (changeTool.result?.created ? 'create' as const : 'write' as const)
+                  : 'patch' as const;
+            return {
+              filePath,
+              modelId: currentModel.id,
+              modelName: currentModel.name || currentModel.id,
+              providerId: currentModel.providerId,
+              workspaceId: wsToOperate?.id,
+              workspaceName: wsToOperate?.name || '当前工作区',
+              conversationId: targetConv.id,
+              conversationTitle: targetConv.title || '当前会话',
+              actionType,
+              actionDetail: `AI 协同修改工作区文件: ${filePath}`,
+              timestamp: Date.now(),
+            };
+          })
         );
       }
 
