@@ -140,6 +140,7 @@ export function renderMarkdown(content: string, options: MarkdownOptions = {}): 
     codeShowAddToWorkspaceBtn = true,
     useCodeBox = true,
     useTextBox = true,
+    mdTables = true,
   } = options;
 
   try {
@@ -311,6 +312,13 @@ export function renderMarkdown(content: string, options: MarkdownOptions = {}): 
         return `<a class="markdown-link" href="${href || '#'}" target="_blank" rel="noopener noreferrer"${titleAttr}>${text || href || ''}</a>`;
       },
       table(token: any) {
+        if (!mdTables) {
+          const rawTable = typeof token?.raw === 'string' ? token.raw.trimEnd() : '';
+          return rawTable
+            ? `<pre class="my-3.5 overflow-x-auto rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/40 p-3 text-xs font-mono text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap">${escapeHtml(rawTable)}</pre>`
+            : '';
+        }
+
         // Marked 18 passes structured table tokens, not pre-rendered HTML.
         // Treating header/rows as strings turns their token objects into
         // "[object Object]" and corrupts every table cell.
