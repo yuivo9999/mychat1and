@@ -30,8 +30,28 @@ export const AgentToolCallsViewer: React.FC<AgentToolCallsViewerProps> = ({
 
   if (!toolCalls || toolCalls.length === 0) return null;
 
-  const successfulCalls = toolCalls.filter(c => c.status === 'success');
-  const errorCalls = toolCalls.filter(c => c.status === 'error');
+  const getCallError = (call: ToolCallExecution): string | null => {
+    if (call.status === 'error') return call.errorMessage || '工具执行失败';
+    const result = call.result;
+    if (!result || typeof result !== 'object') return null;
+    if (result.success === false) return String(result.error || result.message || '工具返回失败状态');
+    if (typeof result.exitCode === 'number' && result.exitCode !== 0) {
+      return String(result.error || result.stderr || `命令退出码 ${result.exitCode}`);
+    }
+    if (result.error) return String(result.error);
+    return null;
+  };
+
+  const failedCalls = toolCalls.filter(call => Boolean(getCallError(call)));
+  const successfulCalls = toolCalls.filter(call => !getCallError(call));
+
+  const safeJson = (value: unknown): string => {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return '[参数无法序列化]';
+    }
+  };
   const filesModified = modifiedFiles.length > 0 ? modifiedFiles : Array.from(
     new Set(
       toolCalls
@@ -103,7 +123,7 @@ export const AgentToolCallsViewer: React.FC<AgentToolCallsViewerProps> = ({
                     {getToolIcon(call.toolName)}
                     <span className="font-semibold">{call.toolName}</span>
                     <span className="text-neutral-400 truncate max-w-[280px]">
-                      {JSON.stringify(call.args)}
+                      {safeJson(call.args)}
                     </span>
                   </div>
                   <div>
@@ -117,9 +137,9 @@ export const AgentToolCallsViewer: React.FC<AgentToolCallsViewerProps> = ({
                   </div>
                 </div>
 
-                {call.errorMessage && (
+                {getCallError(call) && (
                   <p className="text-[11px] text-red-600 dark:text-red-400 font-mono">
-                    {call.errorMessage}
+                    {getCallError(call)}
                   </p>
                 )}
 
