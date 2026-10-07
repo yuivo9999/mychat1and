@@ -614,15 +614,24 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
     const modifiedFiles = message.modifiedFiles || [];
     if (calls.length === 0 && modifiedFiles.length === 0) return null;
 
+    // Tool adapters can return a semantically failed result while the outer
+    // execution wrapper still reports status="success". Treat all common
+    // failure signals consistently so the overview never masks real errors.
+    const callFailed = (call: any) => {
+      if (call?.status === 'error') return true;
+      const result = call?.result;
+      if (!result || typeof result !== 'object') return false;
+      if (result.success === false) return true;
+      if (typeof result.exitCode === 'number' && result.exitCode !== 0) return true;
+      return Boolean(result.error);
+    };
+
     const validationCalls = calls.filter((call: any) =>
       /run_project_check|run_command|run_python/i.test(call.toolName || '')
     );
-    const failedCalls = calls.filter((call: any) => call.status === 'error');
-    const successfulCalls = calls.filter((call: any) => call.status === 'success');
-    const passedValidations = validationCalls.filter((call: any) => {
-      if (call.status !== 'success') return false;
-      return !(call.result && typeof call.result === 'object' && call.result.success === false);
-    });
+    const failedCalls = calls.filter(callFailed);
+    const successfulCalls = calls.filter((call: any) => !callFailed(call));
+    const passedValidations = validationCalls.filter((call: any) => !callFailed(call));
 
     const validationStatus = validationCalls.length === 0
       ? 'none'
