@@ -359,7 +359,19 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
     return () => cleanup.forEach((fn) => fn());
   }, [isUser, htmlContent, message.webSearchResults]);
 
-  // 章节金属条标题色：按标题稳定取色，颜色保持偏深，避免每次渲染跳色。\n  const getOutlineTitleStyle = (title: string): React.CSSProperties => {\n    let hash = 0;\n    for (let i = 0; i < title.length; i++) hash = title.charCodeAt(i) + ((hash << 5) - hash);\n    const colors = [\n      '#334155', '#3f3f46', '#44403c', '#374151', '#3b3a4a',\n      '#3f4b3f', '#4a3f35', '#3b4554', '#493c4a', '#404a42',\n      '#4b4140', '#3d4650', '#4a4538', '#3f4545'\n    ];\n    return { color: colors[Math.abs(hash) % colors.length] };\n  };\n\n  const jumpToOutlineItem = (outlineIndex: number) => {
+  // 章节金属条标题色：按标题稳定取色，颜色保持偏深，避免每次渲染跳色。
+  const getOutlineTitleStyle = (title: string): React.CSSProperties => {
+    let hash = 0;
+    for (let i = 0; i < title.length; i++) hash = title.charCodeAt(i) + ((hash << 5) - hash);
+    const colors = [
+      '#334155', '#3f3f46', '#44403c', '#374151', '#3b3a4a',
+      '#3f4b3f', '#4a3f35', '#3b4554', '#493c4a', '#404a42',
+      '#4b4140', '#3d4650', '#4a4538', '#3f4545'
+    ];
+    return { color: colors[Math.abs(hash) % colors.length] };
+  };
+
+  const jumpToOutlineItem = (outlineIndex: number) => {
     const root = messageContentRef.current;
     const item = responseOutline[outlineIndex];
     if (!root || !item) return;
