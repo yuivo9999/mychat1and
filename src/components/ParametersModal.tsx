@@ -156,6 +156,7 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
         conciseReplyMode: false,
         enableChatContextMemory: false,
         enableHistorySearch: true,
+        mdTables: true,
       });
     }
   };
@@ -727,8 +728,8 @@ export const ParametersModal: React.FC<ParametersModalProps> = ({
                 {/* 4. 数据表格解析 */}
                 <label className="flex items-center justify-between p-2 rounded-xl bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 shadow-2xs cursor-pointer hover:border-lime-500/50 transition">
                   <div className="space-y-0.5 pr-2">
-                    <span className="param-item-label text-xs font-semibold text-neutral-900 dark:text-neutral-100 block">数据表格排版 (| 标题 | 数据 |)</span>
-                    <span className="param-item-sub text-[10px] text-neutral-500 dark:text-neutral-400 block">独立控制 Markdown 数据表格的 DOM 卡片与网格渲染</span>
+                    <span className="param-item-label text-xs font-semibold text-neutral-900 dark:text-neutral-100 block">聊天消息区表格渲染</span>
+                    <span className="param-item-sub text-[10px] text-neutral-500 dark:text-neutral-400 block">让聊天回复中的 Markdown 表格以真正的表格网格显示；默认开启</span>
                   </div>
                   <input
                     type="checkbox"
