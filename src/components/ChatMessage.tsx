@@ -206,11 +206,11 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 
   // Long-response navigation: derive a compact outline from Markdown headings.
   const responseOutline = useMemo(() => {
-    if (isUser || !mainContent.trim()) return [];
+    if (isUser || !mainContent.trim() || !shouldRenderMarkdown) return [];
     return mainContent
       .split('\n')
       .map((line, index) => {
-        const match = line.match(/^(#{1,3})\s+(.+)$/);
+        const match = line.match(/^(#{1,6})\s+(.+)$/);
         if (!match) return null;
         return {
           level: match[1].length,
@@ -220,7 +220,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
       })
       .filter((item): item is { level: number; title: string; index: number } => Boolean(item && item.title))
       .slice(0, 14);
-  }, [isUser, mainContent]);
+  }, [isUser, mainContent, shouldRenderMarkdown]);
 
   const sourceDomains = useMemo(() => {
     if (isUser || !message.webSearchResults?.length) return [];
@@ -259,10 +259,13 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
     const headings = Array.from(root.querySelectorAll('h1, h2, h3')).slice(0, responseOutline.length) as HTMLElement[];
     if (headings.length === 0) return;
 
+    const scrollContainer = root.closest('.overflow-y-auto') as HTMLElement | null;
     let rafId = 0;
+    let lastActiveIndex = -1;
+
     const updateActiveHeading = () => {
       rafId = 0;
-      const anchor = 118;
+      const anchor = (scrollContainer?.getBoundingClientRect().top ?? 0) + 118;
       let nextIndex = 0;
 
       headings.forEach((heading, index) => {
@@ -270,7 +273,11 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
         if (rect.top <= anchor) nextIndex = index;
       });
 
-      setActiveOutlineIndex(Math.min(nextIndex, responseOutline.length - 1));
+      const safeIndex = Math.min(nextIndex, responseOutline.length - 1);
+      if (safeIndex !== lastActiveIndex) {
+        lastActiveIndex = safeIndex;
+        setActiveOutlineIndex(safeIndex);
+      }
     };
 
     const handleScroll = () => {
@@ -278,12 +285,13 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
     };
 
     updateActiveHeading();
-    window.addEventListener('scroll', handleScroll, { passive: true });
+    scrollContainer?.addEventListener('scroll', handleScroll, { passive: true });
 
     return () => {
-      window.removeEventListener('scroll', handleScroll);
+      scrollContainer?.removeEventListener('scroll', handleScroll);
       if (rafId) window.cancelAnimationFrame(rafId);
     };
+
   }, [isUser, responseOutline.length, htmlContent]);
 
   // Upgrade rendered tables/quotes into directly usable AI content units.
@@ -360,7 +368,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
     // on heading indexes when Markdown injects nested elements or extra headings.
     const headings = Array.from(root.querySelectorAll('h1, h2, h3')) as HTMLElement[];
     const target = headings.find((heading) =>
-      (heading.textContent || '').replace(/\\s+/g, ' ').trim() === item.title
+      (heading.textContent || '').replace(/\s+/g, ' ').trim() === item.title
     ) || headings[outlineIndex];
 
     if (!target) return;
