@@ -256,7 +256,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
     const root = messageContentRef.current;
     if (!root) return;
 
-    const headings = Array.from(root.querySelectorAll('h1, h2, h3')).slice(0, responseOutline.length) as HTMLElement[];
+    const headings = Array.from(root.querySelectorAll('h1, h2, h3, h4, h5, h6')).slice(0, responseOutline.length) as HTMLElement[];
     if (headings.length === 0) return;
 
     const scrollContainer = root.closest('.overflow-y-auto') as HTMLElement | null;
