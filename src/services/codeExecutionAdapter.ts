@@ -10,6 +10,7 @@
  */
 
 import { getUserSettings } from './db';
+import { CodeLanguage } from '../types';
 
 async function getEffectiveEndpoint(): Promise<string> {
   try {

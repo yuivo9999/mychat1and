@@ -325,3 +325,5 @@ export interface FontDefinition {
 }
 
 export type ConnectionStatus = 'unconfigured' | 'configured' | 'requesting' | 'success' | 'error';
+
+export type CodeLanguage = 'python' | 'javascript' | 'typescript' | 'shell';

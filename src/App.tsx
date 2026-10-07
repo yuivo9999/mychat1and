@@ -101,7 +101,8 @@ import { ArchiveProjectModal } from './components/ArchiveProjectModal';
 import { WorkspacePreviewModal } from './components/WorkspacePreviewModal';
 import { AiFileAuditModal } from './components/AiFileAuditModal';
 import { recordAiFileModifications, backfillAuditRecordsFromConversations } from './services/aiFileAuditService';
-import { createAgentLoopState, advanceAgentLoopState, classifyAgentProgress, getAgentPhaseLabel, getAgentPhaseInstruction, getAgentPauseDelayMs, shouldProtectAgainstNoProgress, buildAgentLoopFeedback, buildAgentTaskPlanPrompt, shouldAgentResearchTask, parseAgentTaskPlan, parseAgentTaskReplan, applyAgentTaskProgress, areAgentTaskRequirementsMet, stripAgentPlanBlock, stripAgentProgressBlock, stripAgentReplanBlock, createAgentTaskPlan, updateAgentTaskChecklist, getAgentTaskStepText, type AgentLoopState } from './services/agentOrchestrator';
+import { 
+  createAgentLoopState, advanceAgentLoopState, classifyAgentProgress, getAgentPhaseLabel, getAgentPhaseInstruction, getAgentPauseDelayMs, shouldProtectAgainstNoProgress, buildAgentLoopFeedback, buildAgentTaskPlanPrompt, shouldAgentResearchTask, parseAgentTaskPlan, parseAgentTaskReplan, applyAgentTaskProgress, areAgentTaskRequirementsMet, stripAgentPlanBlock, stripAgentProgressBlock, stripAgentReplanBlock, createAgentTaskPlan, updateAgentTaskChecklist, getAgentTaskStepText, type AgentLoopState, requestAgentStop } from './services/agentOrchestrator';
 
 const DEFAULT_PARAMETERS: ModelParameters = {
   enableReasoning: false,
@@ -1257,7 +1258,7 @@ export default function App() {
     const historySearchEnabled = settings.enableHistorySearch ?? false;
     const projectMemoryEnabled = settings.enableProjectMemory ?? true;
     const workspaceContextEnabled = !!wsToOperate && (agentMode || workspaceIntent.shouldAccessWorkspace);
-    const workspaceAgentEnabled = agentMode && !!wsToOperate;
+    const workspaceAgentEnabled = agentMode || (!!wsToOperate && workspaceIntent.shouldAccessWorkspace && ['read', 'search', 'inspect'].includes(workspaceIntent.type || ''));
     let agentTaskPlan = createAgentTaskPlan(text);
     const baseParams = targetConv?.parameters || parameters;
     const maxAgentTurns = (workspaceAgentEnabled && baseParams.enableMultiModelSubtask)

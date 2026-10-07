@@ -99,10 +99,10 @@ export const AgentToolCallsViewer: React.FC<AgentToolCallsViewerProps> = ({
         </div>
 
         <div className="flex items-center gap-2 text-neutral-400">
-          {errorCalls.length > 0 && (
+          {failedCalls.length > 0 && (
             <span className="flex items-center gap-1 text-red-500 text-[11px]">
               <AlertCircle className="w-3 h-3" />
-              {errorCalls.length} 处异常
+              {failedCalls.length} 处异常
             </span>
           )}
           {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}

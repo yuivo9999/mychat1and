@@ -329,7 +329,10 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
       button.addEventListener('click', onClick);
       toolbar.appendChild(button);
       tableUnit.insertBefore(toolbar, tableUnit.firstChild);
-      cleanup.push(() => button.removeEventListener('click', onClick));
+      cleanup.push(() => {
+        button.removeEventListener('click', onClick);
+        toolbar.remove();
+      });
     });
 
     const sources = message.webSearchResults || [];

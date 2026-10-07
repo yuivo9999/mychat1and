@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { 
   ArrowUp, 
+  ArrowDown,
   Square, 
   Paperclip, 
   Image as ImageIcon, 
@@ -110,6 +111,8 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   onClearPendingAttachments,
   pendingPrompt,
   onClearPendingPrompt,
+  showScrollBottom,
+  onScrollToLatest,
 }) => {
   const [content, setContent] = useState('');
   const [attachments, setAttachments] = useState<Attachment[]>([]);

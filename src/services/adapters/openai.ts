@@ -218,7 +218,12 @@ export class OpenAIAdapter implements BaseAdapter {
     }
 
     let fetchUrl = endpoint;
-    let fetchOptions: RequestInit = {
+    let fetchOptions: {
+      method?: string;
+      headers?: Record<string, string>;
+      body?: string;
+      signal?: AbortSignal;
+    } = {
       method: 'POST',
       headers,
       body: JSON.stringify(bodyPayload),
