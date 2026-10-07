@@ -750,6 +750,7 @@ export async function executeWorkspaceTool(
             size: newContent.length,
             updatedAt: Date.now(),
           };
+          await writeWorkspaceFile(ws.id, filePath, newContent);
           return {
             result: { success: true, path: filePath },
             updatedWorkspace: ws,
@@ -814,7 +815,7 @@ export async function executeWorkspaceTool(
       await writeWorkspaceFile(ws.id, filePath, newContent);
 
       return {
-        result: { success: true, path: filePath, size: newContent.length },
+        result: { success: true, path: filePath, size: newContent.length, created: !existing },
         updatedWorkspace: ws,
         diff: { path: filePath, oldContent, newContent },
         stepIcon: 'code',
