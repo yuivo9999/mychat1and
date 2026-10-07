@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
+    <meta name="color-scheme" content="light dark" />
+    <title>OmniChat Local AI - 本地化优先多模型聊天客户端</title>
+    <meta name="description" content="本地化优先的高级多模型 AI 聊天客户端，支持多分组、多Key、多模态附件与完全本地存储。" />
+    <meta property="og:title" content="OmniChat Local AI - 本地化优先多模型聊天客户端" />
+    <meta property="og:description" content="本地化优先的高级多模型 AI 聊天客户端，支持多分组、多Key、多模态附件与完全本地存储。" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <script>
+      // Ensure trailing slash on GitHub Pages repository root for correct relative asset loading
+      if (window.location.hostname.endsWith('github.io') && !window.location.pathname.endsWith('/') && !window.location.pathname.includes('.')) {
+        window.location.replace(window.location.pathname + '/' + window.location.search + window.location.hash);
+      }
+      (function() {
+        try {
+          var settings = JSON.parse(localStorage.getItem('omnichat_settings_cache') || '{}');
+          var theme = settings.theme || 'system';
+          var root = document.documentElement;
+          root.classList.remove('dark', 'theme-classic1', 'theme-classic2', 'theme-modern1', 'theme-sangtian-shanhe');
+          if (theme === 'classic1' || theme === 'classic2' || theme === 'modern1' || theme === 'sangtian-shanhe') {
+            root.classList.add('theme-' + theme);
+            root.style.colorScheme = 'light';
+          } else if (theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            root.classList.add('dark');
+            root.style.colorScheme = 'dark';
+          } else {
+            root.style.colorScheme = 'light';
+          }
+        } catch (e) {}
+      })();
+    </script>
+    <script type="module" crossorigin src="./assets/index-BlmzTzOH.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-4n84usfe.css">
+  </head>
+  <body class="bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 antialiased font-sans selection:bg-indigo-500/20">
+    <div id="root"></div>
+  </body>
+</html>
+
